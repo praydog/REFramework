@@ -52,7 +52,7 @@ RETypeDefinition::MethodIterator::REMethodIterator RETypeDefinition::MethodItera
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t num_methods;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(m_parent, impl_index)];
+        const auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(m_parent, impl_index));
         num_methods = TIMPL_DISPATCH(uint32_t, impl, num_member_methods);
     } else {
         num_methods = TDEF_FIELD_PRE_IMPL(m_parent, num_member_method);
@@ -72,7 +72,7 @@ size_t RETypeDefinition::MethodIterator::size() const {
 
 #ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(m_parent, impl_index)];
+        const auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(m_parent, impl_index));
         return static_cast<size_t>(TIMPL_DISPATCH(uint32_t, impl, num_member_methods));
     } else {
         return static_cast<size_t>(TDEF_FIELD_PRE_IMPL(m_parent, num_member_method));
@@ -117,7 +117,7 @@ size_t sdk::RETypeDefinition::FieldIterator::size() const {
         uint32_t num_fields;
         if (sdk::GameIdentity::get().tdb_ver() >= 69) {
             auto tdb = sdk::RETypeDB::get();
-            const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(m_parent, impl_index)];
+            const auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(m_parent, impl_index));
             num_fields = TIMPL_DISPATCH(uint32_t, impl, num_member_fields);
         } else {
             num_fields = TDEF_FIELD_PRE_IMPL(m_parent, num_member_field);
@@ -152,7 +152,7 @@ const char* RETypeDefinition::get_namespace() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_index;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(this, impl_index)];
+        auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(this, impl_index));
         name_index = TIMPL_FIELD(impl, namespace_offset);
     } else {
         name_index = TDEF_FIELD_PRE_IMPL(this, namespace_offset);
@@ -173,7 +173,7 @@ const char* RETypeDefinition::get_name() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_index;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(this, impl_index)];
+        auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(this, impl_index));
         name_index = TIMPL_FIELD(impl, name_offset);
     } else {
         name_index = TDEF_FIELD_PRE_IMPL(this, name_offset);
@@ -1037,7 +1037,7 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
         if (impl_id == 0) {
             return 0;
         }
-        return (*tdb->get_typesImpl_ptr())[impl_id].field_size;
+        return tdb->get_type_impl_at(impl_id).field_size;
     } else {
         return TDEF_FIELD_PRE_IMPL(this, element_size);
     }

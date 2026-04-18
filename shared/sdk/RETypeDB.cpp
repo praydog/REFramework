@@ -280,7 +280,7 @@ sdk::RETypeDefinition* REField::get_type() const {
     } else if (sdk::tdb_dispatch::needs_18bit()) {
         // TDB 69-70: field_typeid is on the impl, via 18-bit impl_id.
         auto* impl = reinterpret_cast<const sdk::tdb69::REFieldImpl*>(
-            &(*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)]);
+            &tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)));
         field_typeid = (uint32_t)impl->field_typeid;
     } else {
         // TDB 71+: direct on compiled-in struct.
@@ -308,7 +308,7 @@ const char* REField::get_name() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_offset;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        auto& impl = (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)];
+        auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
         name_offset = impl.name_offset & tdb->get_string_pool_bitmask();
     } else {
         name_offset = reinterpret_cast<const sdk::tdb67::REField*>(this)->name_offset;
@@ -328,7 +328,7 @@ uint32_t REField::get_flags() const {
 
 #ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        auto& impl = (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)];
+        auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
         return impl.flags;
     } else {
         return reinterpret_cast<const sdk::tdb67::REField*>(this)->flags;
@@ -352,10 +352,10 @@ uint32_t REField::get_init_data_index() const {
     } else if (sdk::tdb_dispatch::needs_18bit()) {
         // tdb69: different init_data split and field layout
         auto* impl = reinterpret_cast<const sdk::tdb69::REFieldImpl*>(
-            &(*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)]);
+            &tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)));
         init_data_index = impl->init_data_lo | (impl->init_data_hi << 14);
     } else {
-        auto& impl = (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)];
+        auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
         init_data_index = impl.init_data_lo | (impl.init_data_mid << 6) | (TFIELD_FIELD_71(this, init_data_hi) << 10);
     }
 #elif TDB_VER >= 71
@@ -379,7 +379,7 @@ void* REField::get_init_data() const {
     const auto init_data_index = get_init_data_index();
 
 #if TDB_VER > 49
-    const auto init_data_offset = (*tdb->get_initData_ptr())[init_data_index];
+    const auto init_data_offset = tdb->get_init_data_at(init_data_index);
 #else
     const auto init_data_offset = this->init_data_offset;
 #endif
@@ -405,7 +405,7 @@ uint32_t REField::get_offset_from_fieldptr() const {
             reinterpret_cast<const sdk::tdb_bits18::REField69*>(this)->offset);
     } else {
         const auto tdb = sdk::RETypeDB::get();
-        return (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)].offset;
+        return tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)).offset;
     }
 #elif TDB_VER >= 71
     const auto tdb = sdk::RETypeDB::get();
@@ -535,7 +535,7 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
         auto param_ids = tdb->get_data<sdk::ParamList>(params_index);
         
         const auto return_param_id = param_ids->returnType;
-        const auto& p = (*tdb->get_params_ptr())[return_param_id];
+        const auto& p = tdb->get_param_at(return_param_id);
 
         if (TPARAM_FIELD(&p, type_id) == 0) {
             return nullptr;
@@ -579,7 +579,7 @@ const char* REMethodDefinition::get_name() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_offset;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
+        auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
         name_offset = impl.name_offset & tdb->get_string_pool_bitmask();
     } else {
         name_offset = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->name_offset;
@@ -1198,7 +1198,7 @@ int32_t REMethodDefinition::get_virtual_index() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
-        auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
+        auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
         return impl.vtable_index;
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->vtable_index;
@@ -1216,7 +1216,7 @@ uint16_t REMethodDefinition::get_flags() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
-        auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
+        auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
         return impl.flags;
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->flags;
@@ -1234,7 +1234,7 @@ uint16_t REMethodDefinition::get_impl_flags() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
-        auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
+        auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
         return impl.impl_flags;
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->impl_flags;
@@ -1307,7 +1307,7 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
                 break;
             }
 
-            auto& p = (*tdb->get_params_ptr())[param_index];
+            auto& p = tdb->get_param_at(param_index);
 
             out.push_back(TPARAM_FIELD(&p, type_id));
         }
@@ -1406,7 +1406,7 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
                 break;
             }
 
-            auto& p = (*tdb->get_params_ptr())[param_index];
+            auto& p = tdb->get_param_at(param_index);
 
             out.push_back(tdb->get_string(p.name_offset));
         }

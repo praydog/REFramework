@@ -2151,6 +2151,51 @@ struct RETypeDB : public sdk::RETypeDB_ {
         if (ver >= 69) return sizeof(sdk::RETypeDefVersion69);  // 0x50 (18-bit layout)
         return sizeof(sdk::RETypeDefVersion67);                 // 0x78 (pre-impl, all fields on typedef)
     }
+
+    // ---- Impl/Param stride-aware accessors ----
+    // These Impl types have stable sizes today but MUST use stride-aware access
+    // so a future TDB version that changes the layout is a one-line fix here,
+    // not a hunt through 50+ call sites.
+
+    // RETypeImpl: 0x30 across all versions.
+    static constexpr size_t get_type_impl_stride() { return sizeof(sdk::tdb84::RETypeImpl); }
+    auto& get_type_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::RETypeImpl*>(
+            reinterpret_cast<uintptr_t>(*get_typesImpl_ptr()) + static_cast<size_t>(index) * get_type_impl_stride());
+    }
+
+    // REFieldImpl: ~12 bytes across all versions.
+    static constexpr size_t get_field_impl_stride() { return sizeof(sdk::tdb84::REFieldImpl); }
+    auto& get_field_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REFieldImpl*>(
+            reinterpret_cast<uintptr_t>(*get_fieldsImpl_ptr()) + static_cast<size_t>(index) * get_field_impl_stride());
+    }
+
+    // REMethodImpl: ~12 bytes across all versions.
+    static constexpr size_t get_method_impl_stride() { return sizeof(sdk::tdb84::REMethodImpl); }
+    auto& get_method_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REMethodImpl*>(
+            reinterpret_cast<uintptr_t>(*get_methodsImpl_ptr()) + static_cast<size_t>(index) * get_method_impl_stride());
+    }
+
+    // REPropertyImpl: ~8 bytes across all versions.
+    static constexpr size_t get_property_impl_stride() { return sizeof(sdk::tdb84::REPropertyImpl); }
+    auto& get_property_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REPropertyImpl*>(
+            reinterpret_cast<uintptr_t>(*get_propertiesImpl_ptr()) + static_cast<size_t>(index) * get_property_impl_stride());
+    }
+
+    // REParameterDef: ~12 bytes across all versions.
+    static constexpr size_t get_param_stride() { return sizeof(sdk::tdb84::REParameterDef); }
+    auto& get_param_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REParameterDef*>(
+            reinterpret_cast<uintptr_t>(*get_params_ptr()) + static_cast<size_t>(index) * get_param_stride());
+    }
+
+    // initData: int32_t array — stable at 4 bytes. Accessor for consistency.
+    int32_t get_init_data_at(uint32_t index) const {
+        return (*get_initData_ptr())[index]; // int32_t stride is always 4
+    }
 #endif
 };
 } // namespace sdk
