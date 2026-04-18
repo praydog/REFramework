@@ -141,6 +141,7 @@ ACCESSOR_IMPL_FILES = {
     "shared/sdk/Renderer.cpp",              # accessor implementations
     "shared/sdk/ViaDispatch.hpp",           # ViaDispatch implementations
     "shared/sdk/CameraSystemDispatch.hpp",
+    "shared/sdk/REVariableDescriptor.hpp",  # accessor impl for VariableDescriptor::flags
 }
 
 # Also whitelist: ReClass_Internal headers themselves (struct definitions)

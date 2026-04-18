@@ -125,6 +125,7 @@ static_assert(sizeof(CameraTypePtr) == 0x8);
 class REType
 {
 public:
+	const char* get_type_name() const { return name; }
 	void *N000003B4; //0x0000
 	uint32_t classIndex; //0x0008
 	int16_t flags; //0x000C < 0 == NoneType, 1 == abstract, 2 == concrete, 256 == interface, 16384 == root
@@ -164,6 +165,7 @@ static_assert(sizeof(REObject) == 0x8);
 class REManagedObject : public REObject
 {
 public:
+	uint32_t get_ref_count() const { return referenceCount; }
 	uint32_t referenceCount; //0x0008
 	int16_t N000071AE; //0x000C
 	char pad_000E[2]; //0x000E
@@ -248,6 +250,12 @@ static_assert(sizeof(REGameObject) == 0x48);
 class REFieldList
 {
 public:
+	REFieldList* get_next() const { return next; }
+	auto get_methods() const { return methods; }
+	int32_t get_num() const { return num; }
+	int32_t get_maxItems() const { return maxItems; }
+	class REVariableList* get_variables() const { return variables; }
+	void* get_deserializer() const { return deserializer; }
 	uint32_t unknown; //0x0000
 	char pad_0004[4]; //0x0004
 	class REFieldList *next; //0x0008
@@ -285,6 +293,8 @@ static_assert(sizeof(FunctionHolder) == 0x20);
 class FunctionDescriptor
 {
 public:
+	const char* get_name() const { return name; }
+	void* get_functionPtr() const { return functionPtr; }
 	char *name; //0x0000
 	class MethodParamInfo (*params)[256]; //0x0008
 	char pad_0010[4]; //0x0010
@@ -1118,6 +1128,13 @@ static_assert(sizeof(N0000ADA4) == 0x800);
 class VariableDescriptor
 {
 public:
+	const char* get_name() const { return name; }
+	void* get_function() const { return function; }
+	int32_t get_flags() const { return flags; }
+	uint32_t get_typeFqn() const { return typeFqn; }
+	const char* get_typeName() const { return typeName; }
+	uint32_t get_variableType() const { return variableType; }
+	class StaticVariableDescriptor* get_staticVariableData() const { return staticVariableData; }
 	char *name; //0x0000
 	uint32_t nameHash; //0x0008
 	uint16_t flags1; //0x000C

@@ -443,7 +443,7 @@ REFrameworkManagedObject g_managed_object_data {
     [](REFrameworkManagedObjectHandle obj) { utility::re_managed_object::release(REMANAGEDOBJECT(obj)); },
     [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeDefinitionHandle)utility::re_managed_object::get_type_definition(REMANAGEDOBJECT(obj)); },
     [](void* potential_obj) { return utility::re_managed_object::is_managed_object(potential_obj); },
-    [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->referenceCount; }, // offset 0x08 — stable across all supported TDB versions
+    [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->get_ref_count(); },
     [](REFrameworkManagedObjectHandle obj) { return utility::re_managed_object::get_size(REMANAGEDOBJECT(obj)); },
     [](REFrameworkManagedObjectHandle obj) { return (unsigned int)utility::re_managed_object::get_vm_type(REMANAGEDOBJECT(obj)); },
     [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeInfoHandle)utility::re_managed_object::get_type(REMANAGEDOBJECT(obj)); },
@@ -509,7 +509,7 @@ REFrameworkResource g_resource_data {
 #define RETYPEINFO(var) ((::REType*)var)
 
 REFrameworkTypeInfo g_type_info_data {
-    [](REFrameworkTypeInfoHandle ti) -> const char* { return RETYPEINFO(ti)->name; }, // offset 0x20 — stable across all supported TDB versions
+    [](REFrameworkTypeInfoHandle ti) -> const char* { return RETYPEINFO(ti)->get_type_name(); },
     [](REFrameworkTypeInfoHandle ti) { return (REFrameworkTypeDefinitionHandle)utility::re_type::get_type_definition(RETYPEINFO(ti)); },
     [](REFrameworkTypeInfoHandle ti) { return utility::re_type::is_clr_type(RETYPEINFO(ti)); },
     [](REFrameworkTypeInfoHandle ti) { return utility::re_type::is_singleton(RETYPEINFO(ti)); },
@@ -523,7 +523,7 @@ REFrameworkTypeInfo g_type_info_data {
             return nullptr;
         }
 
-        return get_fields(RETYPEINFO(ti))->deserializer; // offset 0x28 — stable across all supported TDB versions (RE7 TDB49 has 0x30 but out of scope)
+        return get_fields(RETYPEINFO(ti))->get_deserializer();
     },
     [](REFrameworkTypeInfoHandle ti) -> REFrameworkTypeInfoHandle {
         return (REFrameworkTypeInfoHandle)get_super(RETYPEINFO(ti));
@@ -547,7 +547,7 @@ REFrameworkVMContext g_vm_context_data {
 
 REFrameworkReflectionMethod g_reflection_method_data {
     [](REFrameworkReflectionMethodHandle method) -> REFrameworkInvokeMethod {
-        return (REFrameworkInvokeMethod)REFLMETHOD(method)->functionPtr; // offset 0x18 — stable across all supported TDB versions
+        return (REFrameworkInvokeMethod)REFLMETHOD(method)->get_functionPtr();
     }
 };
 
@@ -555,7 +555,7 @@ REFrameworkReflectionMethod g_reflection_method_data {
 
 REFrameworkReflectionProperty g_reflection_prop_data {
     [](REFrameworkReflectionPropertyHandle prop) -> REFrameworkReflectionPropertyMethod {
-        return (REFrameworkReflectionPropertyMethod)REFLPROP(prop)->function; // offset 0x10 — stable across all supported TDB versions
+        return (REFrameworkReflectionPropertyMethod)REFLPROP(prop)->get_function();
     },
     [](REFrameworkReflectionPropertyHandle prop) { 
         return utility::reflection_property::is_static(REFLPROP(prop));

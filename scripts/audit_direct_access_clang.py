@@ -90,6 +90,7 @@ WHITELIST_SUFFIXES = {
     "Renderer.cpp",
     "ViaDispatch.hpp",
     "CameraSystemDispatch.hpp",
+    "REVariableDescriptor.hpp",  # accessor impl for VariableDescriptor::flags
 }
 
 DEFAULT_TARGETS = [
@@ -236,6 +237,15 @@ def scan_file(filepath, flags):
     # Count errors for reporting, but don't bail — partial ASTs are still useful.
     error_count = sum(1 for d in tu.diagnostics if d.severity >= ci.Diagnostic.Error)
 
+    # Cache source lines for static_assert filtering
+    source_lines = {}
+    try:
+        with open(abs_path, 'r', encoding='utf-8', errors='replace') as sf:
+            for i, line in enumerate(sf, 1):
+                source_lines[i] = line
+    except OSError:
+        pass
+
     violations = []
 
     def visit(cursor):
@@ -251,13 +261,16 @@ def scan_file(filepath, flags):
                     if base_type_name in GUARDED_TYPES and field_name in GUARDED_TYPES[base_type_name]:
                         loc = cursor.location
                         if loc.file and not is_whitelisted(loc.file.name):
-                            violations.append({
-                                "file": os.path.relpath(loc.file.name, REPO_ROOT).replace("\\", "/"),
-                                "line": loc.line,
-                                "col": loc.column,
-                                "type": base_type_name,
-                                "field": field_name,
-                            })
+                            # Skip static_assert lines (compile-time offset guards)
+                            src_line = source_lines.get(loc.line, '')
+                            if 'static_assert' not in src_line:
+                                violations.append({
+                                    "file": os.path.relpath(loc.file.name, REPO_ROOT).replace("\\", "/"),
+                                    "line": loc.line,
+                                    "col": loc.column,
+                                    "type": base_type_name,
+                                    "field": field_name,
+                                })
 
         for child in cursor.get_children():
             visit(child)
