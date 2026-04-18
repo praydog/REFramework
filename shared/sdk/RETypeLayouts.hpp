@@ -62,59 +62,72 @@ inline bool retype_has_field_reorder() {
 // Fields at offsets 0x00-0x0020 (through `name`) are identical in all layouts.
 // Scalar fields (size, typeCRC) swap positions in tdb >= 81.
 // Pointer fields (super, childType, chainType, fields, classInfo) shift +8 only in MHWILDS/RE9.
-namespace utility::re_type_accessor {
+// Member method implementations for REType dispatching accessors.
+// These are declared in ReClass_Internal_RE8.hpp and defined here
+// because they need GameIdentity.hpp which isn't available in the
+// ReClass header.
 
-inline uint32_t get_size(const ::REType* t) {
+inline uint32_t REType::get_size() const {
     if (retype_has_field_reorder()) {
-        return reinterpret_cast<const reclass_mhwilds::REType*>(t)->size;
+        return reinterpret_cast<const reclass_mhwilds::REType*>(this)->size;
     }
-    return t->size;
+    return size;
 }
 
-inline uint32_t get_typeCRC(const ::REType* t) {
+inline uint32_t REType::get_typeCRC() const {
     if (retype_has_field_reorder()) {
-        return reinterpret_cast<const reclass_mhwilds::REType*>(t)->typeCRC;
+        return reinterpret_cast<const reclass_mhwilds::REType*>(this)->typeCRC;
     }
-    return t->typeCRC;
+    return typeCRC;
 }
 
-inline ::REType* get_super(const ::REType* t) {
+inline ::REType* REType::get_super() const {
     if (retype_has_shifted_pointers()) {
-        return reinterpret_cast<const reclass_mhwilds::REType*>(t)->super;
+        return reinterpret_cast<const reclass_mhwilds::REType*>(this)->super;
     }
-    return t->super;
+    return super;
 }
 
-inline ::REType* get_childType(const ::REType* t) {
+inline ::REType* REType::get_childType() const {
     if (retype_has_shifted_pointers()) {
-        return reinterpret_cast<const reclass_mhwilds::REType*>(t)->childType;
+        return reinterpret_cast<const reclass_mhwilds::REType*>(this)->childType;
     }
-    return t->childType;
+    return childType;
 }
 
-inline ::REType* get_chainType(const ::REType* t) {
+inline ::REType* REType::get_chainType() const {
     if (retype_has_shifted_pointers()) {
-        return reinterpret_cast<const reclass_mhwilds::REType*>(t)->chainType;
+        return reinterpret_cast<const reclass_mhwilds::REType*>(this)->chainType;
     }
-    return t->chainType;
+    return chainType;
 }
 
-inline ::REFieldList* get_fields(const ::REType* t) {
+inline ::REFieldList* REType::get_fields() const {
     if (retype_has_shifted_pointers()) {
         return reinterpret_cast<::REFieldList*>(
-            reinterpret_cast<const reclass_mhwilds::REType*>(t)->fields);
+            reinterpret_cast<const reclass_mhwilds::REType*>(this)->fields);
     }
-    return t->fields;
+    return fields;
 }
 
-inline ::REClassInfo* get_classInfo(const ::REType* t) {
+inline ::REClassInfo* REType::get_classInfo() const {
     if (retype_has_shifted_pointers()) {
         return reinterpret_cast<::REClassInfo*>(
-            reinterpret_cast<const reclass_mhwilds::REType*>(t)->classInfo);
+            reinterpret_cast<const reclass_mhwilds::REType*>(this)->classInfo);
     }
-    return t->classInfo;
+    return classInfo;
 }
 
+// Backward-compatible free-function aliases in the old namespace.
+// New code should use the member methods directly (t->get_size() etc.).
+namespace utility::re_type_accessor {
+inline uint32_t get_size(const ::REType* t) { return t->get_size(); }
+inline uint32_t get_typeCRC(const ::REType* t) { return t->get_typeCRC(); }
+inline ::REType* get_super(const ::REType* t) { return t->get_super(); }
+inline ::REType* get_childType(const ::REType* t) { return t->get_childType(); }
+inline ::REType* get_chainType(const ::REType* t) { return t->get_chainType(); }
+inline ::REFieldList* get_fields(const ::REType* t) { return t->get_fields(); }
+inline ::REClassInfo* get_classInfo(const ::REType* t) { return t->get_classInfo(); }
 } // namespace utility::re_type_accessor
 
 #else

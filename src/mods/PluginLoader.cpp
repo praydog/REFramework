@@ -157,7 +157,7 @@ REFrameworkSDKFunctions g_sdk_functions {
             out[out_written].instance = instance;
             out[out_written].t = (REFrameworkTypeDefinitionHandle)utility::re_type::get_type_definition(t);
             out[out_written].type_info = (REFrameworkTypeInfoHandle)t;
-            out[out_written].name = t->name;
+            out[out_written].name = t->get_type_name();
 
             ++out_written;
         }

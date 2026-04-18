@@ -2226,7 +2226,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         auto& entry = il2cpp_dump[t->get_type_name()];
 
         if (!entry.contains("fqn")) {
-            entry["fqn"] = (std::stringstream{} << std::hex << t->classIndex).str();
+            entry["fqn"] = (std::stringstream{} << std::hex << t->get_classIndex()).str();
         }
         
         if (!entry.contains("crc")) {
@@ -2464,7 +2464,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                             auto type_func = (REType* (*)())attr->info->getType;
 
                             prop_entry["attributes"].emplace_back(
-                                json{ {"name", type_func()->name } }
+                                json{ {"name", type_func()->get_type_name() } }
                             );
                         }
                     }

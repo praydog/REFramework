@@ -52,11 +52,11 @@ uint32_t utility::re_type::get_value_type_size(::REType* t) {
 }
 
 bool utility::re_type::is_clr_type(::REType* t) {
-    return (t->flags & (int16_t)via::dti::decl::Script) != 0;
+    return (t->get_flags() & (int16_t)via::dti::decl::Script) != 0;
 }
 
 bool utility::re_type::is_singleton(::REType* t) {
-    return (t->flags & (uint16_t)via::dti::decl::Singleton) != 0;
+    return (t->get_flags() & (uint16_t)via::dti::decl::Singleton) != 0;
 }
 
 void* utility::re_type::get_singleton_instance(::REType* t) {
@@ -93,7 +93,7 @@ VariableDescriptor* utility::re_type::get_field_desc(::REType* t, std::string_vi
         return nullptr;
     }
 
-    auto full_name = std::string{t->name} + "." + field.data();
+    auto full_name = std::string{t->get_type_name()} + "." + field.data();
 
     {
         std::shared_lock _{ insertion_mutex };
@@ -150,7 +150,7 @@ FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_v
         return nullptr;
     }
 
-    auto full_name = std::string{t->name} + "." + name.data();
+    auto full_name = std::string{t->get_type_name()} + "." + name.data();
 
     {
         std::shared_lock _{ method_insertion_mutex };

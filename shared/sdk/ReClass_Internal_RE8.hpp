@@ -126,6 +126,20 @@ class REType
 {
 public:
 	const char* get_type_name() const { return name; }
+	int16_t get_flags() const { return flags; }
+	uint32_t get_classIndex() const { return classIndex; }
+
+	// Dispatching accessors — fields that differ per game layout.
+	// Implementations in RETypeLayouts.hpp (inline, need GameIdentity).
+	uint32_t get_size() const;
+	uint32_t get_typeCRC() const;
+	REType* get_super() const;
+	REType* get_childType() const;
+	REType* get_chainType() const;
+	class REFieldList* get_fields() const;
+	class REClassInfo* get_classInfo() const;
+
+private:
 	void *N000003B4; //0x0000
 	uint32_t classIndex; //0x0008
 	int16_t flags; //0x000C < 0 == NoneType, 1 == abstract, 2 == concrete, 256 == interface, 16384 == root
