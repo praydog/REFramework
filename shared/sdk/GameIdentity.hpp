@@ -23,6 +23,10 @@ enum class GameID : uint8_t {
     MHSTORIES3,
 
     DRDR,        // Dead Rising Deluxe Remaster
+    GGR,         // Ghosts 'n Goblins Resurrection (Makaimura)
+    GS456,       // Apollo Justice: Ace Attorney Trilogy
+    KUNITSU,     // Kunitsu-Gami: Path of the Goddess
+    ONIMUSHA2,   // Onimusha 2: Samurai's Destiny
     STARFORCE,   // Mega Man Star Force Legacy Collection
     PRAGMATA,
     Count

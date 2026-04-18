@@ -81,6 +81,18 @@ static constexpr ExeMapping s_exe_table[] = {
     // Dead Rising Deluxe Remaster
     {"drdr",                     GameID::DRDR},
 
+    // Ghosts 'n Goblins Resurrection
+    {"makaimura_gg_re",            GameID::GGR},
+    {"makaimura",                  GameID::GGR},
+
+    // Apollo Justice: Ace Attorney Trilogy
+    {"gs456",                      GameID::GS456},
+
+    // Kunitsu-Gami: Path of the Goddess
+    {"kunitsugami",                GameID::KUNITSU},
+
+    // Onimusha 2: Samurai's Destiny
+    {"onimusha2",                  GameID::ONIMUSHA2},
     // Monster Hunter Wilds
     {"monsterhunterwilds",      GameID::MHWILDS},
     {"mhwilds",                 GameID::MHWILDS},
@@ -248,6 +260,46 @@ void GameIdentity::derive_engine_params() {
         m_reengine_at      = true;
         m_game_name        = "drdr";
         m_target_name      = "DRDR";
+        break;
+
+    case GameID::GGR:
+        m_tdb_ver          = 69;    // Same engine generation as RE8
+        m_type_index_bits  = 18;
+        m_field_bits       = 18;
+        m_reengine_packed  = true;
+        m_reengine_at      = true;
+        m_game_name        = "ggr";
+        m_target_name      = "GGR";
+        break;
+
+    case GameID::GS456:
+        m_tdb_ver          = 73;    // Same engine generation as DD2
+        m_type_index_bits  = 19;
+        m_field_bits       = 19;
+        m_reengine_packed  = true;
+        m_reengine_at      = true;
+        m_game_name        = "gs456";
+        m_target_name      = "GS456";
+        break;
+
+    case GameID::KUNITSU:
+        m_tdb_ver          = 73;    // Same engine generation as DD2
+        m_type_index_bits  = 19;
+        m_field_bits       = 19;
+        m_reengine_packed  = true;
+        m_reengine_at      = true;
+        m_game_name        = "kunitsu";
+        m_target_name      = "KUNITSU";
+        break;
+
+    case GameID::ONIMUSHA2:
+        m_tdb_ver          = 74;    // Pre-TDB81 MHWILDS engine generation
+        m_type_index_bits  = 19;
+        m_field_bits       = 19;
+        m_reengine_packed  = true;
+        m_reengine_at      = true;
+        m_game_name        = "onimusha2";
+        m_target_name      = "ONIMUSHA2";
         break;
 
     case GameID::MHWILDS:

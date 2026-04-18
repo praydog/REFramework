@@ -98,9 +98,13 @@ namespace SV {
     case sdk::GameID::RE3:                                      \
     case sdk::GameID::DMC5:    return ((W::re3*)(w))->field;    \
     case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->field; \
+    case sdk::GameID::GGR:                                           \
     case sdk::GameID::RE8:     return ((W::re8*)(w))->field;    \
     case sdk::GameID::RE4:     return ((W::re4*)(w))->field;    \
     case sdk::GameID::SF6:     return ((W::sf6*)(w))->field;    \
+    case sdk::GameID::GS456:                                         \
+    case sdk::GameID::KUNITSU:                                       \
+    case sdk::GameID::ONIMUSHA2:                                     \
     case sdk::GameID::DRDR:                                          \
     case sdk::GameID::DD2:                                          \
     case sdk::GameID::MHSTORIES3: return ((W::dd2*)(w))->field;    \
@@ -119,9 +123,13 @@ inline uint32_t& window_height(void* w) { VIA_WIN_FIELD(w, height); }
     case sdk::GameID::RE3:                                                     \
     case sdk::GameID::DMC5:    return ((W::re3*)(w))->borderless_size.sub;     \
     case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->borderless_size.sub;  \
+    case sdk::GameID::GGR:                                           \
     case sdk::GameID::RE8:     return ((W::re8*)(w))->borderless_size.sub;     \
     case sdk::GameID::RE4:     return ((W::re4*)(w))->borderless_size.sub;     \
     case sdk::GameID::SF6:     return ((W::sf6*)(w))->borderless_size.sub;     \
+    case sdk::GameID::GS456:                                         \
+    case sdk::GameID::KUNITSU:                                       \
+    case sdk::GameID::ONIMUSHA2:                                     \
     case sdk::GameID::DRDR:                                          \
     case sdk::GameID::DD2:                                                     \
     case sdk::GameID::MHSTORIES3: return ((W::dd2*)(w))->borderless_size.sub;     \
@@ -144,9 +152,13 @@ inline void* sv_window(void* sv) {
     case sdk::GameID::RE3:
     case sdk::GameID::DMC5:    return ((SV::re3*)sv)->window;
     case sdk::GameID::MHRISE:  return ((SV::mhrise*)sv)->window;
+    case sdk::GameID::GGR:
     case sdk::GameID::RE8:     return ((SV::re8*)sv)->window;
     case sdk::GameID::RE4:     return ((SV::re4*)sv)->window;
     case sdk::GameID::SF6:     return ((SV::sf6*)sv)->window;
+    case sdk::GameID::GS456:
+    case sdk::GameID::KUNITSU:
+    case sdk::GameID::ONIMUSHA2:
     case sdk::GameID::DRDR:
     case sdk::GameID::DD2:
     case sdk::GameID::MHSTORIES3: return ((SV::dd2*)sv)->window;
@@ -163,9 +175,13 @@ inline void* sv_window(void* sv) {
     case sdk::GameID::RE3:                                           \
     case sdk::GameID::DMC5:    return ((SV::re3*)(sv))->size.sub;    \
     case sdk::GameID::MHRISE:  return ((SV::mhrise*)(sv))->size.sub; \
+    case sdk::GameID::GGR:                                           \
     case sdk::GameID::RE8:     return ((SV::re8*)(sv))->size.sub;    \
     case sdk::GameID::RE4:     return ((SV::re4*)(sv))->size.sub;    \
     case sdk::GameID::SF6:     return ((SV::sf6*)(sv))->size.sub;    \
+    case sdk::GameID::GS456:                                         \
+    case sdk::GameID::KUNITSU:                                       \
+    case sdk::GameID::ONIMUSHA2:                                     \
     case sdk::GameID::DRDR:                                          \
     case sdk::GameID::DD2:     return ((SV::dd2*)(sv))->size.sub;    \
     default:                   return ((SV::re9*)(sv))->size.sub;    \
@@ -185,9 +201,13 @@ inline int32_t& sv_display_type(void* sv) {
     case sdk::GameID::RE3:
     case sdk::GameID::DMC5:    return *(int32_t*)&((SV::re3*)sv)->display_type;
     case sdk::GameID::MHRISE:  return *(int32_t*)&((SV::mhrise*)sv)->display_type;
+    case sdk::GameID::GGR:
     case sdk::GameID::RE8:     return *(int32_t*)&((SV::re8*)sv)->display_type;
     case sdk::GameID::RE4:     return *(int32_t*)&((SV::re4*)sv)->display_type;
     case sdk::GameID::SF6:     return *(int32_t*)&((SV::sf6*)sv)->display_type;
+    case sdk::GameID::GS456:
+    case sdk::GameID::KUNITSU:
+    case sdk::GameID::ONIMUSHA2:
     case sdk::GameID::DRDR:
     case sdk::GameID::DD2:     return *(int32_t*)&((SV::dd2*)sv)->display_type;
     default:                   return *(int32_t*)&((SV::re9*)sv)->display_type;
