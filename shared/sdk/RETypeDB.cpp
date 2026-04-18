@@ -192,17 +192,14 @@ sdk::REMethodDefinition* RETypeDB::get_method(uint32_t index) const {
     }
 
 #ifdef REFRAMEWORK_UNIVERSAL
-    // TDB 67 (DMC5) REMethodDefinition is 0x20; tdb69 is 0x10; tdb71+ is 0x0C.
-    // Must use byte-offset arithmetic with correct stride.
     {
         const auto stride = get_method_stride();
-        if (stride != sizeof(sdk::REMethodDefinition)) {
-            return reinterpret_cast<sdk::REMethodDefinition*>(
-                reinterpret_cast<uintptr_t>(get_methods_ptr()) + static_cast<size_t>(index) * stride);
-        }
+        return reinterpret_cast<sdk::REMethodDefinition*>(
+            reinterpret_cast<uintptr_t>(get_methods_ptr()) + static_cast<size_t>(index) * stride);
     }
-#endif
+#else
     return &(*get_methods_ptr())[index];
+#endif
 }
 
 sdk::REField* RETypeDB::get_field(uint32_t index) const {
@@ -211,14 +208,14 @@ sdk::REField* RETypeDB::get_field(uint32_t index) const {
     }
 
 #ifdef REFRAMEWORK_UNIVERSAL
-    // TDB 67 REField is 0x18, tdb69 REField is 0x08. Need stride-based access for pre-impl.
-    if (sdk::tdb_dispatch::needs_pre_impl()) {
-        const auto stride = sizeof(sdk::tdb67::REField);  // 0x18
+    {
+        const size_t stride = get_field_stride();
         return reinterpret_cast<sdk::REField*>(
             reinterpret_cast<uintptr_t>(get_fields_ptr()) + static_cast<size_t>(index) * stride);
     }
-#endif
+#else
     return &(*get_fields_ptr())[index];
+#endif
 }
 
 sdk::REProperty* RETypeDB::get_property(uint32_t index) const {
@@ -227,14 +224,17 @@ sdk::REProperty* RETypeDB::get_property(uint32_t index) const {
     }
 
 #ifdef REFRAMEWORK_UNIVERSAL
-    // TDB 67 REProperty is 0x10, tdb69+ REProperty is 0x08. Need stride-based access for pre-impl.
-    if (sdk::tdb_dispatch::needs_pre_impl()) {
-        const auto stride = sizeof(sdk::tdb67::REProperty);  // 0x10
+    {
+        // REProperty stride: 0x10 on TDB67, 0x08 on TDB69+.
+        const size_t stride = sdk::tdb_dispatch::needs_pre_impl()
+            ? sizeof(sdk::tdb67::REProperty)
+            : sizeof(sdk::tdb84::REProperty);
         return reinterpret_cast<sdk::REProperty*>(
             reinterpret_cast<uintptr_t>(get_properties_ptr()) + static_cast<size_t>(index) * stride);
     }
-#endif
+#else
     return &(*get_properties_ptr())[index];
+#endif
 }
 
 const char* RETypeDB::get_string(uint32_t offset) const {
