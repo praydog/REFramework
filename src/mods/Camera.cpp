@@ -73,7 +73,7 @@ void Camera::on_update_transform(RETransform* transform) {
 
         // Run on player transform.
         if (valid_player) {
-            if (m_player->transform != nullptr && m_player->transform == transform) {
+            if (m_player->get_transform() != nullptr && m_player->get_transform() == transform) {
                 on_player_transform(transform);
             }
         }
@@ -109,7 +109,7 @@ void Camera::on_application_entry(void* entry, const char* name, size_t hash) {
         );
 
         if (valid_camera) {
-            if (const auto owner = m_camera->ownerGameObject; owner != nullptr && owner->transform != nullptr) {
+            if (const auto owner = m_camera->ownerGameObject; owner != nullptr && owner->get_transform() != nullptr) {
                 update_vignetting();
             }
         }

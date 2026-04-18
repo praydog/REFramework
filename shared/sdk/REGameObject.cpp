@@ -2,6 +2,21 @@
 
 #include "REGameObject.hpp"
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+
+RETransform* REGameObject::get_transform() const {
+    static const auto offset = []() -> uintptr_t {
+        const auto& gi = sdk::GameIdentity::get();
+        // SF6 and RE4 have REGameObject::transform at 0x20 (extra padding before transform).
+        // All other games have it at 0x18.
+        if (gi.is_sf6() || gi.is_re4()) return 0x20;
+        return 0x18;
+    }();
+    return *(RETransform**)((uintptr_t)this + offset);
+}
+#endif
+
 namespace utility::re_game_object {
 std::string get_name(REGameObject* obj) {
     if (obj == nullptr) {

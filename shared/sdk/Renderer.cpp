@@ -1203,7 +1203,7 @@ std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
     static auto world_to_screen = math_t->get_method("worldPos2ScreenPos(via.vec3, via.mat4, via.mat4, via.Size)");
 
     auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
-    auto camera_transform = camera_gameobject->transform;
+    auto camera_transform = camera_gameobject->get_transform();
 
     Matrix4x4f proj{}, view{};
     float screen_size[2]{};

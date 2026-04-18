@@ -111,7 +111,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     if (gi.is_re8()) {
         const auto player = m_props_manager->player;
-        if (player != nullptr && player->transform != nullptr && player->transform == transform) {
+        if (player != nullptr && player->get_transform() != nullptr && player->get_transform() == transform) {
             if (m_disable_movement->value() || m_was_disabled) {
                 player->shouldUpdate = !m_disable_movement->value();
                 m_was_disabled = !player->shouldUpdate;
@@ -121,7 +121,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
 
     const auto camera = m_camera;
 
-    if (camera == nullptr || transform != camera->ownerGameObject->transform) {
+    if (camera == nullptr || transform != camera->ownerGameObject->get_transform()) {
         return;
     }
 

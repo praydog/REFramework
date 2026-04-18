@@ -364,7 +364,7 @@ void FirstPerson::on_update_transform(RETransform* transform) {
         // where the player body appears slightly ahead of the camera
         // This should especially help with frametime fluctuations
         if (m_camera_system != nullptr && CAMSYS(m_camera_system, mainCamera) != nullptr && CAMSYS(m_camera_system, mainCamera)->ownerGameObject != nullptr) {
-            update_camera_transform(CAMSYS(m_camera_system, mainCamera)->ownerGameObject->transform);
+            update_camera_transform(CAMSYS(m_camera_system, mainCamera)->ownerGameObject->get_transform());
         }
 
         update_joint_names();
@@ -376,7 +376,7 @@ void FirstPerson::on_update_transform(RETransform* transform) {
         m_matrix_mutex.unlock();
     }
 
-    if (m_disable_vignette->value() && m_post_effect_controller != nullptr && transform == m_post_effect_controller->ownerGameObject->transform) {
+    if (m_disable_vignette->value() && m_post_effect_controller != nullptr && transform == m_post_effect_controller->ownerGameObject->get_transform()) {
         set_vignette(via::render::ToneMapping::Vignetting::Disable);
     }
 
@@ -397,14 +397,14 @@ void FirstPerson::on_update_transform(RETransform* transform) {
     }
 
     // Remove the camera light if specified
-    if (transform == m_sweet_light_manager->ownerGameObject->transform) {
+    if (transform == m_sweet_light_manager->ownerGameObject->get_transform()) {
         // SweetLight
         update_sweet_light_context(utility::ropeway_sweetlight_manager::get_context(m_sweet_light_manager, 0));
         // EnvironmentSweetLight
         update_sweet_light_context(utility::ropeway_sweetlight_manager::get_context(m_sweet_light_manager, 1));
     }
 
-    if (transform == CAMSYS(m_camera_system, mainCamera)->ownerGameObject->transform) {
+    if (transform == CAMSYS(m_camera_system, mainCamera)->ownerGameObject->get_transform()) {
         update_camera_transform(transform);
         update_fov(CAMSYS(m_camera_system, cameraController));
     }
@@ -427,14 +427,14 @@ void FirstPerson::on_update_camera_controller(RopewayPlayerCameraController* con
     //m_last_controller_pos = controller->worldPosition;
     m_last_controller_rotation = *(glm::quat*)&controller->worldRotation;
 
-    update_camera_transform(m_camera->ownerGameObject->transform);
+    update_camera_transform(m_camera->ownerGameObject->get_transform());
 
     if (!will_be_used() && !m_last_pause_state) {
         return;
     }
 
-    //m_camera->ownerGameObject->transform->worldTransform = nudged_mtx;
-    //m_camera->ownerGameObject->transform->angles = *(Vector4f*)&controller->worldRotation;
+    //m_camera->ownerGameObject->get_transform()->worldTransform = nudged_mtx;
+    //m_camera->ownerGameObject->get_transform()->angles = *(Vector4f*)&controller->worldRotation;
 }
 
 void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* controller) {
@@ -581,7 +581,7 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
         return true;
     }
 
-    auto flashlight_transform = flashlight_go->transform;
+    auto flashlight_transform = flashlight_go->get_transform();
     if (flashlight_transform == nullptr) {
         return true;
     }
@@ -609,7 +609,7 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
         return true;
     }
 
-    auto ies_light_transform = ies_light_go->transform;
+    auto ies_light_transform = ies_light_go->get_transform();
     if (ies_light_transform == nullptr) {
         return true;
     }
@@ -1150,7 +1150,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
 
         if (main_weapon != nullptr) {
             auto main_weapon_game_object = sdk::call_object_func<REGameObject*>(main_weapon, "get_GameObject", context, main_weapon);
-            auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->transform : (RETransform*)nullptr;
+            auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->get_transform() : (RETransform*)nullptr;
 
             static auto implement_gun_typedef = sdk::find_type_definition(game_namespace("implement.Gun"));
             static auto implement_melee_typedef = sdk::find_type_definition(game_namespace("implement.Melee"));

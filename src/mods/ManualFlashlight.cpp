@@ -66,7 +66,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
             }
         }
 
-        if (transform != m_illumination_manager->ownerGameObject->transform) {
+        if (transform != m_illumination_manager->ownerGameObject->get_transform()) {
             return;
         }
 
@@ -93,7 +93,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
             return;
         }
 
-        const auto player_transform = player->transform;
+        const auto player_transform = player->get_transform();
         if (player_transform == nullptr || transform != player_transform) {
             return;
         }

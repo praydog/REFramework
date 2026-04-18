@@ -1488,7 +1488,7 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     }
 
     auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
-    auto camera_transform = camera_gameobject->transform;
+    auto camera_transform = camera_gameobject->get_transform();
 
     Vector4f camera_origin{};
     get_position_method->call<void*>(&camera_origin, context, camera_transform);

@@ -208,6 +208,11 @@ static_assert(sizeof(RECamera) == 0x198);
 class REGameObject : public REManagedObject
 {
 public:
+#ifdef REFRAMEWORK_UNIVERSAL
+	class RETransform* get_transform() const;
+#else
+	class RETransform* get_transform() const { return transform; }
+#endif
 	char pad_0010[2]; //0x0010
 	bool shouldUpdate; //0x0012
 	bool shouldDraw; //0x0013

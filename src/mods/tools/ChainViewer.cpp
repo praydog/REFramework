@@ -206,7 +206,7 @@ void ChainViewer::on_frame() {
         return;
     }
 
-    auto camera_transform = camera_gameobject->transform;
+    auto camera_transform = camera_gameobject->get_transform();
 
     if (camera_transform == nullptr) {
         return;
@@ -524,7 +524,7 @@ void ChainViewer::on_frame() {
                     continue;
                 }
 
-                const auto transform = owner->transform;
+                const auto transform = owner->get_transform();
 
                 if (transform == nullptr) {
                     continue;
