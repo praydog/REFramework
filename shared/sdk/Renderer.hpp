@@ -169,9 +169,21 @@ public:
     sdk::intrusive_ptr<RenderTargetView> clone();
     sdk::intrusive_ptr<RenderTargetView> clone(uint32_t new_width, uint32_t new_height);
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    Desc& get_desc() {
+        return *reinterpret_cast<Desc*>((uintptr_t)this + RenderResource::get_runtime_size());
+    }
+    const Desc& get_desc() const {
+        return *reinterpret_cast<const Desc*>((uintptr_t)this + RenderResource::get_runtime_size());
+    }
+#else
     Desc& get_desc() {
         return m_desc;
     }
+    const Desc& get_desc() const {
+        return m_desc;
+    }
+#endif
 
     sdk::intrusive_ptr<Texture>& get_texture_d3d12() const;
     sdk::intrusive_ptr<TargetState>& get_target_state_d3d12() const;

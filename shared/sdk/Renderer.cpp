@@ -1714,8 +1714,8 @@ sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
 
     // The texture and target state members are always at the very start of the RenderTargetViewDX12 structure
     // so we can very easily automate it like this, otherwise we fall back to the hardcoded offset
-    if (rtv_type != nullptr && rtv_type->size > 0 && rtv_type->size < 0x1000) {
-        const auto rtv_size = rtv_type->size;
+    if (rtv_type != nullptr && utility::re_type_accessor::get_size(rtv_type) > 0 && utility::re_type_accessor::get_size(rtv_type) < 0x1000) {
+        const auto rtv_size = utility::re_type_accessor::get_size(rtv_type);
 
 #ifdef REFRAMEWORK_UNIVERSAL
         const auto v = sdk::GameIdentity::get().tdb_ver();
@@ -1765,8 +1765,8 @@ sdk::intrusive_ptr<TargetState>& RenderTargetView::get_target_state_d3d12() cons
     // The via.render.RenderTargetView is not part of the normal TDB... I think.
     static const auto rtv_type = reframework::get_types()->get("via.render.RenderTargetView");
 
-    if (rtv_type != nullptr && rtv_type->size > 0 && rtv_type->size < 0x1000) {
-        const auto rtv_size = rtv_type->size;
+    if (rtv_type != nullptr && utility::re_type_accessor::get_size(rtv_type) > 0 && utility::re_type_accessor::get_size(rtv_type) < 0x1000) {
+        const auto rtv_size = utility::re_type_accessor::get_size(rtv_type);
 
         return *(sdk::intrusive_ptr<TargetState>*)((uintptr_t)this + rtv_size);
     }

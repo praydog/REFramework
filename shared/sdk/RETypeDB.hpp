@@ -2114,6 +2114,13 @@ struct RETypeDB : public sdk::RETypeDB_ {
         return reinterpret_cast<sdk::REMethodDefinition*>(base + static_cast<size_t>(index) * get_method_stride());
     }
 
+    // Runtime stride for field array indexing.
+    size_t get_field_stride() const {
+        if (sdk::tdb_dispatch::needs_pre_impl())
+            return sizeof(sdk::tdb67::REField);  // 0x18 (24 bytes)
+        return sizeof(sdk::tdb84::REField);      // 0x08 (8 bytes, same for tdb69-84)
+    }
+
     // Runtime stride for module array indexing.
     // tdb81+ REModule is 0x40 bytes (no methods/instantiations/member_references).
     // tdb74 and below REModule is 0x58 bytes (has methods/instantiations/member_references).

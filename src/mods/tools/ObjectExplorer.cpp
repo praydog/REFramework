@@ -1278,7 +1278,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             }
         }
 
-        if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", t.type_flags); !type_flags_str.empty()) {
+        if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", TDEF_FIELD(tdef, type_flags)); !type_flags_str.empty()) {
             type_entry["flags"] = type_flags_str;
         }
 
@@ -1497,10 +1497,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             uint8_t modifier = 0;
             if (gi.tdb_ver() >= 69) {
                 auto& p = (*tdb->get_params_ptr())[param_index];
-                param_type_id = (uint32_t)p.type_id;
-                name_index = (uint32_t)p.name_offset;
-                modifier = (uint8_t)p.modifier;
-                flags = (uint16_t)p.flags;
+                param_type_id = (uint32_t)TPARAM_FIELD(&p, type_id);
+                name_index = (uint32_t)TPARAM_FIELD(&p, name_offset);
+                modifier = (uint8_t)TPARAM_FIELD(&p, modifier);
+                flags = (uint16_t)TPARAM_FIELD(&p, flags);
             } else {
                 auto& p = param_ids_legacy[param_index];
                 param_type_id = (uint32_t)p.param_typeid;
@@ -2064,8 +2064,15 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto& p = *tdb->get_property(i);
 
-        const auto getter_id = (uint32_t)p.getter;
-        const auto setter_id = (uint32_t)p.setter;
+        uint32_t getter_id, setter_id;
+        if (gi.tdb_ver() < 69) {
+            auto* p67 = reinterpret_cast<const sdk::tdb67::REProperty*>(&p);
+            getter_id = p67->getter;
+            setter_id = p67->setter;
+        } else {
+            getter_id = (uint32_t)p.getter;
+            setter_id = (uint32_t)p.setter;
+        }
 
         std::shared_ptr<detail::ParsedMethod> getter{};
         std::shared_ptr<detail::ParsedMethod> setter{};

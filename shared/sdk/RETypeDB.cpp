@@ -505,7 +505,11 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
 uint32_t sdk::REField::get_index() const {
     auto tdb = RETypeDB::get();
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->get_fields_ptr()) / tdb->get_field_stride());
+#else
     return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->get_fields_ptr()) / sizeof(sdk::REField));
+#endif
 }
 } // namespace sdk
 
