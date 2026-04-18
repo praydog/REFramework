@@ -78,6 +78,9 @@ static constexpr ExeMapping s_exe_table[] = {
     // Dragon's Dogma 2
     {"dd2",                     GameID::DD2},
 
+    // Dead Rising Deluxe Remaster
+    {"drdr",                     GameID::DRDR},
+
     // Monster Hunter Wilds
     {"monsterhunterwilds",      GameID::MHWILDS},
     {"mhwilds",                 GameID::MHWILDS},
@@ -235,6 +238,16 @@ void GameIdentity::derive_engine_params() {
         m_reengine_at      = true;
         m_game_name        = "dd2";
         m_target_name      = "DD2";
+        break;
+
+    case GameID::DRDR:
+        m_tdb_ver          = 73;    // Same engine generation as DD2
+        m_type_index_bits  = 19;
+        m_field_bits       = 19;
+        m_reengine_packed  = true;
+        m_reengine_at      = true;
+        m_game_name        = "drdr";
+        m_target_name      = "DRDR";
         break;
 
     case GameID::MHWILDS:

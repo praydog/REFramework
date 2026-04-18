@@ -22,6 +22,7 @@ enum class GameID : uint8_t {
     MHWILDS,
     MHSTORIES3,
 
+    DRDR,        // Dead Rising Deluxe Remaster
     STARFORCE,   // Mega Man Star Force Legacy Collection
     PRAGMATA,
     Count
@@ -75,6 +76,7 @@ public:
     bool is_mhrise()    const { return m_game == GameID::MHRISE; }
     bool is_sf6()       const { return m_game == GameID::SF6; }
     bool is_dd2()       const { return m_game == GameID::DD2; }
+    bool is_drdr()      const { return m_game == GameID::DRDR; }
     bool is_mhwilds()   const { return m_game == GameID::MHWILDS; }
     bool is_mhstories3()const { return m_game == GameID::MHSTORIES3; }
     bool is_starforce() const { return m_game == GameID::STARFORCE; }
