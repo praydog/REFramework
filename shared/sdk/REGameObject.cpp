@@ -5,7 +5,7 @@
 #ifdef REFRAMEWORK_UNIVERSAL
 #include "GameIdentity.hpp"
 
-RETransform* REGameObject::get_transform() const {
+static uintptr_t go_transform_offset() {
     static const auto offset = []() -> uintptr_t {
         const auto& gi = sdk::GameIdentity::get();
         // SF6 and RE4 have REGameObject::transform at 0x20 (extra padding before transform).
@@ -13,7 +13,42 @@ RETransform* REGameObject::get_transform() const {
         if (gi.is_sf6() || gi.is_re4()) return 0x20;
         return 0x18;
     }();
-    return *(RETransform**)((uintptr_t)this + offset);
+    return offset;
+}
+
+static uintptr_t go_bool_base_offset() {
+    static const auto offset = []() -> uintptr_t {
+        const auto& gi = sdk::GameIdentity::get();
+        // RE8/RE2/RE3/DMC5 have 2 bytes of pad at 0x10 before the bools.
+        // All other games start bools at 0x10 directly.
+        if (gi.is_re8() || gi.is_re2() || gi.is_re3() || gi.is_dmc5()) return 0x12;
+        return 0x10;
+    }();
+    return offset;
+}
+
+RETransform* REGameObject::get_transform() const {
+    return *(RETransform**)((uintptr_t)this + go_transform_offset());
+}
+
+bool REGameObject::get_shouldUpdate() const {
+    return *(bool*)((uintptr_t)this + go_bool_base_offset() + 0);
+}
+
+bool REGameObject::get_shouldDraw() const {
+    return *(bool*)((uintptr_t)this + go_bool_base_offset() + 1);
+}
+
+void REGameObject::set_shouldDraw(bool v) {
+    *(bool*)((uintptr_t)this + go_bool_base_offset() + 1) = v;
+}
+
+void REGameObject::set_shouldUpdate(bool v) {
+    *(bool*)((uintptr_t)this + go_bool_base_offset() + 0) = v;
+}
+
+REFolder* REGameObject::get_folder() const {
+    return *(REFolder**)((uintptr_t)this + go_transform_offset() + sizeof(void*));
 }
 #endif
 

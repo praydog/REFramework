@@ -5,7 +5,7 @@
 namespace utility::re_component {
     static auto get_game_object(::REComponent* comp) {
         //return utility::re_managed_object::get_field<::REGameObject*>(comp, "GameObject");
-        return comp->ownerGameObject;
+        return comp->get_game_object();
     }
 
     static auto get_valid(::REComponent* comp) {
@@ -22,7 +22,7 @@ namespace utility::re_component {
 
     template<typename T = ::REComponent>
     static T* find(::REComponent* comp, std::string_view name) {
-        for (auto child = comp->childComponent; child != nullptr && child != comp; child = child->childComponent) {
+        for (auto child = comp->get_child_component(); child != nullptr && child != comp; child = child->get_child_component()) {
             if (utility::re_managed_object::is_a(child, name)) {
                 return (T*)child;
             }
@@ -33,7 +33,7 @@ namespace utility::re_component {
 
     template<typename T = ::REComponent>
     static T* find(::REComponent* comp, REType* t) {
-        for (auto child = comp->childComponent; child != nullptr && child != comp; child = child->childComponent) {
+        for (auto child = comp->get_child_component(); child != nullptr && child != comp; child = child->get_child_component()) {
             if (utility::re_managed_object::is_a(child, t)) {
                 return (T*)child;
             }
@@ -44,7 +44,7 @@ namespace utility::re_component {
 
     template<typename T = ::REComponent>
     static T** find_replaceable(::REComponent* comp, REType* t) {
-        for (auto* child = &comp->childComponent; *child != nullptr && *child != comp; child = &(*child)->childComponent) {
+        for (auto* child = &comp->child_component_ref(); *child != nullptr && *child != comp; child = &(*child)->child_component_ref()) {
             if (utility::re_managed_object::is_a(*child, t)) {
                 return (T**)child;
             }

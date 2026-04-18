@@ -109,7 +109,7 @@ void Camera::on_application_entry(void* entry, const char* name, size_t hash) {
         );
 
         if (valid_camera) {
-            if (const auto owner = m_camera->ownerGameObject; owner != nullptr && owner->get_transform() != nullptr) {
+            if (const auto owner = m_camera->get_game_object(); owner != nullptr && owner->get_transform() != nullptr) {
                 update_vignetting();
             }
         }

@@ -66,7 +66,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
             }
         }
 
-        if (transform != m_illumination_manager->ownerGameObject->get_transform()) {
+        if (transform != m_illumination_manager->get_game_object()->get_transform()) {
             return;
         }
 

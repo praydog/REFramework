@@ -177,6 +177,12 @@ public:
 	class REComponent *childComponent; //0x0018
 	class REComponent *prevComponent; //0x0020
 	class REComponent *nextComponent; //0x0028
+
+	REGameObject* get_game_object() const { return ownerGameObject; }
+	REComponent* get_child_component() const { return childComponent; }
+	REComponent* get_prev_component() const { return prevComponent; }
+	REComponent* get_next_component() const { return nextComponent; }
+	REComponent*& child_component_ref() { return childComponent; }
 }; //Size: 0x0030
 static_assert(sizeof(REComponent) == 0x30);
 
@@ -210,8 +216,18 @@ class REGameObject : public REManagedObject
 public:
 #ifdef REFRAMEWORK_UNIVERSAL
 	class RETransform* get_transform() const;
+	bool get_shouldDraw() const;
+	void set_shouldDraw(bool v);
+	bool get_shouldUpdate() const;
+	void set_shouldUpdate(bool v);
+	class REFolder* get_folder() const;
 #else
 	class RETransform* get_transform() const { return transform; }
+	bool get_shouldDraw() const { return shouldDraw; }
+	void set_shouldDraw(bool v) { shouldDraw = v; }
+	bool get_shouldUpdate() const { return shouldUpdate; }
+	class REFolder* get_folder() const { return folder; }
+	void set_shouldUpdate(bool v) { shouldUpdate = v; }
 #endif
 	char pad_0010[2]; //0x0010
 	bool shouldUpdate; //0x0012

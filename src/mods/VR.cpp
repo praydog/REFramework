@@ -1453,8 +1453,8 @@ void VR::update_hmd_state() {
     if (sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3()) {
         auto camera = sdk::get_primary_camera();
 
-        if (camera != nullptr && camera->ownerGameObject != nullptr && camera->ownerGameObject->get_transform() != nullptr) {
-            FirstPerson::get()->on_update_transform(camera->ownerGameObject->get_transform());
+        if (camera != nullptr && camera->get_game_object() != nullptr && camera->get_game_object()->get_transform() != nullptr) {
+            FirstPerson::get()->on_update_transform(camera->get_game_object()->get_transform());
         }
     }
 }
@@ -2088,9 +2088,9 @@ void VR::disable_bad_effects() {
         for (auto child = camera_transform->child; child != nullptr; child = child->child) {
             if (utility::re_component::find(child, effect_player_t) != nullptr) {
                 if (utility::re_component::find(child, hide_effect_for_vr_t) != nullptr) {
-                    auto game_object = child->ownerGameObject;
+                    auto game_object = child->get_game_object();
 
-                    game_object->shouldDraw = false;
+                    game_object->set_shouldDraw(false);
                     //sdk::call_object_func<void*>(game_object, "set_Draw", sdk::get_thread_context(), game_object, false);
                 }
             }
@@ -2446,7 +2446,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
         case "Gui_ui0440"_fnv: // Black bars in cutscenes
             if (gi.is_re9()) {
-                game_object->shouldDraw = false;
+                game_object->set_shouldDraw(false);
                 return false;
             }
             break;

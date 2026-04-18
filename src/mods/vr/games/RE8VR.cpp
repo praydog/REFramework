@@ -1025,7 +1025,7 @@ void RE8VR::fix_player_shadow() {
             auto mesh = *meshcomp;
 
             if (mesh != nullptr) {
-                auto mesh_gameobject = mesh->ownerGameObject;
+                auto mesh_gameobject = mesh->get_game_object();
 
                 if (mesh_gameobject != nullptr && mesh_gameobject->get_transform() != nullptr) {
                     static auto head_hash = sdk::murmur_hash::calc32("Head");
@@ -1053,7 +1053,7 @@ void RE8VR::fix_player_shadow() {
         auto upper_mesh = *upper_mesh_ptr;
 
         if (upper_mesh != nullptr) {
-            auto mesh_gameobject = upper_mesh->ownerGameObject;
+            auto mesh_gameobject = upper_mesh->get_game_object();
 
             if (mesh_gameobject != nullptr && mesh_gameobject->get_transform() != nullptr) {
                 static auto head_hash = sdk::murmur_hash::calc32("Head");

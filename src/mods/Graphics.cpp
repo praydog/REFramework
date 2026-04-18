@@ -774,7 +774,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
             auto csmaskui = utility::re_component::find<REComponent*>(game_object->get_transform(), csmaskui_retype);
 
             if (csmaskui != nullptr) {
-                game_object->shouldDraw = false;
+                game_object->set_shouldDraw(false);
                 return false;
             }
         }
@@ -786,7 +786,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         // RE2/3?
         case "GUI_PillarBox"_fnv:
         case "GUIEventPillar"_fnv:
-            game_object->shouldDraw = false;
+            game_object->set_shouldDraw(false);
             return false;
         
         case "Gui_ui0211"_fnv: // Kunitsu-Gami
@@ -794,7 +794,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
                 auto letter_box_behavior = utility::re_component::find<REComponent*>(game_object->get_transform(), letter_box_behavior_retype);
 
                 if (letter_box_behavior != nullptr) {
-                    game_object->shouldDraw = false;
+                    game_object->set_shouldDraw(false);
                     return false;
                 }
             }
@@ -803,14 +803,14 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 
         case "ui012203"_fnv:
             if (sdk::GameIdentity::get().is_dd2()) {
-                game_object->shouldDraw = false;
+                game_object->set_shouldDraw(false);
                 return false;
             }
             break;
 
         case "Gui_ui2510"_fnv: // Black bars in cutscenes
             if (sdk::GameIdentity::get().is_re4()) {
-                game_object->shouldDraw = false;
+                game_object->set_shouldDraw(false);
                 return false;
             }
             break;
@@ -820,7 +820,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         case "Gui_ui3030"_fnv: // in inventory
         case "Gui_ui3040"_fnv: // just picked up an item
             if (sdk::GameIdentity::get().is_re4()) {
-                if (game_object->shouldDraw && game_object->shouldUpdate) {
+                if (game_object->get_shouldDraw() && game_object->get_shouldUpdate()) {
                     std::unique_lock _{m_re4.time_mtx};
                     m_re4.last_inventory_open = std::chrono::steady_clock::now();
                 }
@@ -829,14 +829,14 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 
         case "Gui_ui0440"_fnv: // Black bars in cutscenes
             if (sdk::GameIdentity::get().is_re9()) {
-                game_object->shouldDraw = false;
+                game_object->set_shouldDraw(false);
                 return false;
             }
             break;
 
         case "ui0420Gui"_fnv: // Black bars in cutscenes
             if (sdk::GameIdentity::get().is_pragmata()) {
-                game_object->shouldDraw = false;
+                game_object->set_shouldDraw(false);
                 return false;
             }
         default:

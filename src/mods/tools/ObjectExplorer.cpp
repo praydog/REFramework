@@ -2792,9 +2792,9 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
 
 void ObjectExplorer::handle_component(REComponent* component) {
     auto display_component_preview = [&](REComponent* comp) {
-        if (comp != nullptr && comp->ownerGameObject != nullptr) {
+        if (comp != nullptr && comp->get_game_object() != nullptr) {
             auto prev_name = utility::re_managed_object::get_type_name(comp);
-            auto prev_gameobject_name = utility::re_game_object::get_name(comp->ownerGameObject);
+            auto prev_gameobject_name = utility::re_game_object::get_name(comp->get_game_object());
 
             auto tree_hovered = ImGui::IsItemHovered();
 
@@ -2829,7 +2829,7 @@ void ObjectExplorer::handle_component(REComponent* component) {
             int32_t count = 0;
 
             // Iterate the children
-            for (auto child = component->childComponent; child != nullptr && child != component; child = child->childComponent) {
+            for (auto child = component->get_child_component(); child != nullptr && child != component; child = child->get_child_component()) {
                 // uh oh
                 if (!utility::re_managed_object::is_managed_object(child)) {
                     continue;
@@ -2858,8 +2858,8 @@ void ObjectExplorer::handle_component(REComponent* component) {
         }
     }
 
-    make_tree_offset(component, offsetof(REComponent, prevComponent), "PrevComponent", [&](){ display_component_preview(component->prevComponent); });
-    make_tree_offset(component, offsetof(REComponent, nextComponent), "NextComponent", [&](){ display_component_preview(component->nextComponent); });
+    make_tree_offset(component, offsetof(REComponent, prevComponent), "PrevComponent", [&](){ display_component_preview(component->get_prev_component()); });
+    make_tree_offset(component, offsetof(REComponent, nextComponent), "NextComponent", [&](){ display_component_preview(component->get_next_component()); });
 }
 
 void ObjectExplorer::handle_transform(RETransform* transform) {
@@ -4333,20 +4333,20 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
         if (is_managed_object && utility::re_managed_object::is_a((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
             auto comp = (REComponent*)address;
 
-            for (auto obj = comp; obj; obj = obj->childComponent) {
+            for (auto obj = comp; obj; obj = obj->get_child_component()) {
                 auto t = utility::re_managed_object::safe_get_type(obj);
 
                 if (t != nullptr) {
-                    if (obj->ownerGameObject == nullptr) {
+                    if (obj->get_game_object() == nullptr) {
                         spdlog::info("{:s} ({:x})", t->name, (uintptr_t)obj);
                     }
                     else {
-                        auto owner = obj->ownerGameObject;
+                        auto owner = obj->get_game_object();
                         spdlog::info("[{:s}] {:s} ({:x})", utility::re_game_object::get_name(owner), t->name, (uintptr_t)obj);
                     }
                 }
 
-                if (obj->childComponent == comp) {
+                if (obj->get_child_component() == comp) {
                     break;
                 }
             }

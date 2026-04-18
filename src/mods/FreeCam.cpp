@@ -113,15 +113,15 @@ void FreeCam::on_update_transform(RETransform* transform) {
         const auto player = m_props_manager->player;
         if (player != nullptr && player->get_transform() != nullptr && player->get_transform() == transform) {
             if (m_disable_movement->value() || m_was_disabled) {
-                player->shouldUpdate = !m_disable_movement->value();
-                m_was_disabled = !player->shouldUpdate;
+                player->set_shouldUpdate(!m_disable_movement->value());
+                m_was_disabled = !player->get_shouldUpdate();
             }
         }
     }
 
     const auto camera = m_camera;
 
-    if (camera == nullptr || transform != camera->ownerGameObject->get_transform()) {
+    if (camera == nullptr || transform != camera->get_game_object()->get_transform()) {
         return;
     }
 
@@ -141,7 +141,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
     if (m_first_time) {
         if (gi.is_re8()) {
             if (m_props_manager != nullptr && m_props_manager->player != nullptr && m_was_disabled) {
-                m_props_manager->player->shouldUpdate = true;
+                m_props_manager->player->set_shouldUpdate(true);
                 m_was_disabled = false;
             }
         }
