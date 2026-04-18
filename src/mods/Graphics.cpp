@@ -834,12 +834,11 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
             }
             break;
 
-#if defined(PRAGMATA)
         case "ui0420Gui"_fnv: // Black bars in cutscenes
-            game_object->shouldDraw = false;
-            return false;
-#endif
-
+            if (sdk::GameIdentity::get().is_pragmata()) {
+                game_object->shouldDraw = false;
+                return false;
+            }
         default:
             break;
         }
