@@ -435,6 +435,7 @@ void ObjectExplorer::on_draw_dev_ui() {
         auto singletons_unordered = reframework::get_globals()->get_objects();
         std::vector<REManagedObject*> singletons{ singletons_unordered.begin(), singletons_unordered.end() };
 
+        // REType::name at offset 0x20 is stable across all supported TDB versions.
         // first loop, sort
         std::sort(singletons.begin(), singletons.end(), [](REManagedObject* a, REManagedObject* b) {
             auto a_type = utility::re_managed_object::safe_get_type(a);
@@ -1147,6 +1148,8 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
 
     std::string full_name{};
 
+    // REType::name (0x20) and REFieldList::deserializer (0x28) are stable across
+    // all supported TDB versions. RE7 TDB49 has different offsets but is out of scope.
     // Export info about native deserializers for the python script
     if (!real_name) {
         auto tdef = utility::re_type::get_type_definition(t);
@@ -2784,8 +2787,12 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
     auto game_object_name = utility::re_game_object::get_name(game_object);
 
     ImGui::Text("Name: %s", game_object_name.c_str());
-    make_tree_offset(game_object, offsetof(REGameObject, transform), "Transform");
-    make_tree_offset(game_object, offsetof(REGameObject, folder), "Folder");
+    // REGameObject::transform offset varies by game: 0x18 (most) vs 0x20 (SF6/RE4).
+    // Duplicates logic from REGameObject.cpp go_transform_offset() — no public accessor exists.
+    const auto& gi = sdk::GameIdentity::get();
+    const uint32_t go_transform_off = (gi.is_sf6() || gi.is_re4()) ? 0x20 : 0x18;
+    make_tree_offset(game_object, go_transform_off, "Transform");
+    make_tree_offset(game_object, go_transform_off + (uint32_t)sizeof(void*), "Folder");
 
     ImGui::PopID();
 }
@@ -2814,6 +2821,8 @@ void ObjectExplorer::handle_component(REComponent* component) {
         sdk::call_object_func<void*>(component, "destroy", sdk::get_thread_context(), component);
     }
 
+    // REComponent field offsets (ownerGameObject, childComponent, prevComponent, nextComponent)
+    // are stable across all supported games. RE7 TDB49 differs but is out of scope.
     make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner", [&](){  display_component_preview(component); });
     //make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
 
@@ -3112,6 +3121,11 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
         return;
     }
 
+    // NOTE: The following section accesses REFieldList, FunctionDescriptor, and
+    // VariableDescriptor fields directly. These offsets are stable across all
+    // supported TDB versions (67-84). RE7 TDB49 has different offsets but is
+    // out of scope for the monolithic build. If a future game shifts these
+    // layouts, accessors should be added (tracked by audit_direct_access_clang.py).
     volatile auto methods = get_fields(type_info)->methods;
 
     if (methods == nullptr || *methods == nullptr) {
@@ -3715,6 +3729,9 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 }
 
 void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {
+    // NOTE: VariableDescriptor fields (function, typeName, name, variableType, etc.)
+    // are accessed directly below. These offsets are stable across all supported TDB
+    // versions (67-84). RE7 TDB49 differs but is out of scope.
     if (desc->function == nullptr) {
         return;
     }
@@ -4138,6 +4155,10 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
     }
 }
 
+    // NOTE: This function accesses REType::name, VariableDescriptor::name,
+    // VariableDescriptor::typeName, and VariableDescriptor::function directly.
+    // These offsets are stable across all supported TDB versions (67-84).
+    // RE7 TDB49 differs but is out of scope for the monolithic build.
 int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {
     if (desc->typeName == nullptr || desc->function == nullptr || m_offset_map.find(desc) != m_offset_map.end()) {
         return m_offset_map[desc];
@@ -4336,6 +4357,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
             for (auto obj = comp; obj; obj = obj->get_child_component()) {
                 auto t = utility::re_managed_object::safe_get_type(obj);
 
+                // REType::name at offset 0x20 is stable across all supported TDB versions.
                 if (t != nullptr) {
                     if (obj->get_game_object() == nullptr) {
                         spdlog::info("{:s} ({:x})", t->name, (uintptr_t)obj);
@@ -4565,6 +4587,8 @@ bool ObjectExplorer::is_managed_object(Address address) const {
     return utility::re_managed_object::is_managed_object(address);
 }
 
+// NOTE: REType::name at offset 0x20 is accessed directly throughout this function.
+// This offset is stable across all supported TDB versions (67-84).
 void ObjectExplorer::populate_classes() {
     auto type_list = reframework::get_types()->get_raw_types();
     spdlog::info("TypeList: {:x}", (uintptr_t)type_list);
