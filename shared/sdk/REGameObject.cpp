@@ -53,6 +53,11 @@ REFolder* REGameObject::get_folder() const {
 
 uintptr_t REGameObject::offset_of_transform() { return go_transform_offset(); }
 uintptr_t REGameObject::offset_of_folder()    { return go_transform_offset() + sizeof(void*); }
+
+SystemString* REGameObject::get_name_field() const {
+    // name is 2 pointers after transform (transform, folder, name)
+    return *(SystemString**)((uintptr_t)this + go_transform_offset() + sizeof(void*) * 2);
+}
 #endif
 
 namespace utility::re_game_object {
@@ -78,6 +83,6 @@ std::string get_name(REGameObject* obj) {
 
     // We rely on the reflected function first because
     // this offset might change between versions.
-    return utility::re_string::get_string(obj->name);
+    return utility::re_string::get_string(obj->get_name_field());
 }
 }

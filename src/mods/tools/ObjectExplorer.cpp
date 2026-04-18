@@ -2375,9 +2375,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 // BORKED RIGHT NOW
                 json json_params{};
 
-                for (auto f = 0; f < descriptor->numParams; ++f) {
-                    auto& param_d = (*descriptor->params)[f];
-                    auto param_t = g_itypedb[(*descriptor->params)[f].typeIndex];
+                for (auto f = 0; f < descriptor->get_numParams(); ++f) {
+                    auto& param_d = (*descriptor->get_params())[f];
+                    auto param_t = g_itypedb[(*descriptor->get_params())[f].typeIndex];
                     auto param_typename = (param_t != nullptr && param_d.typeIndex) != 0 ? param_t->full_name : param_d.typeName;
 
                     json_params.push_back({
@@ -2387,14 +2387,14 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                     });
                 }
 
-                auto return_t = g_itypedb[descriptor->typeIndex];
-                auto return_name = (return_t != nullptr && descriptor->typeIndex != 0) ? return_t->full_name : descriptor->returnTypeName;
+                auto return_t = g_itypedb[descriptor->get_typeIndex()];
+                auto return_name = (return_t != nullptr && descriptor->get_typeIndex() != 0) ? return_t->full_name : descriptor->get_returnTypeName();
 
                 il2cpp_dump[t->get_type_name()]["reflection_methods"][descriptor->get_name()] = {
                     {"function", (std::stringstream{} << "0x" << std::hex << get_original_va(descriptor->get_functionPtr())).str()},
                     {"returns", return_name},
                     {"params", json_params},
-                    {"typeindex", descriptor->typeIndex}
+                    {"typeindex", descriptor->get_typeIndex()}
                 };
 #endif
             } catch(...) {
@@ -2459,8 +2459,8 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             
                 if (gi.is_re8() || gi.is_mhrise()) {
                     // Property attributes
-                    if (variable->attributes != 0 && variable->attributes != -1) {
-                        for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
+                    if (variable->get_attributes() != 0 && variable->get_attributes() != -1) {
+                        for (auto attr = (REAttribute*)((uintptr_t)variable + VariableDescriptor::offset_of_attributes() + variable->get_attributes()); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
                             auto type_func = (REType* (*)())attr->info->getType;
 
                             prop_entry["attributes"].emplace_back(
@@ -3136,7 +3136,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
                 continue;
             }
 
-            auto ret = descriptor->returnTypeName != nullptr ? std::string{ descriptor->returnTypeName } : std::string{ "undefined" };
+            auto ret = descriptor->get_returnTypeName() != nullptr ? std::string{ descriptor->get_returnTypeName() } : std::string{ "undefined" };
             auto made_node = widget_with_context(descriptor, descriptor->get_name(), [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
             auto tree_hovered = ImGui::IsItemHovered();
 

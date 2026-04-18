@@ -168,6 +168,7 @@ public:
 	uint32_t get_ref_count() const { return referenceCount; }
 	void set_ref_count(uint32_t v) { referenceCount = v; }
 	uint32_t* ref_count_ptr() { return &referenceCount; }
+private:
 	uint32_t referenceCount; //0x0008
 	int16_t N000071AE; //0x000C
 	char pad_000E[2]; //0x000E
@@ -177,11 +178,13 @@ static_assert(sizeof(REManagedObject) == 0x10);
 class REComponent : public REManagedObject
 {
 public:
+private:
 	class REGameObject *ownerGameObject; //0x0010
 	class REComponent *childComponent; //0x0018
 	class REComponent *prevComponent; //0x0020
 	class REComponent *nextComponent; //0x0028
 
+public:
 	REGameObject* get_game_object() const { return ownerGameObject; }
 	REComponent* get_child_component() const { return childComponent; }
 	REComponent* get_prev_component() const { return prevComponent; }
@@ -236,6 +239,7 @@ public:
 	// Field offsets for UI/debug display. These vary per game and dispatch at runtime.
 	static uintptr_t offset_of_transform();
 	static uintptr_t offset_of_folder();
+	class SystemString* get_name_field() const;
 #else
 	class RETransform* get_transform() const { return transform; }
 	bool get_shouldDraw() const { return shouldDraw; }
@@ -246,7 +250,9 @@ public:
 
 	static uintptr_t offset_of_transform() { return offsetof(REGameObject, transform); }
 	static uintptr_t offset_of_folder()    { return offsetof(REGameObject, folder); }
+	class SystemString* get_name_field() const { return name; }
 #endif
+private:
 	char pad_0010[2]; //0x0010
 	bool shouldUpdate; //0x0012
 	bool shouldDraw; //0x0013
@@ -272,6 +278,7 @@ public:
 	int32_t get_maxItems() const { return maxItems; }
 	class REVariableList* get_variables() const { return variables; }
 	void* get_deserializer() const { return deserializer; }
+private:
 	uint32_t unknown; //0x0000
 	char pad_0004[4]; //0x0004
 	class REFieldList *next; //0x0008
@@ -311,6 +318,11 @@ class FunctionDescriptor
 public:
 	const char* get_name() const { return name; }
 	void* get_functionPtr() const { return functionPtr; }
+	int32_t get_numParams() const { return numParams; }
+	auto get_params() const { return params; }
+	uint32_t get_typeIndex() const { return typeIndex; }
+	const char* get_returnTypeName() const { return returnTypeName; }
+private:
 	char *name; //0x0000
 	class MethodParamInfo (*params)[256]; //0x0008
 	char pad_0010[4]; //0x0010
@@ -1127,6 +1139,7 @@ static_assert(sizeof(ObjectPointer) == 0x98);
 class REVariableList
 {
 public:
+	int32_t get_num() const { return num; }
 	char pad_0000[8]; //0x0000
 	class N0000ADA4 *data; //0x0008
 	int32_t num; //0x0010
@@ -1151,6 +1164,10 @@ public:
 	const char* get_typeName() const { return typeName; }
 	uint32_t get_variableType() const { return variableType; }
 	class StaticVariableDescriptor* get_staticVariableData() const { return staticVariableData; }
+	static constexpr uintptr_t offset_of_flags() { return 0x18; }
+	int32_t get_attributes() const { return attributes; }
+	static constexpr uintptr_t offset_of_attributes() { return 0x3C; }
+private:
 	char *name; //0x0000
 	uint32_t nameHash; //0x0008
 	uint16_t flags1; //0x000C

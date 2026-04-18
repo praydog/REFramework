@@ -110,14 +110,14 @@ VariableDescriptor* utility::re_type::get_field_desc(::REType* t, std::string_vi
             continue;
         }
 
-        for (auto i = 0; i < vars->num; ++i) {
+        for (auto i = 0; i < vars->get_num(); ++i) {
             auto& var = vars->data->descriptors[i];
 
-            if (var == nullptr || var->name == nullptr) {
+            if (var == nullptr || var->get_name() == nullptr) {
                 continue;
             }
 
-            if (field == var->name) {
+            if (field == var->get_name()) {
                 std::unique_lock _{insertion_mutex};
                 var_map[full_name] = var;
                 return var;
@@ -129,13 +129,13 @@ VariableDescriptor* utility::re_type::get_field_desc(::REType* t, std::string_vi
 }
 
 REVariableList* utility::re_type::get_variables(::REType* t) {
-    if (t == nullptr || get_fields(t) == nullptr || get_fields(t)->variables == nullptr) {
+    if (t == nullptr || get_fields(t) == nullptr || get_fields(t)->get_variables() == nullptr) {
         return nullptr;
     }
 
-    auto vars = get_fields(t)->variables;
+    auto vars = get_fields(t)->get_variables();
 
-    if (vars->data == nullptr || vars->num <= 0) {
+    if (vars->data == nullptr || vars->get_num() <= 0) {
         return nullptr;
     }
 
@@ -163,13 +163,13 @@ FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_v
     for (; t != nullptr; t = get_super(t)) {
         auto fields = get_fields(t);
 
-        if (fields == nullptr || fields->methods == nullptr) {
+        if (fields == nullptr || fields->get_methods() == nullptr) {
             continue;
         }
 
-        auto methods = fields->methods;
+        auto methods = fields->get_methods();
 
-        for (auto i = 0; i < fields->num; ++i) {
+        for (auto i = 0; i < fields->get_num(); ++i) {
             auto top = (*methods)[i];
 
             if (top == nullptr || *top == nullptr) {
@@ -178,11 +178,11 @@ FunctionDescriptor* utility::re_type::get_method_desc(::REType* t, std::string_v
 
             auto& holder = **top;
 
-            if (holder.descriptor == nullptr || holder.descriptor->name == nullptr) {
+            if (holder.descriptor == nullptr || holder.descriptor->get_name() == nullptr) {
                 continue;
             }
 
-            if (name == holder.descriptor->name) {
+            if (name == holder.descriptor->get_name()) {
                 std::unique_lock _{ method_insertion_mutex};
                 method_map[full_name] = holder.descriptor;
                 return holder.descriptor;

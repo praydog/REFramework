@@ -1654,7 +1654,7 @@ void RE8VR::update_heal_gesture() {
     if (gi.is_re8()) {
         static auto common_use_remedy_action = *sdk::get_static_field<::REManagedObject*>("app.PlayerDefineEnumLikeArray.UpperActionID", "CommonUseRemedy");
 
-        const auto is_syringe = utility::re_string::get_string(owner->name) == "ri1022_Inventory";
+        const auto is_syringe = utility::re_string::get_string(owner->get_name_field()) == "ri1022_Inventory";
         const auto upper_action_id = *sdk::get_object_field<::REManagedObject*>(m_status, "<upperActionID>k__BackingField");
         const auto using_effect = *sdk::get_object_field<::REManagedObject*>(medicine_item, "usingEffect") != nullptr
                                     || upper_action_id == common_use_remedy_action;
