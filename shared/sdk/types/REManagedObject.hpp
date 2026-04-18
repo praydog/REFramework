@@ -8,6 +8,10 @@ public:
     void set_ref_count(uint32_t v) { m_ref_count = v; }
     uint32_t* ref_count_ptr() { return &m_ref_count; }
 
+    // Runtime size of REManagedObject. Use instead of sizeof() for pointer
+    // arithmetic — RE7 TDB49 has 0x20 (enlarged base), all others 0x10.
+    static size_t runtime_size();  // implemented in REManagedObject.cpp
+
 private:
     uint32_t    m_ref_count;    // 0x08
     int16_t     _unk_000C;      // 0x0C

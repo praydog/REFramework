@@ -950,7 +950,7 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
         switch (full_name_hash) {
         case "System.String"_fnv: {
             const auto managed_ret_val = *(::REManagedObject**)data;
-            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
+            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - REManagedObject::runtime_size());
             const auto str = utility::narrow(managed_str->data);
 
             return sol::make_object(l, str);

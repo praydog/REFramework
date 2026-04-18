@@ -314,7 +314,7 @@ void REGlobals::refresh_map() {
             continue;
         }
 
-        if (IsBadReadPtr(obj, sizeof(REManagedObject))) {
+        if (IsBadReadPtr(obj, REManagedObject::runtime_size())) {
             continue;
         }
 

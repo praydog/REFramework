@@ -7,6 +7,22 @@
 
 using namespace utility::re_type_accessor;
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+#endif
+
+size_t REType::runtime_size() {
+#ifdef REFRAMEWORK_UNIVERSAL
+    static const auto size = []() -> size_t {
+        if (sdk::GameIdentity::get().is_mhwilds() || sdk::GameIdentity::get().is_re9()) return 0x68;
+        return 0x60;
+    }();
+    return size;
+#else
+    return sizeof(REType);
+#endif
+}
+
 sdk::RETypeDefinition* utility::re_type::get_type_definition(REType* type) {
     if (type == nullptr || get_classInfo(type) == nullptr) {
         return nullptr;

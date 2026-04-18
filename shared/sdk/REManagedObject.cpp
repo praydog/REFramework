@@ -11,6 +11,12 @@
 #include "RETypeDefDispatch.hpp"
 using namespace utility::re_type_accessor;
 
+size_t REManagedObject::runtime_size() {
+    // RE7 TDB49 has REManagedObject at 0x20 (enlarged REObject base with vtable).
+    // All other supported games: 0x10. Modern RE7 (TDB70) is also 0x10.
+    return 0x10;  // Stable across all supported games. Update if a future game changes it.
+}
+
 
 #ifdef REFRAMEWORK_UNIVERSAL
 // DMC5 (TDB 67) has a completely different REClassInfo struct layout:
@@ -292,7 +298,7 @@ bool is_managed_object(Address address) {
             return false;
         }
 
-        if (IsBadReadPtr(TDEF_FIELD(td, type), sizeof(REType)) || TDEF_FIELD(td, type)->get_type_name() == nullptr) {
+        if (IsBadReadPtr(TDEF_FIELD(td, type), REType::runtime_size()) || TDEF_FIELD(td, type)->get_type_name() == nullptr) {
             return false;
         }
 
@@ -318,7 +324,7 @@ bool is_managed_object(Address address) {
             return false;
         }
 
-        if (IsBadReadPtr(ci_type, sizeof(REType)) || ci_type->get_type_name() == nullptr) {
+        if (IsBadReadPtr(ci_type, REType::runtime_size()) || ci_type->get_type_name() == nullptr) {
             return false;
         }
 
@@ -340,7 +346,7 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->get_type_name() == nullptr) {
+    if (IsBadReadPtr(td->type, REType::runtime_size()) || td->type->get_type_name() == nullptr) {
         return false;
     }
 
@@ -359,7 +365,7 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (IsBadReadPtr(class_info->type, sizeof(REType)) || class_info->type->get_type_name() == nullptr) {
+    if (IsBadReadPtr(class_info->type, REType::runtime_size()) || class_info->type->get_type_name() == nullptr) {
         return false;
     }
 
@@ -373,7 +379,7 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (IsBadReadPtr(info->type, sizeof(REType)) || info->type->get_type_name() == nullptr) {
+    if (IsBadReadPtr(info->type, REType::runtime_size()) || info->type->get_type_name() == nullptr) {
         return false;
     }
 
@@ -381,7 +387,7 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (get_super(info->type) != nullptr && IsBadReadPtr(get_super(info->type), sizeof(REType))) {
+    if (get_super(info->type) != nullptr && IsBadReadPtr(get_super(info->type), REType::runtime_size())) {
         return false;
     }
 
@@ -571,10 +577,10 @@ uint32_t get_size(::REManagedObject* object) {
         break;
     }
     case via::clr::VMObjType::String:
-        size = sizeof(uint16_t) * (Address(object).get(sizeof(::REManagedObject)).to<uint32_t>() + 1) + 0x14;
+        size = sizeof(uint16_t) * (Address(object).get(REManagedObject::runtime_size()).to<uint32_t>() + 1) + 0x14;
         break;
     case via::clr::VMObjType::Delegate:
-        size = 0x10 * (Address(object).get(sizeof(::REManagedObject)).to<uint32_t>() - 1) + 0x28;
+        size = 0x10 * (Address(object).get(REManagedObject::runtime_size()).to<uint32_t>() - 1) + 0x28;
         break;
     case via::clr::VMObjType::Object:
     default:

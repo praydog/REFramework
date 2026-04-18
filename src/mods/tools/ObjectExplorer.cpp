@@ -2592,7 +2592,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
                     switch (ret) {
                     case "System.String"_fnv: {
-                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - sizeof(REManagedObject));
+                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - REManagedObject::runtime_size());
 
                         if (str->size > 0) {
                             additional_text2 = utility::narrow(str->data);
@@ -2626,7 +2626,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
                     switch (ret) {
                     case "System.String"_fnv: {
-                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - sizeof(REManagedObject));
+                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - REManagedObject::runtime_size());
 
                         if (str->size > 0) {
                             additional_text2 = utility::narrow(str->data);
@@ -2701,12 +2701,12 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
                         std::vector<uint8_t> copied_obj{};
                         copied_obj.resize(real_size);
 
-                        memcpy(&copied_obj[0], &fake_obj, sizeof(REManagedObject));
-                        memcpy(&copied_obj[sizeof(REManagedObject)], elem, real_size - sizeof(REManagedObject));
+                        memcpy(&copied_obj[0], &fake_obj, REManagedObject::runtime_size());
+                        memcpy(&copied_obj[REManagedObject::runtime_size()], elem, real_size - REManagedObject::runtime_size());
                         real_size = utility::re_managed_object::get_size((REManagedObject*)copied_obj.data());
                         copied_obj.resize(real_size);
 
-                        memcpy(&copied_obj[sizeof(REManagedObject)], elem, real_size - sizeof(REManagedObject));
+                        memcpy(&copied_obj[REManagedObject::runtime_size()], elem, real_size - REManagedObject::runtime_size());
                         handle_address(copied_obj.data(), i, arr, elem);
                     }
                 }
@@ -4221,7 +4221,7 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
     spdlog::info("{:d} {:s}", GetCurrentThreadId(), desc->get_name());
 
     // Compare data
-    for (int32_t i = sizeof(REManagedObject); i + size <= (int32_t)class_size; i += 1) {
+    for (int32_t i = REManagedObject::runtime_size(); i + size <= (int32_t)class_size; i += 1) {
         auto ptr = object_copy.data() + i;
         bool same = true;
 
@@ -4575,7 +4575,7 @@ void ObjectExplorer::populate_classes() {
         for (auto i = 0; i < type_list->numAllocated; ++i) {
             auto t = (*type_list->data)[i];
 
-            if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
+            if (t == nullptr || IsBadReadPtr(t, REType::runtime_size())) {
                 continue;
             }
 

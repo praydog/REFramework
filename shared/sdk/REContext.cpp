@@ -721,11 +721,11 @@ namespace sdk {
         static std::vector<uint8_t> huge_string_data{};
 
         if (huge_string_data.empty()) {
-            huge_string_data.resize(sizeof(REManagedObject) + 4 + 2048);
+            huge_string_data.resize(REManagedObject::runtime_size() + 4 + 2048);
             memset(&huge_string_data[0], 0, huge_string_data.size());
 
             auto huge_string = (SystemString*)&huge_string_data[0];
-            memcpy(huge_string, empty_string, sizeof(REManagedObject));
+            memcpy(huge_string, empty_string, REManagedObject::runtime_size());
         }
 
         const auto str_len = str.length();

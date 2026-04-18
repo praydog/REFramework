@@ -117,7 +117,7 @@ RETypes::RETypes() {
                 for (auto i = 0; i < potential_types->numAllocated; ++i) try {
                     auto t = (*potential_types->data)[i];
 
-                    if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
+                    if (t == nullptr || IsBadReadPtr(t, REType::runtime_size())) {
                         continue;
                     }
 
@@ -327,7 +327,7 @@ void RETypes::refresh_map() {
     for (auto i = 0; i < typeList.numAllocated; ++i) {
         auto t = (*typeList.data)[i];
 
-        if (t == nullptr || IsBadReadPtr(t, sizeof(REType)) || ((uintptr_t)t & (sizeof(void*) - 1)) != 0) {
+        if (t == nullptr || IsBadReadPtr(t, REType::runtime_size()) || ((uintptr_t)t & (sizeof(void*) - 1)) != 0) {
             continue;
         }
 

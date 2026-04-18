@@ -20,6 +20,8 @@ public:
     REFieldList* get_fields() const;
     REClassInfo* get_classInfo() const;
 
+    // Runtime sizeof(REType). 0x60 on most games, 0x68 on MHWILDS/RE9.
+    static size_t runtime_size();
 private:
     void*       vtable;             // 0x00
     uint32_t    classIndex;         // 0x08

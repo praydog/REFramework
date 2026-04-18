@@ -465,7 +465,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
         const auto full_name = get_name_method->call<::REManagedObject*>(sdk::get_thread_context(), underlying_type);
 
         if (full_name != nullptr) {
-            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(full_name) - sizeof(::REManagedObject));
+            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(full_name) - REManagedObject::runtime_size());
             const auto str = utility::narrow(managed_str->data);
 
             managed_str->set_ref_count(0);

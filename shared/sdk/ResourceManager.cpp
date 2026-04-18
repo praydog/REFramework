@@ -58,7 +58,7 @@ REManagedObject* Resource::create_holder(sdk::RETypeDefinition* t) {
     }
 
     this->add_ref();
-    *(sdk::Resource**)((uintptr_t)instance + sizeof(::REManagedObject)) = this;
+    *(sdk::Resource**)((uintptr_t)instance + REManagedObject::runtime_size()) = this;
 
     return instance;
 }

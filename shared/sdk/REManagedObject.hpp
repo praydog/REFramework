@@ -17,6 +17,12 @@ namespace sdk {
 struct RETypeDefinition;
 }
 
+// TODO: These utility::re_managed_object free functions should be refactored into member
+// methods on the REManagedObject struct (in types/REManagedObject.hpp). They're free
+// functions because the original ReClass workflow couldn't generate classes with methods —
+// the entire header would get replaced on regeneration. Now that the struct definitions
+// live in dedicated type headers separate from the ReClass output, the functions can
+// be moved onto the struct as proper member methods.
 namespace utility::re_managed_object {
 // Exposed because these take forever to scan for
 // Maybe we can just do some clever scanning through some reflected methods in the future.
