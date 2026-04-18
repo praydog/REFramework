@@ -1723,7 +1723,7 @@ using REField_ = sdk::tdb84::REField;
 struct REFieldImpl : public sdk::tdb84::REFieldImpl {};
 struct RETypeImpl : public sdk::tdb84::RETypeImpl {};
 struct REPropertyImpl : public sdk::tdb84::REPropertyImpl {};
-struct REProperty : public sdk::tdb84::REProperty {};
+struct REProperty {};
 struct REParameterDef : public sdk::tdb84::REParameterDef {};
 struct GenericListData : public sdk::tdb84::GenericListData {};
 using ParamList = sdk::tdb84::ParamList;
@@ -1896,8 +1896,14 @@ namespace generic_list_accessor {
 } // namespace sdk
 
 namespace sdk {
+#ifdef REFRAMEWORK_UNIVERSAL
+struct RETypeDB {
+#else
 struct RETypeDB : public sdk::RETypeDB_ {
+#endif
     static RETypeDB* get();
+    // Version field at offset 0x04 is stable across all TDB variants.
+    uint32_t get_version() const { return reinterpret_cast<const sdk::tdb84::TDB*>(this)->version; }
 
     sdk::REModule* get_module(uint32_t index) const;
 
@@ -1929,7 +1935,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
-    default:          return this->field; /* tdb84 compiled-in layout */ \
+    default:          return reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
 
     // TDB_DISPATCH_69: for fields that only exist in TDB >= 69 (typesImpl, params, etc.)
@@ -1946,7 +1952,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
-    default:          return this->field; /* tdb84 compiled-in layout */ \
+    default:          return reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
 
     // --- Scalar count accessors ---
@@ -1972,7 +1978,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     // We cast all to the compiled-in (tdb84) return type so auto* deduction works.
 
 #define TDB_DISPATCH_PTR(field) \
-    using _ret = decltype(this->field); \
+    using _ret = decltype(reinterpret_cast<const sdk::tdb84::TDB*>(nullptr)->field); \
     switch (sdk::GameIdentity::get().tdb_ver()) { \
     case 66: case 67: return (_ret)reinterpret_cast<const sdk::tdb67::TDB*>(this)->field; \
     case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
@@ -1984,11 +1990,11 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
-    default:          return this->field; \
+    default:          return (_ret)reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
 
 #define TDB_DISPATCH_PTR_69(field) \
-    using _ret = decltype(this->field); \
+    using _ret = decltype(reinterpret_cast<const sdk::tdb84::TDB*>(nullptr)->field); \
     switch (sdk::GameIdentity::get().tdb_ver()) { \
     case 66: case 67: return (_ret)nullptr; \
     case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
@@ -2000,7 +2006,7 @@ struct RETypeDB : public sdk::RETypeDB_ {
     case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
     case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
     case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
-    default:          return this->field; \
+    default:          return (_ret)reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
 
     auto* get_types_ptr() const         { TDB_DISPATCH_PTR(types) }
@@ -2150,22 +2156,22 @@ struct RETypeDB : public sdk::RETypeDB_ {
 } // namespace sdk
 
 namespace sdk {
+#ifdef REFRAMEWORK_UNIVERSAL
+struct REModule {
+#else
 struct REModule : public sdk::REModule_ {
-    uint16_t get_major() const {
-        return this->major;
-    }
-
-    uint16_t get_minor() const {
-        return this->minor;
-    }
-
-    uint16_t get_build() const {
-        return this->build;
-    }
-
-    uint16_t get_revision() const {
-        return this->revision;
-    }
+#endif
+#ifdef REFRAMEWORK_UNIVERSAL
+    uint16_t get_major() const { return RMOD_FIELD(this, major); }
+    uint16_t get_minor() const { return RMOD_FIELD(this, minor); }
+    uint16_t get_build() const { return RMOD_FIELD(this, build); }
+    uint16_t get_revision() const { return RMOD_FIELD(this, revision); }
+#else
+    uint16_t get_major() const { return this->major; }
+    uint16_t get_minor() const { return this->minor; }
+    uint16_t get_build() const { return this->build; }
+    uint16_t get_revision() const { return this->revision; }
+#endif
 
     const char* get_assembly_name() const;
     const char* get_location() const;
@@ -2176,7 +2182,11 @@ struct REModule : public sdk::REModule_ {
     std::span<uint32_t> get_member_references() const;
 };
 
+#ifdef REFRAMEWORK_UNIVERSAL
+struct REField {
+#else
 struct REField : public sdk::REField_ {
+#endif
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_type() const;
     const char* get_name() const;
@@ -2194,7 +2204,11 @@ struct REField : public sdk::REField_ {
     template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object); }
 };
 
+#ifdef REFRAMEWORK_UNIVERSAL
+struct REMethodDefinition {
+#else
 struct REMethodDefinition : public sdk::REMethodDefinition_ {
+#endif
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_return_type() const;
 
@@ -2352,7 +2366,7 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
             return static_cast<uint32_t>(
                 reinterpret_cast<const sdk::tdb_bits18::REMethodDef69*>(this)->params);
         }
-        return (this->params_hi << 13) | this->params_lo;
+        return (TMETH_FIELD_71(this, params_hi) << 13) | TMETH_FIELD_71(this, params_lo);
 #elif TDB_VER >= 71
         const auto params_index = (this->params_hi << 13) | this->params_lo;
 #else
@@ -2562,7 +2576,7 @@ inline uint32_t tmeth_declaring_typeid(const sdk::REMethodDefinition* ptr) {
         return (uint32_t)reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(ptr)->declaring_typeid;
     if (needs_18bit())
         return (uint32_t)reinterpret_cast<const sdk::tdb69::REMethodDefinition*>(ptr)->declaring_typeid;
-    return (uint32_t)ptr->declaring_typeid;
+    return (uint32_t)reinterpret_cast<const sdk::tdb84::REMethodDefinition*>(ptr)->declaring_typeid;
 }
 
 inline uint32_t tfield_declaring_typeid(const sdk::REField* ptr) {
@@ -2570,7 +2584,7 @@ inline uint32_t tfield_declaring_typeid(const sdk::REField* ptr) {
         return (uint32_t)reinterpret_cast<const sdk::tdb67::REField*>(ptr)->declaring_typeid;
     if (needs_18bit())
         return (uint32_t)reinterpret_cast<const sdk::tdb69::REField*>(ptr)->declaring_typeid;
-    return (uint32_t)ptr->declaring_typeid;
+    return (uint32_t)reinterpret_cast<const sdk::tdb84::REField*>(ptr)->declaring_typeid;
 }
 
 } // namespace sdk::tdb_dispatch

@@ -284,7 +284,7 @@ sdk::RETypeDefinition* REField::get_type() const {
         field_typeid = (uint32_t)impl->field_typeid;
     } else {
         // TDB 71+: direct on compiled-in struct.
-        field_typeid = this->field_typeid;
+        field_typeid = TFIELD_FIELD_71(this, field_typeid);
     }
 #elif TDB_VER >= 71
     const auto field_typeid = this->field_typeid;
@@ -355,8 +355,8 @@ uint32_t REField::get_init_data_index() const {
             &(*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)]);
         init_data_index = impl->init_data_lo | (impl->init_data_hi << 14);
     } else {
-        auto& impl = (*tdb->get_fieldsImpl_ptr())[this->impl_id];
-        init_data_index = impl.init_data_lo | (impl.init_data_mid << 6) | (this->init_data_hi << 10);
+        auto& impl = (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)];
+        init_data_index = impl.init_data_lo | (impl.init_data_mid << 6) | (TFIELD_FIELD_71(this, init_data_hi) << 10);
     }
 #elif TDB_VER >= 71
     auto& impl = (*tdb->get_fieldsImpl_ptr())[this->impl_id];
@@ -405,7 +405,7 @@ uint32_t REField::get_offset_from_fieldptr() const {
             reinterpret_cast<const sdk::tdb_bits18::REField69*>(this)->offset);
     } else {
         const auto tdb = sdk::RETypeDB::get();
-        return (*tdb->get_fieldsImpl_ptr())[this->impl_id].offset;
+        return (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)].offset;
     }
 #elif TDB_VER >= 71
     const auto tdb = sdk::RETypeDB::get();
@@ -610,7 +610,7 @@ void* REMethodDefinition::get_function() const {
     }
 #endif
 #if TDB_VER >= 71
-    if (this->encoded_offset == 0) {
+    if (TMETH_FIELD_71(this, encoded_offset) == 0) {
         /*const auto dt = this->get_declaring_type();
         
         if (dt != nullptr) {
@@ -718,13 +718,13 @@ void* REMethodDefinition::get_function() const {
 
     if (get_encoded_pointer == nullptr) {
         if (encoded_function_base != 0) {
-            return (void*)(encoded_function_base + this->encoded_offset);
+            return (void*)(encoded_function_base + TMETH_FIELD_71(this, encoded_offset));
         }
 
         return nullptr;
     }
 
-    auto result = get_encoded_pointer(this->encoded_offset);
+    auto result = get_encoded_pointer(TMETH_FIELD_71(this, encoded_offset));
 
     if (result == nullptr) {
         spdlog::error("[REMethodDefinition] Failed to get function from encoded offset, method index: {}", this->get_index());
@@ -1465,22 +1465,22 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
 
 const char* REModule::get_assembly_name() const {
     auto tdb = RETypeDB::get();
-    return tdb->get_string(this->assembly_name_offset);
+    return tdb->get_string(RMOD_FIELD(this, assembly_name_offset));
 }
 
 const char* REModule::get_location() const {
     auto tdb = RETypeDB::get();
-    return tdb->get_string(this->location_offset);
+    return tdb->get_string(RMOD_FIELD(this, location_offset));
 }
 
 const char* REModule::get_module_name() const {
     auto tdb = RETypeDB::get();
-    return tdb->get_string(this->module_name_offset);
+    return tdb->get_string(RMOD_FIELD(this, module_name_offset));
 }
 
 std::span<uint32_t> REModule::get_types() const {
     auto tdb = RETypeDB::get();
-    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->types_start), (size_t)this->types_count};
+    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(RMOD_FIELD(this, types_start)), (size_t)RMOD_FIELD(this, types_count)};
 }
 
 std::span<uint32_t> REModule::get_methods() const {
@@ -1491,10 +1491,7 @@ std::span<uint32_t> REModule::get_methods() const {
         spdlog::warn("This TDB version does not support REModule::get_methods()");
         return {};
     }
-    {
-        auto* mod74 = reinterpret_cast<const sdk::tdb74::REModule*>(this);
-        return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(mod74->methods_start), (size_t)mod74->methods_count};
-    }
+        return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(RMOD_FIELD(this, methods_start)), (size_t)RMOD_FIELD(this, methods_count)};
 #else
 #if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_methods()");
@@ -1513,10 +1510,7 @@ std::span<uint32_t> REModule::get_instantiated_methods() const {
         spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
         return {};
     }
-    {
-        auto* mod74 = reinterpret_cast<const sdk::tdb74::REModule*>(this);
-        return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(mod74->method_instantiations_start), (size_t)mod74->method_instantiations_count};
-    }
+    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(RMOD_FIELD(this, method_instantiations_start)), (size_t)RMOD_FIELD(this, method_instantiations_count)};
 #else
 #if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
@@ -1535,10 +1529,7 @@ std::span<uint32_t> REModule::get_member_references() const {
         spdlog::warn("This TDB version does not support REModule::get_member_references()");
         return {};
     }
-    {
-        auto* mod74 = reinterpret_cast<const sdk::tdb74::REModule*>(this);
-        return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(mod74->member_references_start), (size_t)mod74->member_references_count};
-    }
+    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(RMOD_FIELD(this, member_references_start)), (size_t)RMOD_FIELD(this, member_references_count)};
 #else
 #if TDB_VER >= 81
     spdlog::warn("This TDB version does not support REModule::get_member_references()");

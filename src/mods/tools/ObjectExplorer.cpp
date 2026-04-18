@@ -2067,8 +2067,8 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             getter_id = p67->getter;
             setter_id = p67->setter;
         } else {
-            getter_id = (uint32_t)p.getter;
-            setter_id = (uint32_t)p.setter;
+            getter_id = (uint32_t)RPROP_FIELD_69(&p, getter);
+            setter_id = (uint32_t)RPROP_FIELD_69(&p, setter);
         }
 
         std::shared_ptr<detail::ParsedMethod> getter{};
@@ -2094,7 +2094,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         const char* name = nullptr;
         if (gi.tdb_ver() >= 69) {
-            const auto impl_id = (uint32_t)p.impl_id;
+            const auto impl_id = (uint32_t)RPROP_FIELD_69(&p, impl_id);
             auto& impl = (*tdb->get_propertiesImpl_ptr())[impl_id];
             name = Address{tdb->get_stringPool_ptr()}.get(impl.name_offset).as<const char*>();
         } else {
@@ -2111,7 +2111,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pp->setter = setter;
 
         if (gi.tdb_ver() >= 69) {
-            const auto impl_id = (uint32_t)p.impl_id;
+            const auto impl_id = (uint32_t)RPROP_FIELD_69(&p, impl_id);
             pp->p_impl = &(*tdb->get_propertiesImpl_ptr())[impl_id];
         }
 

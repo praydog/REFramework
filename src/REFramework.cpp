@@ -1781,7 +1781,7 @@ void REFramework::draw_about() {
             static auto version_t = sdk::find_type_definition("via.version");
             static std::string clean_version{};
             static std::string engine_config{};
-            static auto tdb_version = sdk::RETypeDB::get()->version;
+            static auto tdb_version = sdk::RETypeDB::get()->get_version();
 
             if (version_t != nullptr && clean_version.empty()) {
                 auto m = version_t->get_method("getPrettyVersionString");

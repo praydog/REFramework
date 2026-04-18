@@ -1565,7 +1565,7 @@ void bindings::open_sdk(ScriptState* s) {
     )");
 
     auto sdk = lua.create_table();
-    sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->version; };
+    sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->get_version(); };
     sdk["game_namespace"] = game_namespace;
     sdk["get_thread_context"] = api::sdk::get_thread_context;
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;

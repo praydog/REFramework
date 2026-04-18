@@ -173,7 +173,7 @@ inline bool needs_plain_impl() {
 #define TMETH_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REMethodDefinition*>(ptr)->field \
-        : (ptr)->field)
+        : reinterpret_cast<const sdk::tdb84::REMethodDefinition*>(ptr)->field)
 
 
 // TFIELD_FIELD: Read a bitfield from a REField pointer with runtime dispatch.
@@ -184,7 +184,7 @@ inline bool needs_plain_impl() {
 #define TFIELD_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REField*>(ptr)->field \
-        : (ptr)->field)
+        : reinterpret_cast<const sdk::tdb84::REField*>(ptr)->field)
 
 
 // TPARAM_FIELD: Read a bitfield from a REParameterDef pointer with runtime dispatch.
@@ -194,7 +194,39 @@ inline bool needs_plain_impl() {
 #define TPARAM_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REParameterDef*>(ptr)->field \
-        : (ptr)->field)
+        : reinterpret_cast<const sdk::tdb84::REParameterDef*>(ptr)->field)
+
+// TMETH_FIELD_71: Read a field from REMethodDefinition that only exists in TDB >= 71.
+// Fields: encoded_offset, params_hi, params_lo.
+// These don't exist in tdb67/tdb69 — no dispatch needed, just cast to tdb84.
+#define TMETH_FIELD_71(ptr, field) \
+    (reinterpret_cast<const sdk::tdb84::REMethodDefinition*>(ptr)->field)
+
+// TFIELD_FIELD_71: Read a field from REField that only exists in TDB >= 71.
+// Fields: field_typeid (as direct bitfield), init_data_hi.
+// In tdb67/tdb69 these are at different positions or don't exist.
+#define TFIELD_FIELD_71(ptr, field) \
+    (reinterpret_cast<const sdk::tdb84::REField*>(ptr)->field)
+
+// RMOD_FIELD: Read a field from REModule. Module fields (assembly_name_offset,
+// location_offset, module_name_offset, types_start, types_count, etc.) are
+// at stable offsets between tdb74 (0x58) and tdb81 (0x40) — only trailing
+// fields differ. Cast to tdb74 which has all fields.
+#define RMOD_FIELD(ptr, field) \
+    (reinterpret_cast<const sdk::tdb74::REModule*>(ptr)->field)
+
+// RPROP_FIELD: Read a field from REProperty with runtime dispatch.
+// tdb67 has a completely different layout (plain uint32_t for getter/setter).
+// tdb69+ has a packed uint64_t bitfield.
+#define RPROP_FIELD(ptr, field) \
+    (sdk::tdb_dispatch::needs_pre_impl() \
+        ? reinterpret_cast<const sdk::tdb67::REProperty*>(ptr)->field \
+        : reinterpret_cast<const sdk::tdb84::REProperty*>(ptr)->field)
+
+// RPROP_FIELD_69: Read a field from REProperty that only exists in TDB >= 69.
+// Fields: impl_id. These don't exist in tdb67.
+#define RPROP_FIELD_69(ptr, field) \
+    (reinterpret_cast<const sdk::tdb84::REProperty*>(ptr)->field)
 #else // Non-universal builds: no dispatch needed, direct access.
 
 #define TDEF_FIELD(ptr, field) ((ptr)->field)
@@ -202,10 +234,14 @@ inline bool needs_plain_impl() {
 #define TDEF_FIELD_PRE_IMPL(ptr, field) ((ptr)->field)
 #define TDEF_FIELD_SET(ptr, field, value) ((ptr)->field = (value))
 #define TMETH_FIELD(ptr, field) ((ptr)->field)
+#define TMETH_FIELD_71(ptr, field) ((ptr)->field)
 #define TFIELD_FIELD(ptr, field) ((ptr)->field)
+#define TFIELD_FIELD_71(ptr, field) ((ptr)->field)
 #define TPARAM_FIELD(ptr, field) ((ptr)->field)
 #define TIMPL_FIELD(ref, field) ((ref).field)
-
+#define RMOD_FIELD(ptr, field) ((ptr)->field)
+#define RPROP_FIELD(ptr, field) ((ptr)->field)
+#define RPROP_FIELD_69(ptr, field) ((ptr)->field)
 #endif // REFRAMEWORK_UNIVERSAL
 
 } // namespace sdk
