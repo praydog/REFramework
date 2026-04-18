@@ -68,6 +68,28 @@ GUARDED_TYPES = {
     "Buffer": {"m_size_in_bytes", "m_usage_type", "m_option_flags"},
 }
 
+# Types where sizeof() is wrong under REFRAMEWORK_UNIVERSAL (empty/decoupled structs).
+# Using sizeof() on these for stride calculation, array allocation, or memcpy is a bug.
+SIZEOF_BANNED_TYPES = {
+    # Decoupled from inheritance — sizeof == 1 under universal
+    "RETypeDB", "RETypeDefinition", "REMethodDefinition", "REField",
+    "REProperty", "REModule",
+    # Private fields, sizeof might not match runtime layout
+    "REGameObject", "REComponent", "REManagedObject",
+    "REType", "REFieldList", "FunctionDescriptor", "VariableDescriptor",
+    # Render structs with variable base class size
+    "TargetState", "RenderTargetView", "Buffer",
+    # TDB Impl types — still inherit but layout varies on tdb69/70
+    "RETypeImpl", "REFieldImpl", "REMethodImpl", "REPropertyImpl",
+    "REParameterDef", "GenericListData",
+    # Transform — varies across 4 sizes
+    "RETransform",
+}
+
+# Types where array subscript [index] is wrong (sizeof == 1 stride).
+# Same set as SIZEOF_BANNED_TYPES but specifically for subscript operators.
+SUBSCRIPT_BANNED_TYPES = SIZEOF_BANNED_TYPES
+
 # Flatten for quick lookup: field_name -> set of parent type names
 FIELD_TO_TYPES = defaultdict(set)
 for tname, fields in GUARDED_TYPES.items():
@@ -241,19 +263,16 @@ def scan_file(filepath, flags):
     violations = []
 
     def visit(cursor):
-        # Only look at MemberRefExpr (->field or .field)
+        # Check 1: MemberRefExpr (->field or .field) on guarded types
         if cursor.kind == ci.CursorKind.MEMBER_REF_EXPR:
             field_name = cursor.spelling
             if field_name in FIELD_TO_TYPES:
-                # Check the type of the base expression
-                # The base is the first child of a MemberRefExpr
                 children = list(cursor.get_children())
                 if children:
                     base_type_name = get_type_name(children[0])
                     if base_type_name in GUARDED_TYPES and field_name in GUARDED_TYPES[base_type_name]:
                         loc = cursor.location
                         if loc.file and not is_whitelisted(loc.file.name):
-                            # Skip static_assert lines (compile-time offset guards)
                             src_line = source_lines.get(loc.line, '')
                             if 'static_assert' not in src_line:
                                 violations.append({
@@ -262,7 +281,48 @@ def scan_file(filepath, flags):
                                     "col": loc.column,
                                     "type": base_type_name,
                                     "field": field_name,
+                                    "kind": "direct_access",
                                 })
+
+        # Check 2: sizeof() on decoupled/layout-variant types
+        if cursor.kind == ci.CursorKind.CXX_UNARY_EXPR:
+            src_line = source_lines.get(cursor.location.line, '')
+            if 'sizeof' in src_line:
+                # Check if sizeof references a banned type
+                for child in cursor.get_children():
+                    type_name = get_type_name(child)
+                    if type_name in SIZEOF_BANNED_TYPES:
+                        loc = cursor.location
+                        if loc.file and not is_whitelisted(loc.file.name):
+                            # Skip sizeof on versioned types (tdb67::REProperty etc.) — those are correct
+                            if 'static_assert' not in src_line and 'stride' not in src_line and 'tdb' not in src_line:
+                                violations.append({
+                                    "file": os.path.relpath(loc.file.name, REPO_ROOT).replace("\\", "/"),
+                                    "line": loc.line,
+                                    "col": loc.column,
+                                    "type": type_name,
+                                    "field": "sizeof",
+                                    "kind": "sizeof_banned",
+                                })
+
+        # Check 3: Array subscript on pointers to banned types
+        if cursor.kind == ci.CursorKind.ARRAY_SUBSCRIPT_EXPR:
+            children = list(cursor.get_children())
+            if children:
+                base_type = get_type_name(children[0])
+                if base_type in SUBSCRIPT_BANNED_TYPES:
+                    loc = cursor.location
+                    if loc.file and not is_whitelisted(loc.file.name):
+                        src_line = source_lines.get(loc.line, '')
+                        if 'static_assert' not in src_line:
+                            violations.append({
+                                "file": os.path.relpath(loc.file.name, REPO_ROOT).replace("\\", "/"),
+                                "line": loc.line,
+                                "col": loc.column,
+                                "type": base_type,
+                                "field": "[index]",
+                                "kind": "array_subscript",
+                            })
 
         for child in cursor.get_children():
             visit(child)
@@ -321,7 +381,9 @@ def main():
             vv = by_file[fp]
             print(f"--- {fp} ({len(vv)}) ---")
             for v in vv:
-                print(f"  L{v['line']:>5}:{v['col']:<3}  {v['type']}::{v['field']}")
+                kind = v.get('kind', 'direct_access')
+                marker = '!!' if kind == 'sizeof_banned' else '[]' if kind == 'array_subscript' else '  '
+                print(f"  {marker} L{v['line']:>5}:{v['col']:<3}  {v['type']}::{v['field']}  ({kind})")
             print()
 
     return 1 if all_violations else 0
