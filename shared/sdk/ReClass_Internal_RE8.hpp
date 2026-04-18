@@ -187,6 +187,13 @@ public:
 	REComponent* get_prev_component() const { return prevComponent; }
 	REComponent* get_next_component() const { return nextComponent; }
 	REComponent*& child_component_ref() { return childComponent; }
+
+	// Field offsets for UI/debug display. Stable across all supported games today;
+	// centralized here so consumers don't hardcode numbers.
+	static constexpr uintptr_t offset_of_game_object()    { return 0x10; }
+	static constexpr uintptr_t offset_of_child_component() { return 0x18; }
+	static constexpr uintptr_t offset_of_prev_component()  { return 0x20; }
+	static constexpr uintptr_t offset_of_next_component()  { return 0x28; }
 }; //Size: 0x0030
 static_assert(sizeof(REComponent) == 0x30);
 
@@ -225,6 +232,10 @@ public:
 	bool get_shouldUpdate() const;
 	void set_shouldUpdate(bool v);
 	class REFolder* get_folder() const;
+
+	// Field offsets for UI/debug display. These vary per game and dispatch at runtime.
+	static uintptr_t offset_of_transform();
+	static uintptr_t offset_of_folder();
 #else
 	class RETransform* get_transform() const { return transform; }
 	bool get_shouldDraw() const { return shouldDraw; }
@@ -232,6 +243,9 @@ public:
 	bool get_shouldUpdate() const { return shouldUpdate; }
 	class REFolder* get_folder() const { return folder; }
 	void set_shouldUpdate(bool v) { shouldUpdate = v; }
+
+	static uintptr_t offset_of_transform() { return offsetof(REGameObject, transform); }
+	static uintptr_t offset_of_folder()    { return offsetof(REGameObject, folder); }
 #endif
 	char pad_0010[2]; //0x0010
 	bool shouldUpdate; //0x0012

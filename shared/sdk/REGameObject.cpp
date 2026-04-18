@@ -50,6 +50,9 @@ void REGameObject::set_shouldUpdate(bool v) {
 REFolder* REGameObject::get_folder() const {
     return *(REFolder**)((uintptr_t)this + go_transform_offset() + sizeof(void*));
 }
+
+uintptr_t REGameObject::offset_of_transform() { return go_transform_offset(); }
+uintptr_t REGameObject::offset_of_folder()    { return go_transform_offset() + sizeof(void*); }
 #endif
 
 namespace utility::re_game_object {

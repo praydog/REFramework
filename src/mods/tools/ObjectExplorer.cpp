@@ -2785,12 +2785,8 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
     auto game_object_name = utility::re_game_object::get_name(game_object);
 
     ImGui::Text("Name: %s", game_object_name.c_str());
-    // REGameObject::transform offset varies by game: 0x18 (most) vs 0x20 (SF6/RE4).
-    // Duplicates logic from REGameObject.cpp go_transform_offset() — no public accessor exists.
-    const auto& gi = sdk::GameIdentity::get();
-    const uint32_t go_transform_off = (gi.is_sf6() || gi.is_re4()) ? 0x20 : 0x18;
-    make_tree_offset(game_object, go_transform_off, "Transform");
-    make_tree_offset(game_object, go_transform_off + (uint32_t)sizeof(void*), "Folder");
+    make_tree_offset(game_object, REGameObject::offset_of_transform(), "Transform");
+    make_tree_offset(game_object, REGameObject::offset_of_folder(), "Folder");
 
     ImGui::PopID();
 }
@@ -2819,16 +2815,10 @@ void ObjectExplorer::handle_component(REComponent* component) {
         sdk::call_object_func<void*>(component, "destroy", sdk::get_thread_context(), component);
     }
 
-    // REComponent field offsets: stable at 0x10/0x18/0x20/0x28 across all supported games.
-    constexpr uintptr_t owner_offset = 0x10;  // ownerGameObject
-    constexpr uintptr_t child_offset = 0x18;  // childComponent
-    static_assert(offsetof(REComponent, ownerGameObject) == owner_offset);
-    static_assert(offsetof(REComponent, childComponent) == child_offset);
+    make_tree_offset(component, REComponent::offset_of_game_object(), "Owner", [&](){  display_component_preview(component); });
+    //make_tree_offset(component, REComponent::offset_of_child_component(), "ChildComponent");
 
-    make_tree_offset(component, owner_offset, "Owner", [&](){  display_component_preview(component); });
-    //make_tree_offset(component, child_offset, "ChildComponent");
-
-    auto children_offset = child_offset;
+    auto children_offset = REComponent::offset_of_child_component();
     auto children_ptr = Address(component).get(children_offset).to<void*>();
 
     // Draw children
@@ -2869,12 +2859,8 @@ void ObjectExplorer::handle_component(REComponent* component) {
         }
     }
 
-    constexpr uintptr_t prev_offset = 0x20;  // prevComponent
-    constexpr uintptr_t next_offset = 0x28;  // nextComponent
-    static_assert(offsetof(REComponent, prevComponent) == prev_offset);
-    static_assert(offsetof(REComponent, nextComponent) == next_offset);
-    make_tree_offset(component, prev_offset, "PrevComponent", [&](){ display_component_preview(component->get_prev_component()); });
-    make_tree_offset(component, next_offset, "NextComponent", [&](){ display_component_preview(component->get_next_component()); });
+    make_tree_offset(component, REComponent::offset_of_prev_component(), "PrevComponent", [&](){ display_component_preview(component->get_prev_component()); });
+    make_tree_offset(component, REComponent::offset_of_next_component(), "NextComponent", [&](){ display_component_preview(component->get_next_component()); });
 }
 
 void ObjectExplorer::handle_transform(RETransform* transform) {
