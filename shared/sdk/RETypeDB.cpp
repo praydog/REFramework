@@ -180,7 +180,7 @@ sdk::RETypeDefinition* RETypeDB::get_type(uint32_t index) const {
     // TDB 71-73 has stride 0x48 (no unk_new_tdb74_uint64). V84 compiled stride is 0x50.
     const auto stride = get_typedef_stride();
     return reinterpret_cast<sdk::RETypeDefinition*>(
-        reinterpret_cast<uintptr_t>(*get_types_ptr()) + static_cast<size_t>(index) * stride);
+        reinterpret_cast<uintptr_t>(get_types_ptr()) + static_cast<size_t>(index) * stride);
 #else
     return &(*get_types_ptr())[index];
 #endif

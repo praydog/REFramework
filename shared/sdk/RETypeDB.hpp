@@ -2009,22 +2009,22 @@ struct RETypeDB : public sdk::RETypeDB_ {
     default:          return (_ret)reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
 
-    auto* get_types_ptr() const         { TDB_DISPATCH_PTR(types) }
-    auto* get_methods_ptr() const       { TDB_DISPATCH_PTR(methods) }
-    auto* get_fields_ptr() const        { TDB_DISPATCH_PTR(fields) }
-    auto* get_properties_ptr() const    { TDB_DISPATCH_PTR(properties) }
-    auto* get_modules_ptr() const       { TDB_DISPATCH_PTR(modules) }
+    const void* get_types_ptr() const         { TDB_DISPATCH_PTR(types) }
+    const void* get_methods_ptr() const       { TDB_DISPATCH_PTR(methods) }
+    const void* get_fields_ptr() const        { TDB_DISPATCH_PTR(fields) }
+    const void* get_properties_ptr() const    { TDB_DISPATCH_PTR(properties) }
+    const void* get_modules_ptr() const       { TDB_DISPATCH_PTR(modules) }
     auto* get_stringPool_ptr() const    { TDB_DISPATCH_PTR(stringPool) }
     auto* get_bytePool_ptr() const      { TDB_DISPATCH_PTR(bytePool) }
     auto* get_initData_ptr() const      { TDB_DISPATCH_PTR(initData) }
     auto* get_internStrings_ptr() const { TDB_DISPATCH_PTR(internStrings) }
 
     // Impl pointers: only exist in TDB >= 69, return nullptr for older games
-    auto* get_typesImpl_ptr() const     { TDB_DISPATCH_PTR_69(typesImpl) }
-    auto* get_methodsImpl_ptr() const   { TDB_DISPATCH_PTR_69(methodsImpl) }
-    auto* get_fieldsImpl_ptr() const    { TDB_DISPATCH_PTR_69(fieldsImpl) }
-    auto* get_propertiesImpl_ptr() const{ TDB_DISPATCH_PTR_69(propertiesImpl) }
-    auto* get_params_ptr() const        { TDB_DISPATCH_PTR_69(params) }
+    const void* get_typesImpl_ptr() const     { TDB_DISPATCH_PTR_69(typesImpl) }
+    const void* get_methodsImpl_ptr() const   { TDB_DISPATCH_PTR_69(methodsImpl) }
+    const void* get_fieldsImpl_ptr() const    { TDB_DISPATCH_PTR_69(fieldsImpl) }
+    const void* get_propertiesImpl_ptr() const{ TDB_DISPATCH_PTR_69(propertiesImpl) }
+    const void* get_params_ptr() const        { TDB_DISPATCH_PTR_69(params) }
 #undef TDB_DISPATCH
 #undef TDB_DISPATCH_69
 #undef TDB_DISPATCH_PTR
@@ -2161,35 +2161,35 @@ struct RETypeDB : public sdk::RETypeDB_ {
     static constexpr size_t get_type_impl_stride() { return sizeof(sdk::tdb84::RETypeImpl); }
     auto& get_type_impl_at(uint32_t index) const {
         return *reinterpret_cast<sdk::RETypeImpl*>(
-            reinterpret_cast<uintptr_t>(*get_typesImpl_ptr()) + static_cast<size_t>(index) * get_type_impl_stride());
+            reinterpret_cast<uintptr_t>(get_typesImpl_ptr()) + static_cast<size_t>(index) * get_type_impl_stride());
     }
 
     // REFieldImpl: ~12 bytes across all versions.
     static constexpr size_t get_field_impl_stride() { return sizeof(sdk::tdb84::REFieldImpl); }
     auto& get_field_impl_at(uint32_t index) const {
         return *reinterpret_cast<sdk::REFieldImpl*>(
-            reinterpret_cast<uintptr_t>(*get_fieldsImpl_ptr()) + static_cast<size_t>(index) * get_field_impl_stride());
+            reinterpret_cast<uintptr_t>(get_fieldsImpl_ptr()) + static_cast<size_t>(index) * get_field_impl_stride());
     }
 
     // REMethodImpl: ~12 bytes across all versions.
     static constexpr size_t get_method_impl_stride() { return sizeof(sdk::tdb84::REMethodImpl); }
     auto& get_method_impl_at(uint32_t index) const {
         return *reinterpret_cast<sdk::REMethodImpl*>(
-            reinterpret_cast<uintptr_t>(*get_methodsImpl_ptr()) + static_cast<size_t>(index) * get_method_impl_stride());
+            reinterpret_cast<uintptr_t>(get_methodsImpl_ptr()) + static_cast<size_t>(index) * get_method_impl_stride());
     }
 
     // REPropertyImpl: ~8 bytes across all versions.
     static constexpr size_t get_property_impl_stride() { return sizeof(sdk::tdb84::REPropertyImpl); }
     auto& get_property_impl_at(uint32_t index) const {
         return *reinterpret_cast<sdk::REPropertyImpl*>(
-            reinterpret_cast<uintptr_t>(*get_propertiesImpl_ptr()) + static_cast<size_t>(index) * get_property_impl_stride());
+            reinterpret_cast<uintptr_t>(get_propertiesImpl_ptr()) + static_cast<size_t>(index) * get_property_impl_stride());
     }
 
     // REParameterDef: ~12 bytes across all versions.
     static constexpr size_t get_param_stride() { return sizeof(sdk::tdb84::REParameterDef); }
     auto& get_param_at(uint32_t index) const {
         return *reinterpret_cast<sdk::REParameterDef*>(
-            reinterpret_cast<uintptr_t>(*get_params_ptr()) + static_cast<size_t>(index) * get_param_stride());
+            reinterpret_cast<uintptr_t>(get_params_ptr()) + static_cast<size_t>(index) * get_param_stride());
     }
 
     // initData: int32_t array — stable at 4 bytes. Accessor for consistency.

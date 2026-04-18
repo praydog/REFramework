@@ -170,6 +170,14 @@ static_assert(sizeof(REJointArray) == 0x110);
 class RETransform : public REComponent
 {
 public:
+#ifdef REFRAMEWORK_UNIVERSAL
+	// REJointArray offset varies: 0xD0 (RE2/RE3 TDB70), 0xD8 (RE8+), 0xE8 (RE7 TDB49, out of scope).
+	REJointArray& get_joints();
+	const REJointArray& get_joints() const;
+#else
+	REJointArray& get_joints() { return joints; }
+	const REJointArray& get_joints() const { return joints; }
+#endif
 	Vector4f position; //0x0030
 	Vector4f angles; //0x0040
 	Vector4f scale; //0x0050

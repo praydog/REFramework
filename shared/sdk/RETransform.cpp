@@ -5,6 +5,29 @@
 #include "REString.hpp"
 #include "RETransform.hpp"
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "GameIdentity.hpp"
+
+static uintptr_t joints_offset() {
+    static const auto offset = []() -> uintptr_t {
+        const auto ver = sdk::GameIdentity::get().tdb_ver();
+        // RE2/RE3 TDB70 (and DMC5 TDB67): joints at 0xD0
+        // RE8+ (TDB69, TDB71-84): joints at 0xD8
+        if (ver <= 70) return 0xD0;
+        return 0xD8;
+    }();
+    return offset;
+}
+
+REJointArray& RETransform::get_joints() {
+    return *reinterpret_cast<REJointArray*>((uintptr_t)this + joints_offset());
+}
+
+const REJointArray& RETransform::get_joints() const {
+    return *reinterpret_cast<const REJointArray*>((uintptr_t)this + joints_offset());
+}
+#endif
+
 namespace sdk {
 Vector4f sdk::get_transform_position(RETransform* transform) {
     static auto get_position_method = sdk::find_type_definition("via.Transform")->get_method("get_Position");
@@ -188,13 +211,13 @@ std::string sdk::get_joint_name(REJoint* joint) {
 namespace utility::re_transform {
 REJoint* get_joint(const ::RETransform& transform, uint32_t index) {
 #if TDB_VER < 69
-    auto& joint_array = transform.joints;
+    auto& joint_array = transform.get_joints();
 
     if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
         return nullptr;
     }
 
-    auto joint = joint_array.data->joints[index];
+    auto joint = joint_array.data->get_joints()[index];
 
     if (joint == nullptr) {
         return nullptr;
