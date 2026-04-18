@@ -123,8 +123,8 @@ void add_ref(REManagedObject* object) {
     //spdlog::info("Pushing: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
 
 #if TDB_VER <= 49
-    if ((int32_t)object->referenceCount >= 0) {
-        _InterlockedIncrement(&object->referenceCount);
+    if ((int32_t)object->get_ref_count() >= 0) {
+        _InterlockedIncrement((volatile long*)object->ref_count_ptr());
     } else {
         add_ref_func(object);
     }
@@ -220,7 +220,7 @@ void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t s
 
     const auto t = tdef->get_type();
 
-    if (t == nullptr || get_fields(t) == nullptr || get_fields(t)->deserializer == nullptr) {
+    if (t == nullptr || get_fields(t) == nullptr || get_fields(t)->get_deserializer() == nullptr) {
         return;
     }
 
@@ -232,7 +232,7 @@ void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t s
         uint8_t* stack[32]{0};
     }; static_assert(sizeof(DeserializeStream) == 0x120, "DeserializeStream is not the correct size");
 
-    const auto deserializer = (void (*)(::REManagedObject*, DeserializeStream*, sdk::NativeArray<REManagedObject*>* objects))get_fields(t)->deserializer;
+    const auto deserializer = (void (*)(::REManagedObject*, DeserializeStream*, sdk::NativeArray<REManagedObject*>* objects))get_fields(t)->get_deserializer();
 
     std::array<uint8_t, 1024 * 8> stack_buffer{};
 
@@ -291,11 +291,11 @@ bool is_managed_object(Address address) {
             return false;
         }
 
-        if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->name == nullptr) {
+        if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->get_type_name() == nullptr) {
             return false;
         }
 
-        if (IsBadReadPtr(td->type->name, sizeof(void*))) {
+        if (IsBadReadPtr(td->type->get_type_name(), sizeof(void*))) {
             return false;
         }
     } else {
@@ -317,11 +317,11 @@ bool is_managed_object(Address address) {
             return false;
         }
 
-        if (IsBadReadPtr(ci_type, sizeof(REType)) || ci_type->name == nullptr) {
+        if (IsBadReadPtr(ci_type, sizeof(REType)) || ci_type->get_type_name() == nullptr) {
             return false;
         }
 
-        if (IsBadReadPtr(ci_type->name, sizeof(void*))) {
+        if (IsBadReadPtr(ci_type->get_type_name(), sizeof(void*))) {
             return false;
         }
     }
@@ -339,11 +339,11 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->name == nullptr) {
+    if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->get_type_name() == nullptr) {
         return false;
     }
 
-    if (IsBadReadPtr(td->type->name, sizeof(void*))) {
+    if (IsBadReadPtr(td->type->get_type_name(), sizeof(void*))) {
         return false;
     }
 #elif TDB_VER > 49
@@ -358,11 +358,11 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (IsBadReadPtr(class_info->type, sizeof(REType)) || class_info->type->name == nullptr) {
+    if (IsBadReadPtr(class_info->type, sizeof(REType)) || class_info->type->get_type_name() == nullptr) {
         return false;
     }
 
-    if (IsBadReadPtr(class_info->type->name, sizeof(void*))) {
+    if (IsBadReadPtr(class_info->type->get_type_name(), sizeof(void*))) {
         return false;
     }
 #else
@@ -372,11 +372,11 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    if (IsBadReadPtr(info->type, sizeof(REType)) || info->type->name == nullptr) {
+    if (IsBadReadPtr(info->type, sizeof(REType)) || info->type->get_type_name() == nullptr) {
         return false;
     }
 
-    if (IsBadReadPtr(info->type->name, sizeof(void*))) {
+    if (IsBadReadPtr(info->type->get_type_name(), sizeof(void*))) {
         return false;
     }
 
@@ -479,7 +479,7 @@ std::string get_type_name(::REManagedObject* object) {
         return "";
     }
 
-    return t->name;
+    return t->get_type_name();
 }
 
 bool is_a(::REManagedObject* object, std::string_view name) {
@@ -487,8 +487,8 @@ bool is_a(::REManagedObject* object, std::string_view name) {
         return false;
     }
 
-    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = get_super(t)) {
-        if (name == t->name) {
+    for (auto t = re_managed_object::get_type(object); t != nullptr && t->get_type_name() != nullptr; t = get_super(t)) {
+        if (name == t->get_type_name()) {
             return true;
         }
     }
@@ -501,7 +501,7 @@ bool is_a(::REManagedObject* object, REType* cmp) {
         return false;
     }
 
-    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = get_super(t)) {
+    for (auto t = re_managed_object::get_type(object); t != nullptr && t->get_type_name() != nullptr; t = get_super(t)) {
         if (cmp == t) {
             return true;
         }

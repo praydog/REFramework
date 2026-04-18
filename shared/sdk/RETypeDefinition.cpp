@@ -454,7 +454,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
             const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(full_name) - sizeof(::REManagedObject));
             const auto str = utility::narrow(managed_str->data);
 
-            managed_str->referenceCount = 0;
+            managed_str->set_ref_count(0);
 
             auto type_definition = sdk::find_type_definition(str);
             

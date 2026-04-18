@@ -166,6 +166,8 @@ class REManagedObject : public REObject
 {
 public:
 	uint32_t get_ref_count() const { return referenceCount; }
+	void set_ref_count(uint32_t v) { referenceCount = v; }
+	uint32_t* ref_count_ptr() { return &referenceCount; }
 	uint32_t referenceCount; //0x0008
 	int16_t N000071AE; //0x000C
 	char pad_000E[2]; //0x000E

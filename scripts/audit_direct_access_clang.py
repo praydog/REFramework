@@ -76,21 +76,13 @@ for tname, fields in GUARDED_TYPES.items():
 
 # Files where direct access is expected (accessor implementations)
 WHITELIST_SUFFIXES = {
-    "ReClass_Internal",  # all ReClass headers
-    "REGameObject.cpp",
-    "REManagedObject.cpp",
-    "REType.cpp",
-    "RETypeLayouts.hpp",
-    "RETypeDefinition.cpp",
-    "RETypeDefDispatch.hpp",
-    "RETypeDB.cpp",
-    "RETypeDB.hpp",
-    "REComponent.hpp",
-    "Renderer.hpp",
-    "Renderer.cpp",
+    "ReClass_Internal",  # all ReClass headers (struct definitions)
+    "REGameObject.cpp",   # get_transform/get_folder dispatch impl
+    "RETypeLayouts.hpp",  # re_type_accessor dispatch impl
+    "RETypeDefDispatch.hpp",  # TDEF_FIELD macro definitions
     "ViaDispatch.hpp",
     "CameraSystemDispatch.hpp",
-    "REVariableDescriptor.hpp",  # accessor impl for VariableDescriptor::flags
+    "REVariableDescriptor.hpp",  # get_flags offsetof impl
 }
 
 DEFAULT_TARGETS = [

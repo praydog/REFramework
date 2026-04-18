@@ -9,6 +9,7 @@
 #include "RETypeDB.hpp"
 #include "RETypes.hpp"
 #include "SceneManager.hpp"
+#include "REGameObject.hpp"
 
 #include "Renderer.hpp"
 
@@ -1620,11 +1621,11 @@ DirectXResource<ID3D12Resource>* Texture::get_d3d12_resource_container() {
             continue;
         }
 
-        if (type_info->name == nullptr || IsBadReadPtr(type_info->name, sizeof(void*))) {
+        if (type_info->get_type_name() == nullptr || IsBadReadPtr(type_info->get_type_name(), sizeof(void*))) {
             continue;
         }
 
-        const auto type_name = std::string_view{type_info->name};
+        const auto type_name = std::string_view{type_info->get_type_name()};
 
         if (type_name == "via.render.RenderResource") {
             spdlog::info("[Texture] Found D3D12Resource container at offset {:x}", i);
@@ -1932,19 +1933,19 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
         return nullptr;
     }
 
-    const auto name = utility::re_string::get_view(camera_gameobject->name);
+    const auto name = utility::re_game_object::get_name(camera_gameobject);
 
-    static const std::vector<std::wstring> camera_names = {
-        L"MainCamera",
-        L"Main Camera",
-        L"GameCamera", // DMC5
-        L"ess_DefaultCamera",
-        L"ess_DefaultCamera_01",
-        L"WTMainCamera",
-        L"DefaultCamera",
-        L"Camera_mainmenu",
-        L"Camera_cp7mainmenu",
-        L"SnowCamera", // MHRise
+    static const std::vector<std::string> camera_names = {
+        "MainCamera",
+        "Main Camera",
+        "GameCamera", // DMC5
+        "ess_DefaultCamera",
+        "ess_DefaultCamera_01",
+        "WTMainCamera",
+        "DefaultCamera",
+        "Camera_mainmenu",
+        "Camera_cp7mainmenu",
+        "SnowCamera", // MHRise
     };
 
     for (const auto& camera_name : camera_names) {
@@ -2044,11 +2045,11 @@ std::optional<size_t> layer::PrepareOutput::get_output_state_offset() {
             continue;
         }
 
-        if (type_info->name == nullptr || IsBadReadPtr(type_info->name, sizeof(void*))) {
+        if (type_info->get_type_name() == nullptr || IsBadReadPtr(type_info->get_type_name(), sizeof(void*))) {
             continue;
         }
 
-        const auto type_name = std::string_view{type_info->name};
+        const auto type_name = std::string_view{type_info->get_type_name()};
 
         if (type_name == "via.render.TargetState") {
             s_output_state_offset = offset;

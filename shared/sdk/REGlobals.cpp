@@ -83,7 +83,7 @@ REGlobals::REGlobals() {
         size_t i = 0;
 
         for (auto t : type_list) try {
-            auto name = std::string{t->name};
+            auto name = std::string{t->get_type_name()};
 
             if (name.find(game_namespace("SingletonBehavior`1")) != std::string::npos ||
                 name.find(game_namespace("SingletonBehaviorRoot`1")) != std::string::npos ||
@@ -297,11 +297,11 @@ void REGlobals::refresh_natives() {
         }
 
         m_native_singleton_types.push_back(t);
-        m_native_singleton_map[t->name] = t;
+        m_native_singleton_map[t->get_type_name()] = t;
     }
 
     std::sort(m_native_singleton_types.begin(), m_native_singleton_types.end(), [](auto a, auto b) {
-        return std::string{ a->name } < std::string{ b->name };
+        return std::string{ a->get_type_name() } < std::string{ b->get_type_name() };
     });
 }
 
@@ -320,17 +320,17 @@ void REGlobals::refresh_map() {
 
         auto t = utility::re_managed_object::safe_get_type(obj);
 
-        if (t == nullptr || t->name == nullptr) {
+        if (t == nullptr || t->get_type_name() == nullptr) {
             continue;
         }
 
         if (m_acknowledged_objects.find(obj_ptr) == m_acknowledged_objects.end()) {
 #ifdef DEVELOPER
-            spdlog::info("{:x}->{:x} ({:s})", (uintptr_t)obj_ptr, (uintptr_t)*obj_ptr, t->name);
+            spdlog::info("{:x}->{:x} ({:s})", (uintptr_t)obj_ptr, (uintptr_t)*obj_ptr, t->get_type_name());
 #endif
             m_acknowledged_objects.insert(obj_ptr);
         }
 
-        m_object_map[t->name] = obj_ptr;
+        m_object_map[t->get_type_name()] = obj_ptr;
     }
 }

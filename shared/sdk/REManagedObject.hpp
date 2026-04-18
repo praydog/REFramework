@@ -126,7 +126,7 @@ T get_field(::REManagedObject* obj, VariableDescriptor* desc) {
         return data;
     }
 
-    auto get_value_func = (void* (*)(VariableDescriptor*, ::REManagedObject*, void*))desc->function;
+    auto get_value_func = (void* (*)(VariableDescriptor*, ::REManagedObject*, void*))desc->get_function();
 
     if (get_value_func != nullptr) {
         get_value_func(desc, obj, &data);
@@ -146,7 +146,7 @@ std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, FunctionDescri
         return nullptr;
     }
 
-    auto method_func = (ParamWrapper * (*)(MethodParams*, ::REThreadContext*)) desc->functionPtr;
+    auto method_func = (ParamWrapper * (*)(MethodParams*, ::REThreadContext*)) desc->get_functionPtr();
 
     if (method_func != nullptr) {
         auto params = std::make_unique<ParamWrapper>(obj);

@@ -63,7 +63,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     // only add a reference if it's a "local" object, indicated by a negative reference count
     //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
     // addendum: only do it when reference count is > 0, local objects seem buggy...
-    if (force || (int32_t)obj->referenceCount > 0) {
+    if (force || (int32_t)obj->get_ref_count() > 0) {
         if (!force) {
             utility::re_managed_object::add_ref(obj);
         }
@@ -759,7 +759,7 @@ sol::object create_resource(sol::this_state s, std::string type_name, std::strin
 }
 
 sol::object create_global_object(sol::this_state &s, ::REManagedObject *obj) {
-    bool is_currently_local = static_cast<std::int32_t>(obj->referenceCount) <= 0;
+    bool is_currently_local = static_cast<std::int32_t>(obj->get_ref_count()) <= 0;
 
     // Mark object as global so that lua knows
     if (is_currently_local) {
@@ -1855,7 +1855,7 @@ void bindings::open_sdk(ScriptState* s) {
 
             return ::utility::re_managed_object::deserialize_native(obj, data.data(), data.size(), objects);
         },
-        "get_reference_count", [] (::REManagedObject* obj) { return obj->referenceCount; },
+        "get_reference_count", [] (::REManagedObject* obj) { return obj->get_ref_count(); },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", &utility::re_managed_object::get_type_definition,
         "get_field", [s](REManagedObject* obj, const char* name) {
