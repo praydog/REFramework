@@ -98,7 +98,7 @@ inline bool needs_plain_impl() {
             ? reinterpret_cast<const sdk::RETypeDefVersion69*>(ptr)->field \
             : sdk::tdb_dispatch::needs_v71_stride() \
                 ? reinterpret_cast<const sdk::RETypeDefVersion71*>(ptr)->field \
-                : (ptr)->field)
+                : reinterpret_cast<const sdk::RETypeDefVersion84*>(ptr)->field)
 
 // TDEF_FIELD_69: Read a bitfield that only exists in TDB >= 69 structs (impl_index,
 // array_typeid, element_typeid, etc.). Does NOT dispatch to RETypeDefVersion67.
@@ -108,7 +108,7 @@ inline bool needs_plain_impl() {
         ? reinterpret_cast<const sdk::RETypeDefVersion69*>(ptr)->field \
         : sdk::tdb_dispatch::needs_v71_stride() \
             ? reinterpret_cast<const sdk::RETypeDefVersion71*>(ptr)->field \
-            : (ptr)->field)
+            : reinterpret_cast<const sdk::RETypeDefVersion84*>(ptr)->field)
 
 // TDEF_FIELD_PRE_IMPL: Access fields that only exist in TDB < 69 type definitions
 // (before the impl split). Fields: num_member_method, num_member_field, name_offset,
@@ -130,7 +130,8 @@ inline bool needs_plain_impl() {
             const_cast<sdk::RETypeDefVersion71*>( \
                 reinterpret_cast<const sdk::RETypeDefVersion71*>(ptr))->field = (value); \
         else \
-            (ptr)->field = (value); \
+            const_cast<sdk::RETypeDefVersion84*>( \
+                reinterpret_cast<const sdk::RETypeDefVersion84*>(ptr))->field = (value); \
     } while(0)
 
 // TIMPL_FIELD: Read a field from an RETypeImpl pointer with runtime dispatch.

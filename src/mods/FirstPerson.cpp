@@ -812,7 +812,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     static auto r_arm_wrist_hash = sdk::murmur_hash::calc32(L"r_arm_wrist");
 
     static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
-    const auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
+    const auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->get_type());
 
     glm::quat original_left_rot_relative{glm::identity<glm::quat>()};
     Vector4f original_left_pos_relative{};
@@ -1255,8 +1255,8 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
 
     static auto ik_leg_def = sdk::find_type_definition("via.motion.IkLeg");
     static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
-    auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
-    auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
+    auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->get_type());
+    auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->get_type());
 
     // We're going to use the leg IK to adjust the height of the player according to headset position
     if (ik_leg != nullptr && via_motion != nullptr) {

@@ -8,6 +8,7 @@
 #include "REManagedObject.hpp"
 #include "GameIdentity.hpp"
 
+#include "RETypeDefDispatch.hpp"
 using namespace utility::re_type_accessor;
 
 
@@ -280,22 +281,22 @@ bool is_managed_object(Address address) {
     if (gi.tdb_ver() >= 71) {
         const auto td = (sdk::RETypeDefinition*)class_info;
 
-        if ((uintptr_t)td->managed_vt != (uintptr_t)object->info) {
+        if ((uintptr_t)TDEF_FIELD(td, managed_vt) != (uintptr_t)object->info) {
             // This allows for cases when a vtable hook is being used to replace this pointer.
-            if (IsBadReadPtr(td->managed_vt, sizeof(void*)) || *(sdk::RETypeDefinition**)td->managed_vt != td) {
+            if (IsBadReadPtr(TDEF_FIELD(td, managed_vt), sizeof(void*)) || *(sdk::RETypeDefinition**)TDEF_FIELD(td, managed_vt) != td) {
                 return false;
             }
         }
 
-        if (td->type == nullptr) {
+        if (TDEF_FIELD(td, type) == nullptr) {
             return false;
         }
 
-        if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->get_type_name() == nullptr) {
+        if (IsBadReadPtr(TDEF_FIELD(td, type), sizeof(REType)) || TDEF_FIELD(td, type)->get_type_name() == nullptr) {
             return false;
         }
 
-        if (IsBadReadPtr(td->type->get_type_name(), sizeof(void*))) {
+        if (IsBadReadPtr(TDEF_FIELD(td, type)->get_type_name(), sizeof(void*))) {
             return false;
         }
     } else {
@@ -423,7 +424,7 @@ REType* get_type(::REManagedObject* object) {
             return nullptr;
         }
 
-        return td->type;
+        return TDEF_FIELD(td, type);
     } else {
         auto class_info = info->classInfo;
 

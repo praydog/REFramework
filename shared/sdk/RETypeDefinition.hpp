@@ -449,7 +449,11 @@ static_assert(sizeof(RETypeDefVersion49) == 0x60);
 
 // helper class
 namespace sdk {
+#ifdef REFRAMEWORK_UNIVERSAL
+struct RETypeDefinition {
+#else
 struct RETypeDefinition : public sdk::RETypeDefinition_ {
+#endif
     class MethodIterator {
     public:
         MethodIterator(const sdk::RETypeDefinition* parent)
@@ -596,6 +600,7 @@ struct RETypeDefinition : public sdk::RETypeDefinition_ {
     std::vector<sdk::RETypeDefinition*> get_generic_argument_types() const;
     sdk::GenericListData* get_generic_data() const;
 
+    uint32_t get_element_typeid() const;
     uint32_t get_index() const;
     int32_t get_fieldptr_offset() const;
     bool has_fieldptr_offset() const;

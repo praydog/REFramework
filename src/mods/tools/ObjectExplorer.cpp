@@ -1297,12 +1297,8 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             type_entry["declaring_type"] = declaring_type->get_full_name();
         }
 
-        if (gi.tdb_ver() >= 71) {
-            if (tdef->element_typeid_TBD != 0) {
-                type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
-            }
-        } else if (gi.tdb_ver() >= 69) {
-            auto elem_tid = (uint32_t)reinterpret_cast<const sdk::RETypeDefVersion69*>(tdef)->element_typeid;
+        {
+            const auto elem_tid = tdef->get_element_typeid();
             if (elem_tid != 0) {
                 type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, elem_tid)->full_name;
             }

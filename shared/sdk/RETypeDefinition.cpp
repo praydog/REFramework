@@ -396,6 +396,20 @@ sdk::RETypeDefinition* RETypeDefinition::get_parent_type() const {
     return tdb->get_type(TDEF_FIELD(this, parent_typeid));
 }
 
+uint32_t RETypeDefinition::get_element_typeid() const {
+#ifdef REFRAMEWORK_UNIVERSAL
+    const auto ver = sdk::GameIdentity::get().tdb_ver();
+    if (ver >= 71) {
+        return (uint32_t)reinterpret_cast<const sdk::RETypeDefVersion84*>(this)->element_typeid_TBD;
+    } else if (ver >= 69) {
+        return (uint32_t)reinterpret_cast<const sdk::RETypeDefVersion69*>(this)->element_typeid;
+    }
+    return 0; // TDB < 69 does not have element_typeid on the typedef
+#else
+    return (uint32_t)this->element_typeid_TBD;
+#endif
+}
+
 static std::shared_mutex g_underlying_mtx{};
 static std::unordered_map<const sdk::RETypeDefinition*, sdk::RETypeDefinition*> g_underlying_types{};
 
