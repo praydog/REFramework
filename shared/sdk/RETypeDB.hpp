@@ -2197,6 +2197,92 @@ struct RETypeDB : public sdk::RETypeDB_ {
     static_assert(sizeof(sdk::tdb82::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
     static_assert(sizeof(sdk::tdb83::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
 
+    // ---- Field offset proof: undispatched macros cast to a single version. ----
+    // If any of these fire, the corresponding macro in RETypeDefDispatch.hpp
+    // needs per-version dispatch instead of a single cast.
+
+    // RMETHIMPL_FIELD always casts to tdb84. Prove all fields match.
+    #define ASSERT_METHIMPL_(ver) \
+        static_assert(offsetof(sdk::ver::REMethodImpl, attributes_id) == offsetof(sdk::tdb84::REMethodImpl, attributes_id)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, vtable_index)  == offsetof(sdk::tdb84::REMethodImpl, vtable_index)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, flags)         == offsetof(sdk::tdb84::REMethodImpl, flags)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, impl_flags)    == offsetof(sdk::tdb84::REMethodImpl, impl_flags)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, name_offset)   == offsetof(sdk::tdb84::REMethodImpl, name_offset));
+    ASSERT_METHIMPL_(tdb69) ASSERT_METHIMPL_(tdb71) ASSERT_METHIMPL_(tdb73) ASSERT_METHIMPL_(tdb74)
+    ASSERT_METHIMPL_(tdb81) ASSERT_METHIMPL_(tdb82) ASSERT_METHIMPL_(tdb83)
+    #undef ASSERT_METHIMPL_
+
+    // RPROPIMPL_FIELD always casts to tdb84. Prove all fields match.
+    #define ASSERT_PROPIMPL_(ver) \
+        static_assert(offsetof(sdk::ver::REPropertyImpl, flags)         == offsetof(sdk::tdb84::REPropertyImpl, flags)); \
+        static_assert(offsetof(sdk::ver::REPropertyImpl, attributes_id) == offsetof(sdk::tdb84::REPropertyImpl, attributes_id)); \
+        static_assert(offsetof(sdk::ver::REPropertyImpl, name_offset)   == offsetof(sdk::tdb84::REPropertyImpl, name_offset));
+    ASSERT_PROPIMPL_(tdb69) ASSERT_PROPIMPL_(tdb71) ASSERT_PROPIMPL_(tdb73) ASSERT_PROPIMPL_(tdb74)
+    ASSERT_PROPIMPL_(tdb81) ASSERT_PROPIMPL_(tdb82) ASSERT_PROPIMPL_(tdb83)
+    #undef ASSERT_PROPIMPL_
+
+    // REFieldImpl: attributes_id (offset 0) is the only non-bitfield stable field.
+    #define ASSERT_FIELDIMPL_(ver) \
+        static_assert(offsetof(sdk::ver::REFieldImpl, attributes_id) == offsetof(sdk::tdb84::REFieldImpl, attributes_id));
+    ASSERT_FIELDIMPL_(tdb69) ASSERT_FIELDIMPL_(tdb71) ASSERT_FIELDIMPL_(tdb73) ASSERT_FIELDIMPL_(tdb74)
+    ASSERT_FIELDIMPL_(tdb81) ASSERT_FIELDIMPL_(tdb82) ASSERT_FIELDIMPL_(tdb83)
+    #undef ASSERT_FIELDIMPL_
+
+    // REParameterDef: attributes_id and init_data_index are non-bitfield.
+    #define ASSERT_PARAMDEF_(ver) \
+        static_assert(offsetof(sdk::ver::REParameterDef, attributes_id)   == offsetof(sdk::tdb84::REParameterDef, attributes_id)); \
+        static_assert(offsetof(sdk::ver::REParameterDef, init_data_index) == offsetof(sdk::tdb84::REParameterDef, init_data_index));
+    ASSERT_PARAMDEF_(tdb69) ASSERT_PARAMDEF_(tdb71) ASSERT_PARAMDEF_(tdb73) ASSERT_PARAMDEF_(tdb74)
+    ASSERT_PARAMDEF_(tdb81) ASSERT_PARAMDEF_(tdb82) ASSERT_PARAMDEF_(tdb83)
+    #undef ASSERT_PARAMDEF_
+
+    // TIMPL_FIELD casts to tdb82 for tdb_ver < 83. Prove name/namespace offsets match.
+    #define ASSERT_TYPEIMPL_NAME_(ver) \
+        static_assert(offsetof(sdk::ver::RETypeImpl, name_offset)      == offsetof(sdk::tdb82::RETypeImpl, name_offset)); \
+        static_assert(offsetof(sdk::ver::RETypeImpl, namespace_offset) == offsetof(sdk::tdb82::RETypeImpl, namespace_offset));
+    ASSERT_TYPEIMPL_NAME_(tdb69) ASSERT_TYPEIMPL_NAME_(tdb71) ASSERT_TYPEIMPL_NAME_(tdb73)
+    ASSERT_TYPEIMPL_NAME_(tdb74) ASSERT_TYPEIMPL_NAME_(tdb81)
+    #undef ASSERT_TYPEIMPL_NAME_
+
+    // TIMPL_DISPATCH uses field_size. Prove offset is stable across all versions.
+    #define ASSERT_TYPEIMPL_FSIZE_(ver) \
+        static_assert(offsetof(sdk::ver::RETypeImpl, field_size) == offsetof(sdk::tdb84::RETypeImpl, field_size));
+    ASSERT_TYPEIMPL_FSIZE_(tdb69) ASSERT_TYPEIMPL_FSIZE_(tdb71) ASSERT_TYPEIMPL_FSIZE_(tdb73)
+    ASSERT_TYPEIMPL_FSIZE_(tdb74) ASSERT_TYPEIMPL_FSIZE_(tdb81) ASSERT_TYPEIMPL_FSIZE_(tdb82) ASSERT_TYPEIMPL_FSIZE_(tdb83)
+    #undef ASSERT_TYPEIMPL_FSIZE_
+
+    // Bitfield-only types: sizeof proves no repack (can't prove individual field positions).
+    // REMethodDefinition (TMETH_FIELD_71 casts to tdb84 for TDB >= 71)
+    static_assert(sizeof(sdk::tdb71::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb73::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb74::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb81::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb82::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb83::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+
+    // REField (TFIELD_FIELD_71 casts to tdb84 for TDB >= 71)
+    static_assert(sizeof(sdk::tdb71::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb73::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb74::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb81::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb82::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb83::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+
+    // REProperty (RPROP_FIELD_69 casts to tdb84 for TDB >= 69)
+    static_assert(sizeof(sdk::tdb69::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb71::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb73::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb74::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb81::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb82::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb83::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+
+    // RMOD_FIELD casts to tdb74. Prove accessed fields match tdb81 offsets.
+    static_assert(offsetof(sdk::tdb74::REModule, types_start)          == offsetof(sdk::tdb81::REModule, types_start), "REModule.types_start diverged");
+    static_assert(offsetof(sdk::tdb74::REModule, types_count)          == offsetof(sdk::tdb81::REModule, types_count), "REModule.types_count diverged");
+    static_assert(offsetof(sdk::tdb74::REModule, assembly_name_offset) == offsetof(sdk::tdb81::REModule, assembly_name_offset), "REModule.assembly_name_offset diverged");
+    static_assert(offsetof(sdk::tdb74::REModule, module_name_offset)   == offsetof(sdk::tdb81::REModule, module_name_offset),   "REModule.module_name_offset diverged");
+
     // RETypeImpl: 0x30 across all versions.
     static constexpr size_t get_type_impl_stride() { return sizeof(sdk::tdb84::RETypeImpl); }
     auto& get_type_impl_at(uint32_t index) const {

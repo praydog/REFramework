@@ -199,8 +199,8 @@ inline bool needs_plain_impl() {
 // RFIELDIMPL_FIELD: Read a field from REFieldImpl with runtime dispatch.
 //   TDB 69-70: cast to tdb69::REFieldImpl (16-bit flags, 30-bit name_offset)
 //   TDB 71+:   cast to tdb84::REFieldImpl (1-bit unk + 15-bit flags, 28-bit name_offset)
-// NOTE: For fields that are identical across all versions (attributes_id, init_data_lo),
-//       direct access via cast to tdb84 is safe.
+// NOTE: attributes_id (offset 0, uint16_t) is identical across all versions.
+//       init_data_lo is NOT stable — 14 bits in tdb69 vs 6 bits in tdb84. Must dispatch.
 #define RFIELDIMPL_FIELD(ptr, field) \
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REFieldImpl*>(ptr)->field \
@@ -248,6 +248,7 @@ inline bool needs_plain_impl() {
 // Fields: impl_id. These don't exist in tdb67.
 #define RPROP_FIELD_69(ptr, field) \
     (reinterpret_cast<const sdk::tdb84::REProperty*>(ptr)->field)
+
 #else // Non-universal builds: no dispatch needed, direct access.
 
 #define TDEF_FIELD(ptr, field) ((ptr)->field)
