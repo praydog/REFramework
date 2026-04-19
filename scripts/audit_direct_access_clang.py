@@ -105,6 +105,7 @@ WHITELIST_SUFFIXES = {
     "ViaDispatch.hpp",
     "CameraSystemDispatch.hpp",
     "REVariableDescriptor.hpp",  # get_flags offsetof impl
+    "RETypeDB.hpp",          # stride accessor sizeof(sdk::tdb84::*) — versioned, not opaque
 }
 
 DEFAULT_TARGETS = [
@@ -125,6 +126,8 @@ DEFAULT_TARGETS = [
     "shared/sdk/REContext.cpp",
     "shared/sdk/RETransform.cpp",
     "shared/sdk/RETypes.cpp",
+    "shared/sdk/RETypeDB.cpp",
+    "shared/sdk/RETypeDefinition.cpp",
 ]
 
 
@@ -309,20 +312,29 @@ def scan_file(filepath, flags):
         if cursor.kind == ci.CursorKind.ARRAY_SUBSCRIPT_EXPR:
             children = list(cursor.get_children())
             if children:
-                base_type = get_type_name(children[0])
-                if base_type in SUBSCRIPT_BANNED_TYPES:
-                    loc = cursor.location
-                    if loc.file and not is_whitelisted(loc.file.name):
-                        src_line = source_lines.get(loc.line, '')
-                        if 'static_assert' not in src_line:
-                            violations.append({
-                                "file": os.path.relpath(loc.file.name, REPO_ROOT).replace("\\", "/"),
-                                "line": loc.line,
-                                "col": loc.column,
-                                "type": base_type,
-                                "field": "[index]",
-                                "kind": "array_subscript",
-                            })
+                base_type_raw = children[0].type
+                # Strip one pointer level to see what's being indexed.
+                # If the pointee is itself a pointer (T**), this is a pointer
+                # array — stride is sizeof(ptr), not sizeof(T). Skip it.
+                if base_type_raw.kind == ci.TypeKind.POINTER:
+                    pointee = base_type_raw.get_pointee()
+                    if pointee.kind == ci.TypeKind.POINTER:
+                        pass  # T** — indexing pointers, not structs
+                    else:
+                        base_type = get_type_name(children[0])
+                        if base_type in SUBSCRIPT_BANNED_TYPES:
+                            loc = cursor.location
+                            if loc.file and not is_whitelisted(loc.file.name):
+                                src_line = source_lines.get(loc.line, '')
+                                if 'static_assert' not in src_line:
+                                    violations.append({
+                                        "file": os.path.relpath(loc.file.name, REPO_ROOT).replace("\\\\", "/"),
+                                        "line": loc.line,
+                                        "col": loc.column,
+                                        "type": base_type,
+                                        "field": "[index]",
+                                        "kind": "array_subscript",
+                                    })
 
         for child in cursor.get_children():
             visit(child)
