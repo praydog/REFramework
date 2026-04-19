@@ -2153,9 +2153,49 @@ struct RETypeDB : public sdk::RETypeDB_ {
     }
 
     // ---- Impl/Param stride-aware accessors ----
-    // These Impl types have stable sizes today but MUST use stride-aware access
-    // so a future TDB version that changes the layout is a one-line fix here,
-    // not a hunt through 50+ call sites.
+    // The stride accessors hardcode sizeof(sdk::tdb84::*). These static_asserts
+    // prove every versioned layout has the same size. If a future TDB version
+    // changes an impl struct size, this will be a compile error — not a silent
+    // stride mismatch at runtime.
+    static_assert(sizeof(sdk::tdb69::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb71::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb73::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb74::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb81::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb82::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb83::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
 
     // RETypeImpl: 0x30 across all versions.
     static constexpr size_t get_type_impl_stride() { return sizeof(sdk::tdb84::RETypeImpl); }
