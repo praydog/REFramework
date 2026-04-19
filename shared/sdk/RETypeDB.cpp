@@ -309,7 +309,7 @@ const char* REField::get_name() const {
     uint32_t name_offset;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
-        name_offset = impl.name_offset & tdb->get_string_pool_bitmask();
+        name_offset = RFIELDIMPL_FIELD(&impl, name_offset) & tdb->get_string_pool_bitmask();
     } else {
         name_offset = reinterpret_cast<const sdk::tdb67::REField*>(this)->name_offset;
     }
@@ -329,7 +329,7 @@ uint32_t REField::get_flags() const {
 #ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
-        return impl.flags;
+        return RFIELDIMPL_FIELD(&impl, flags);
     } else {
         return reinterpret_cast<const sdk::tdb67::REField*>(this)->flags;
     }
@@ -355,8 +355,8 @@ uint32_t REField::get_init_data_index() const {
             &tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)));
         init_data_index = impl->init_data_lo | (impl->init_data_hi << 14);
     } else {
-        auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
-        init_data_index = impl.init_data_lo | (impl.init_data_mid << 6) | (TFIELD_FIELD_71(this, init_data_hi) << 10);
+        auto* impl84 = reinterpret_cast<const sdk::tdb84::REFieldImpl*>(&tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)));
+        init_data_index = impl84->init_data_lo | (impl84->init_data_mid << 6) | (TFIELD_FIELD_71(this, init_data_hi) << 10);
     }
 #elif TDB_VER >= 71
     auto& impl = (*tdb->get_fieldsImpl_ptr())[this->impl_id];
@@ -405,7 +405,7 @@ uint32_t REField::get_offset_from_fieldptr() const {
             reinterpret_cast<const sdk::tdb_bits18::REField69*>(this)->offset);
     } else {
         const auto tdb = sdk::RETypeDB::get();
-        return tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)).offset;
+        return reinterpret_cast<const sdk::tdb84::REFieldImpl*>(&tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)))->offset;
     }
 #elif TDB_VER >= 71
     const auto tdb = sdk::RETypeDB::get();
@@ -580,7 +580,7 @@ const char* REMethodDefinition::get_name() const {
     uint32_t name_offset;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
-        name_offset = impl.name_offset & tdb->get_string_pool_bitmask();
+        name_offset = RMETHIMPL_FIELD(&impl, name_offset) & tdb->get_string_pool_bitmask();
     } else {
         name_offset = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->name_offset;
     }
@@ -1199,7 +1199,7 @@ int32_t REMethodDefinition::get_virtual_index() const {
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
-        return impl.vtable_index;
+        return RMETHIMPL_FIELD(&impl, vtable_index);
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->vtable_index;
     }
@@ -1217,7 +1217,7 @@ uint16_t REMethodDefinition::get_flags() const {
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
-        return impl.flags;
+        return RMETHIMPL_FIELD(&impl, flags);
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->flags;
     }
@@ -1235,7 +1235,7 @@ uint16_t REMethodDefinition::get_impl_flags() const {
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
-        return impl.impl_flags;
+        return RMETHIMPL_FIELD(&impl, impl_flags);
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->impl_flags;
     }
@@ -1408,7 +1408,7 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
 
             auto& p = tdb->get_param_at(param_index);
 
-            out.push_back(tdb->get_string(p.name_offset));
+            out.push_back(tdb->get_string(TPARAM_FIELD(&p, name_offset)));
         }
 
         return out;

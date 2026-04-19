@@ -1420,10 +1420,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         if (gi.tdb_ver() >= 69) {
             auto& impl = tdb->get_method_impl_at(impl_id);
             desc->method_impls.push_back(&impl);
-            name_offset = impl.name_offset;
-            vtable_index = impl.vtable_index;
-            impl_flags = impl.impl_flags;
-            method_flags = impl.flags;
+            name_offset = RMETHIMPL_FIELD(&impl, name_offset);
+            vtable_index = RMETHIMPL_FIELD(&impl, vtable_index);
+            impl_flags = RMETHIMPL_FIELD(&impl, impl_flags);
+            method_flags = RMETHIMPL_FIELD(&impl, flags);
         } else {
             auto* m67 = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(&m);
             name_offset = m67->name_offset;
@@ -1771,10 +1771,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             const auto name = Address{tdb->get_stringPool_ptr()}.get(name_offset).as<const char*>();
             const auto init_data_index = init_data_low | (init_data_high << 14);*/
 
-            const auto field_attr_id = impl.attributes_id;
-            field_flags = impl.flags;
+            const auto field_attr_id = RFIELDIMPL_FIELD(&impl, attributes_id);
+            field_flags = RFIELDIMPL_FIELD(&impl, flags);
             field_type = f.get_type() != nullptr ? f.get_type()->get_index() : 0;
-            name_offset = impl.name_offset;
+            name_offset = RFIELDIMPL_FIELD(&impl, name_offset);
             init_data_index = f.get_init_data_index();
             name = tdb->get_string(name_offset);
         } else {
@@ -2096,7 +2096,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         if (gi.tdb_ver() >= 69) {
             const auto impl_id = (uint32_t)RPROP_FIELD_69(&p, impl_id);
             auto& impl = tdb->get_property_impl_at(impl_id);
-            name = Address{tdb->get_stringPool_ptr()}.get(impl.name_offset).as<const char*>();
+            name = Address{tdb->get_stringPool_ptr()}.get(RPROPIMPL_FIELD(&impl, name_offset)).as<const char*>();
         } else {
             name = Address{ tdb->get_stringPool_ptr() }.get(reinterpret_cast<const sdk::tdb67::REProperty*>(&p)->name_offset).as<const char*>();
         }

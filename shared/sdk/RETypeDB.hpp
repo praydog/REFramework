@@ -1718,13 +1718,13 @@ struct REModule_: public sdk::tdb74::REModule {};
 struct RETypeDB_ : public sdk::tdb84::TDB {};
 
 struct REMethodDefinition_ : public sdk::tdb84::REMethodDefinition {};
-struct REMethodImpl : public sdk::tdb84::REMethodImpl {};
+struct REMethodImpl {};    // Decoupled: use dispatch macros for field access
 using REField_ = sdk::tdb84::REField;
-struct REFieldImpl : public sdk::tdb84::REFieldImpl {};
-struct RETypeImpl : public sdk::tdb84::RETypeImpl {};
-struct REPropertyImpl : public sdk::tdb84::REPropertyImpl {};
+struct REFieldImpl {};     // Decoupled: use RFIELDIMPL_FIELD for field access
+struct RETypeImpl {};      // Decoupled: use TIMPL_FIELD/TIMPL_DISPATCH for field access
+struct REPropertyImpl {};  // Decoupled: use dispatch macros for field access
 struct REProperty {};
-struct REParameterDef : public sdk::tdb84::REParameterDef {};
+struct REParameterDef {};  // Decoupled: use TPARAM_FIELD for field access
 struct GenericListData : public sdk::tdb84::GenericListData {};
 using ParamList = sdk::tdb84::ParamList;
 

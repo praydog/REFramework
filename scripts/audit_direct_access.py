@@ -121,6 +121,8 @@ AMBIGUOUS_FIELDS = {
     "name", "size", "type", "info", "flags", "methods", "num",
     "function", "next", "unknown", "variables",
     "type_flags", "objectFlags", "objectType",
+    # Generic names that collide with user-defined structs (DescType::super, etc.)
+    "super", "fields", "classInfo", "referenceCount", "typeName",
 }
 
 # Files/directories to scan

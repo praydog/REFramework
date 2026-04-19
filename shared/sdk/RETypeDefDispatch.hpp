@@ -141,7 +141,7 @@ inline bool needs_plain_impl() {
 #define TIMPL_FIELD(ref, field) \
     (sdk::tdb_dispatch::needs_plain_impl() \
         ? reinterpret_cast<const sdk::tdb82::RETypeImpl*>(&(ref))->field \
-        : (ref).field)
+        : reinterpret_cast<const sdk::tdb84::RETypeImpl*>(&(ref))->field)
 
 // TIMPL_DISPATCH: Read any field from RETypeImpl with full per-version dispatch.
 // Unlike TIMPL_FIELD (which only handles name_offset/namespace_offset),
@@ -160,7 +160,7 @@ inline bool needs_plain_impl() {
         case 81:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb81::RETypeImpl*>(&(ref))->field); \
         case 82:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb82::RETypeImpl*>(&(ref))->field); \
         case 83:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb83::RETypeImpl*>(&(ref))->field); \
-        default:          return static_cast<ret_type>((ref).field); \
+        default:          return static_cast<ret_type>(reinterpret_cast<const sdk::tdb84::RETypeImpl*>(&(ref))->field); \
         } \
     }()
 
@@ -195,6 +195,27 @@ inline bool needs_plain_impl() {
     (sdk::tdb_dispatch::needs_18bit() \
         ? reinterpret_cast<const sdk::tdb69::REParameterDef*>(ptr)->field \
         : reinterpret_cast<const sdk::tdb84::REParameterDef*>(ptr)->field)
+
+// RFIELDIMPL_FIELD: Read a field from REFieldImpl with runtime dispatch.
+//   TDB 69-70: cast to tdb69::REFieldImpl (16-bit flags, 30-bit name_offset)
+//   TDB 71+:   cast to tdb84::REFieldImpl (1-bit unk + 15-bit flags, 28-bit name_offset)
+// NOTE: For fields that are identical across all versions (attributes_id, init_data_lo),
+//       direct access via cast to tdb84 is safe.
+#define RFIELDIMPL_FIELD(ptr, field) \
+    (sdk::tdb_dispatch::needs_18bit() \
+        ? reinterpret_cast<const sdk::tdb69::REFieldImpl*>(ptr)->field \
+        : reinterpret_cast<const sdk::tdb84::REFieldImpl*>(ptr)->field)
+
+// RMETHIMPL_FIELD: Read a field from REMethodImpl.
+// Layout is identical across tdb69-tdb84 but macro exists for consistency
+// and to prevent direct field access on the now-opaque struct.
+#define RMETHIMPL_FIELD(ptr, field) \
+    (reinterpret_cast<const sdk::tdb84::REMethodImpl*>(ptr)->field)
+
+// RPROPIMPL_FIELD: Read a field from REPropertyImpl.
+// Layout is identical across tdb69-tdb84.
+#define RPROPIMPL_FIELD(ptr, field) \
+    (reinterpret_cast<const sdk::tdb84::REPropertyImpl*>(ptr)->field)
 
 // TMETH_FIELD_71: Read a field from REMethodDefinition that only exists in TDB >= 71.
 // Fields: encoded_offset, params_hi, params_lo.
@@ -242,6 +263,9 @@ inline bool needs_plain_impl() {
 #define RMOD_FIELD(ptr, field) ((ptr)->field)
 #define RPROP_FIELD(ptr, field) ((ptr)->field)
 #define RPROP_FIELD_69(ptr, field) ((ptr)->field)
+#define RFIELDIMPL_FIELD(ptr, field) ((ptr)->field)
+#define RMETHIMPL_FIELD(ptr, field) ((ptr)->field)
+#define RPROPIMPL_FIELD(ptr, field) ((ptr)->field)
 #endif // REFRAMEWORK_UNIVERSAL
 
 } // namespace sdk

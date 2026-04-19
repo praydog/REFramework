@@ -1037,7 +1037,7 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
         if (impl_id == 0) {
             return 0;
         }
-        return tdb->get_type_impl_at(impl_id).field_size;
+        return TIMPL_DISPATCH(uint32_t, tdb->get_type_impl_at(impl_id), field_size);
     } else {
         return TDEF_FIELD_PRE_IMPL(this, element_size);
     }
