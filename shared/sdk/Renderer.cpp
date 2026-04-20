@@ -203,7 +203,7 @@ RenderLayer** RenderLayer::find_layer(::REType* layer_type) {
     const auto& layers = get_layers();
 
     for (auto& layer : layers) {
-        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+        if (layer->info == nullptr || layer->info->get_class_info() == nullptr) {
             continue;
         }
 
@@ -221,7 +221,7 @@ std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(const 
     const auto& layers = get_layers();
 
     for (auto& layer : layers) {
-        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+        if (layer->info == nullptr || layer->info->get_class_info() == nullptr) {
             continue;
         }
 
@@ -261,7 +261,7 @@ std::vector<RenderLayer*> RenderLayer::find_layers(::REType* layer_type) {
     const auto& layers = get_layers();
 
     for (auto& layer : layers) {
-        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+        if (layer->info == nullptr || layer->info->get_class_info() == nullptr) {
             continue;
         }
 
@@ -337,7 +337,7 @@ void RenderLayer::set_parent(RenderLayer* layer) {
 
 RenderLayer* RenderLayer::find_parent(::REType* layer_type) {
     for (auto parent = get_parent(); parent != nullptr; parent = parent->get_parent()) {
-        if (parent->info == nullptr || parent->info->classInfo == nullptr) {
+        if (parent->info == nullptr || parent->info->get_class_info() == nullptr) {
             break;
         }
 
@@ -1135,7 +1135,7 @@ RenderLayer* find_layer(::REType* layer_type) {
     const auto& layers = *(std::array<RenderLayer*, 256>*)((uintptr_t)renderer + layers_offset);
 
     for (auto& layer : layers) {
-        if (layer->info == nullptr || layer->info->classInfo == nullptr) {
+        if (layer->info == nullptr || layer->info->get_class_info() == nullptr) {
             continue;
         }
 

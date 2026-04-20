@@ -80,13 +80,13 @@ void set_transform_position(RETransform* transform, const Vector4f& pos, bool no
             const auto parent_rotation = sdk::get_transform_rotation(parent_transform);
             const auto local_diff = pos - parent_position;
             
-            transform->position = glm::vec4{glm::inverse(parent_rotation) * glm::vec3{local_diff}, 1.0f};
+            transform->get_position() = glm::vec4{glm::inverse(parent_rotation) * glm::vec3{local_diff}, 1.0f};
         } else {
-            transform->position = pos;
+            transform->get_position() = pos;
         }
 
-        transform->worldTransform[3] = pos;
-        transform->worldTransform[3].w = 1.0f;
+        transform->get_world_transform()[3] = pos;
+        transform->get_world_transform()[3].w = 1.0f;
     }
 }
 

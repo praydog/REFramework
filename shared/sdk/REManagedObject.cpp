@@ -28,13 +28,13 @@ namespace classinfo_accessor {
         if (sdk::GameIdentity::get().tdb_ver() < 69) {
             return *(REObjectInfo**)((uintptr_t)ci + 0x70);
         }
-        return ci->parentInfo;
+        return ci->get_parent_info();
     }
     inline REType* get_type(REClassInfo* ci) {
         if (sdk::GameIdentity::get().tdb_ver() < 69) {
             return *(REType**)((uintptr_t)ci + 0x68);
         }
-        return (REType*)ci->type;
+        return (REType*)ci->get_type();
     }
 }
 #endif
@@ -276,7 +276,7 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-    auto class_info = object->info->classInfo;
+    auto class_info = object->info->get_class_info();
 
     if (class_info == nullptr || IsBadReadPtr(class_info, sizeof(void*))) {
         return false;
@@ -310,12 +310,12 @@ bool is_managed_object(Address address) {
         auto ci_parentInfo = classinfo_accessor::get_parentInfo(class_info);
         auto ci_type = classinfo_accessor::get_type(class_info);
 #else
-        auto ci_parentInfo = class_info->parentInfo;
-        auto ci_type = class_info->type;
+        auto ci_parentInfo = class_info->get_parent_info();
+        auto ci_type = class_info->get_type();
 #endif
         if (ci_parentInfo != object->info) {
             // This allows for cases when a vtable hook is being used to replace this pointer.
-            if (IsBadReadPtr(ci_parentInfo, sizeof(void*)) || ci_parentInfo->classInfo != class_info) {
+            if (IsBadReadPtr(ci_parentInfo, sizeof(void*)) || ci_parentInfo->get_class_info() != class_info) {
                 return false;
             }
         }
@@ -354,22 +354,22 @@ bool is_managed_object(Address address) {
         return false;
     }
 #elif TDB_VER > 49
-    if (class_info->parentInfo != object->info) {
+    if (class_info->get_parent_info() != object->info) {
         // This allows for cases when a vtable hook is being used to replace this pointer.
-        if (IsBadReadPtr(class_info->parentInfo, sizeof(void*)) || class_info->parentInfo->classInfo != class_info) {
+        if (IsBadReadPtr(class_info->get_parent_info(), sizeof(void*)) || class_info->get_parent_info()->get_class_info() != class_info) {
             return false;
         }
     }
 
-    if (class_info->type == nullptr) {
+    if (class_info->get_type() == nullptr) {
         return false;
     }
 
-    if (IsBadReadPtr(class_info->type, REType::runtime_size()) || class_info->type->get_type_name() == nullptr) {
+    if (IsBadReadPtr(class_info->get_type(), REType::runtime_size()) || class_info->get_type()->get_type_name() == nullptr) {
         return false;
     }
 
-    if (IsBadReadPtr(class_info->type->get_type_name(), sizeof(void*))) {
+    if (IsBadReadPtr(class_info->get_type()->get_type_name(), sizeof(void*))) {
         return false;
     }
 #else
@@ -396,7 +396,7 @@ bool is_managed_object(Address address) {
     }
 
     static auto vm = sdk::VM::get();
-    const auto tdef = (sdk::RETypeDefinition*)info->classInfo;
+    const auto tdef = (sdk::RETypeDefinition*)info->get_class_info();
     
     if (&vm->types[tdef->get_index()] != (regenny::via::clr::VM::Type*)object->info) {
         return false;
@@ -432,7 +432,7 @@ REType* get_type(::REManagedObject* object) {
 
         return TDEF_FIELD(td, type);
     } else {
-        auto class_info = info->classInfo;
+        auto class_info = info->get_class_info();
 
         if (class_info == nullptr) {
             return nullptr;
@@ -449,13 +449,13 @@ REType* get_type(::REManagedObject* object) {
 
     return td->type;
 #elif TDB_VER > 49
-    auto class_info = info->classInfo;
+    auto class_info = info->get_class_info();
 
     if (class_info == nullptr) {
         return nullptr;
     }
 
-    return class_info->type;
+    return class_info->get_type();
 #else
     return info->type;
 #endif
@@ -472,7 +472,7 @@ sdk::RETypeDefinition* get_type_definition(::REManagedObject* object) {
         return nullptr;
     }
 
-    return (sdk::RETypeDefinition*)info->classInfo;
+    return (sdk::RETypeDefinition*)info->get_class_info();
 }
 
 REType* safe_get_type(::REManagedObject* object) {
@@ -520,7 +520,7 @@ bool is_a(::REManagedObject* object, REType* cmp) {
 via::clr::VMObjType get_vm_type(::REManagedObject* object) {
     auto info = object->info;
 
-    if (info == nullptr || info->classInfo == nullptr) {
+    if (info == nullptr || info->get_class_info() == nullptr) {
         return via::clr::VMObjType::NULL_;
     }
 
@@ -529,7 +529,7 @@ via::clr::VMObjType get_vm_type(::REManagedObject* object) {
     if (gi.tdb_ver() >= 71) {
         return get_type_definition(object)->get_vm_obj_type();
     } else if (gi.tdb_ver() >= 69) {
-        return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
+        return (via::clr::VMObjType)(info->get_class_info()->get_object_flags() >> 5);
     } else {
         // TDB 67 (DMC5): REClassInfo has objectType as a direct field,
         // not a bit-shifted objectFlags. Use the type definition path.
@@ -539,16 +539,16 @@ via::clr::VMObjType get_vm_type(::REManagedObject* object) {
 #elif TDB_VER >= 71
     return get_type_definition(object)->get_vm_obj_type();
 #elif TDB_VER >= 69
-    return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
+    return (via::clr::VMObjType)(info->get_class_info()->get_object_flags() >> 5);
 #else
-    return (via::clr::VMObjType)info->classInfo->objectType;
+    return (via::clr::VMObjType)info->get_class_info()->get_object_type();
 #endif
 }
 
 uint32_t get_size(::REManagedObject* object) {
     auto info = object->info;
 
-    if (info == nullptr || info->classInfo == nullptr) {
+    if (info == nullptr || info->get_class_info() == nullptr) {
         return 0;
     }
 

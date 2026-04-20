@@ -850,9 +850,8 @@ namespace sdk {
             return nullptr;
         }
 
-        ::REObjectInfo fake_object_info {
-            .classInfo = (::REClassInfo*)t,
-        };
+        ::REObjectInfo fake_object_info{};
+        *(::REClassInfo**)&fake_object_info = (::REClassInfo*)t;
 
         sdk::Delegate fake_delegate_non_empty {
             .num_methods = 1,

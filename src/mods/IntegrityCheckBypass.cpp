@@ -287,7 +287,7 @@ void IntegrityCheckBypass::disable_update_timers(std::string_view name) const {
     auto manager = sdk::get_managed_singleton<::REManagedObject>(name);
 
     // If the interact manager is null, we're probably not in the game
-    if (manager == nullptr || manager->info == nullptr || manager->info->classInfo == nullptr) {
+    if (manager == nullptr || manager->info == nullptr || manager->info->get_class_info() == nullptr) {
         return;
     }
 

@@ -59,23 +59,33 @@ jobs:
       - name: Build
         run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target REFramework
 
-      - name: Compress release
+      - name: Compress REFramework
         run: |
           echo ${{github.sha}} > ${{github.workspace}}/reframework_revision.txt
-          echo none > ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
           7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/reframework_revision.txt
-          7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
           7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/build/bin/REFramework/dinput8.dll
-          7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
-          7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
           7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/scripts
           7z rn ${{github.workspace}}/REFramework.zip scripts reframework/autorun
 
-      - name: Upload artifacts
+      - name: Compress VR prerequisites
+        run: |
+          echo none > ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
+          7z a ${{github.workspace}}/VR.zip ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
+          7z a ${{github.workspace}}/VR.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
+          7z a ${{github.workspace}}/VR.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
+
+      - name: Upload REFramework
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
           name: REFramework
           path: ${{github.workspace}}/REFramework.zip
+          if-no-files-found: error
+
+      - name: Upload VR
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: VR
+          path: ${{github.workspace}}/VR.zip
           if-no-files-found: error
 
   nightly-push:

@@ -164,7 +164,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
             m_last_camera_matrix[3] = sdk::get_joint_position(joint);
         }
         else {
-            m_last_camera_matrix = transform->worldTransform;
+            m_last_camera_matrix = transform->get_world_transform();
         }
 
         m_first_time = false;
@@ -331,8 +331,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
         m_last_camera_matrix[3] = new_pos;
     }
 
-    transform->worldTransform = m_last_camera_matrix;
-    transform->position = m_last_camera_matrix[3];
+    transform->get_world_transform() = m_last_camera_matrix;
+    transform->get_position() = m_last_camera_matrix[3];
 
     // IDK!!!
     if (gi.tdb_ver() < 81) {

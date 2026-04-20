@@ -2085,7 +2085,7 @@ void VR::disable_bad_effects() {
         static auto hide_effect_for_vr_t = get_type(game_namespace("EPVStandard.HideEffectForVR"));
 
         // Do not draw the game object if it is hidden for VR (this was there for the original PSVR release i guess)
-        for (auto child = camera_transform->child; child != nullptr; child = child->child) {
+        for (auto child = camera_transform->get_child(); child != nullptr; child = child->get_child()) {
             if (utility::re_component::find(child, effect_player_t) != nullptr) {
                 if (utility::re_component::find(child, hide_effect_for_vr_t) != nullptr) {
                     auto game_object = child->get_game_object();
@@ -2558,7 +2558,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                     auto camera_object = utility::re_component::get_game_object(camera);
 
                     if (camera_object != nullptr && camera_object->get_transform() != nullptr) {
-                        auto& gui_matrix = game_object->get_transform()->worldTransform;
+                        auto& gui_matrix = game_object->get_transform()->get_world_transform();
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
                         auto fix_2d_position = [&](const Vector4f& target_position, 
@@ -2932,7 +2932,7 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
         if (game_object != nullptr && game_object->get_transform() != nullptr) {
             //sdk::set_transform_position(game_object->get_transform(), data->original_position);
 
-            auto& gui_matrix = game_object->get_transform()->worldTransform;
+            auto& gui_matrix = game_object->get_transform()->get_world_transform();
             gui_matrix[3] = data->original_position;
         }
     }

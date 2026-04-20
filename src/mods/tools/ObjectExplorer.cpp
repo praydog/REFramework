@@ -2457,7 +2457,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                     // Property attributes
                     if (variable->get_attributes() != 0 && variable->get_attributes() != -1) {
                         for (auto attr = (REAttribute*)((uintptr_t)variable + VariableDescriptor::offset_of_attributes() + variable->get_attributes()); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
-                            auto type_func = (REType* (*)())attr->info->getType;
+                            auto type_func = (REType* (*)())attr->info->get_type_fn();
 
                             prop_entry["attributes"].emplace_back(
                                 json{ {"name", type_func()->get_type_name() } }

@@ -6,6 +6,8 @@
 #include "types/REComponent.hpp"
 #include "types/REGameObject.hpp"
 #include "types/REReflection.hpp"
+#include "types/REObjectInfo.hpp"
+#include "types/REClassInfo.hpp"
 
 // Created with ReClass.NET 1.2 by KN4CK3R
 
@@ -158,46 +160,7 @@ public:
 }; //Size: 0x0008
 static_assert(sizeof(N00000756) == 0x8);
 
-class REJointArray
-{
-public:
-	class REArrayBase *data; //0x0000
-	class JointMatrices *matrices; //0x0008
-	char pad_0010[256]; //0x0010
-}; //Size: 0x0110
-static_assert(sizeof(REJointArray) == 0x110);
-
-class RETransform : public REComponent
-{
-public:
-#ifdef REFRAMEWORK_UNIVERSAL
-	// REJointArray offset varies: 0xD0 (RE2/RE3 TDB70), 0xD8 (RE8+), 0xE8 (RE7 TDB49, out of scope).
-	REJointArray& get_joints();
-	const REJointArray& get_joints() const;
-#else
-	REJointArray& get_joints() { return joints; }
-	const REJointArray& get_joints() const { return joints; }
-#endif
-	Vector4f position; //0x0030
-	Vector4f angles; //0x0040
-	Vector4f scale; //0x0050
-	class REScene *scene; //0x0060
-	class RETransform *child; //0x0068
-	class RETransform *next; //0x0070
-	class RETransform *parentTransform; //0x0078
-	Matrix4x4f worldTransform; //0x0080
-	class N00007EEE *N000007D8; //0x00C0
-	int32_t N00000804; //0x00C8
-	uint32_t tickCount; //0x00CC
-	bool sameJointsConstraint; //0x00D0
-	bool N0000081A; //0x00D1
-	char pad_00D2[1]; //0x00D2
-	bool absoluteScaling; //0x00D3
-	char pad_00D4[4]; //0x00D4
-	class REJointArray joints; //0x00D8
-	char pad_01E8[8]; //0x01E8
-}; //Size: 0x01F0
-static_assert(sizeof(RETransform) == 0x1F0);
+#include "types/RETransform.hpp"
 
 class N0000B6D9
 {
@@ -264,58 +227,7 @@ public:
 }; //Size: 0x0048
 static_assert(sizeof(N00000965) == 0x48);
 
-class REObjectInfo
-{
-public:
-	class REClassInfo *classInfo; //0x0000
-	void* validator; //0x0008
-	void* N0000246A; //0x0010
-	void* getType; //0x0018
-	void* toString; //0x0020
-	void* copy; //0x0028
-	void* N00000995; //0x0030
-	void* N00000996; //0x0038
-	void* N00000997; //0x0040
-	void* N00000998; //0x0048
-	void* N00000999; //0x0050
-	void* getSize; //0x0058
-	void* N0000099B; //0x0060
-	void* N0000099C; //0x0068
-	void* N0000246C; //0x0070
-	void* N0000246D; //0x0078
-	void* N0000246E; //0x0080
-	void* N0000246F; //0x0088
-	void* N00002470; //0x0090
-	void* N00002471; //0x0098
-	void* N00002472; //0x00A0
-	void* N00002473; //0x00A8
-}; //Size: 0x00B0
-static_assert(sizeof(REObjectInfo) == 0xB0);
 
-class REClassInfo
-{
-public:
-	uint16_t typeIndex; //0x0000 index into global type array
-	char pad_0002[5]; //0x0002
-	uint8_t objectFlags; //0x0007 flags >> 5 ==  1 == normal type ? ??
-	uint32_t _; //0x0008
-	uint32_t elementBitField; //0x000C >> 4 is the value type index (RETypeImpl)
-	uint32_t typeFlags; //0x0010 System::Reflection::TypeAttributes or via::clr::TypeFlag
-	uint32_t size; //0x0014
-	uint32_t fqnHash; //0x0018
-	uint32_t typeCRC; //0x001C
-	uint32_t defaultCtor; //0x0020
-	uint32_t vt; //0x0024 vtable byte pool
-	uint32_t memberMethod; //0x0028
-	uint32_t memberField; //0x002C
-	uint32_t memberProp; //0x0030
-	uint32_t memberEvent; //0x0034
-	int32_t interfaces; //0x0038
-	int32_t generics; //0x003C byte pool
-	class RETypeCLR *type; //0x0040
-	class REObjectInfo *parentInfo; //0x0048
-}; //Size: 0x0050
-static_assert(sizeof(REClassInfo) == 0x50);
 
 class N00000CF1
 {

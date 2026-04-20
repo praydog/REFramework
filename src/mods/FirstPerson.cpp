@@ -1357,7 +1357,7 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
         return;
     }
 
-    auto player_matrix = glm::mat4{ *(glm::quat*)&transform->angles };
+    auto player_matrix = glm::mat4{ *(glm::quat*)&transform->get_angles() };
 
     auto player_right = *(Vector3f*)&player_matrix[0] * -1.0f;
     player_right[1] = 0.0f;
@@ -1394,7 +1394,7 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
     auto camera_quat = glm::quat{ camera_matrix };
 
     // Finally rotate the player transform to match the camera in a two-dimensional fashion
-    transform->angles = *(Vector4f*)&camera_quat;
+    transform->get_angles() = *(Vector4f*)&camera_quat;
 }
 
 void FirstPerson::update_player_roomscale(RETransform* transform) {
@@ -1478,7 +1478,7 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     const auto is_player_in_control = (is_player_camera && !is_switching_camera && !m_last_pause_state);
     const auto is_switching_to_player_camera = is_player_camera && is_switching_camera;
 
-    auto& mtx = transform->worldTransform;
+    auto& mtx = transform->get_world_transform();
 
     // Don't mess with the camera if we're in a cutscene
     if (!is_first_person_allowed()) {
@@ -1701,8 +1701,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         CAMSYS(m_camera_system, cameraController)->worldPosition = *(Vector4f*)&camera_pos;
         CAMSYS(m_camera_system, cameraController)->worldRotation = *(Vector4f*)&final_quat;
 
-        transform->position = *(Vector4f*)&camera_pos;
-        transform->angles = *(Vector4f*)&final_quat;
+        transform->get_position() = *(Vector4f*)&camera_pos;
+        transform->get_angles() = *(Vector4f*)&final_quat;
 
         // Apply the new matrix
         *(Matrix3x4f*)&mtx = final_mat;
