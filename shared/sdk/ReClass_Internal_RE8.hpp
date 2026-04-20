@@ -1084,12 +1084,14 @@ public:
 }; //Size: 0x0008
 static_assert(sizeof(TypeListArrayPtr) == 0x8);
 
+#ifndef REFRAMEWORK_UNIVERSAL
 class TypeListArray
 {
 public:
 	class REClassInfo N00000A51[100000]; //0x0000
 }; //Size: 0x7A1200
 static_assert(sizeof(TypeListArray) == 0x7A1200);
+#endif
 
 class GlobalArrayData2
 {

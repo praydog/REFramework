@@ -448,7 +448,6 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"shared/sdk/MurmurHash.hpp"
 		"shared/sdk/REArray.cpp"
 		"shared/sdk/REArray.hpp"
-		"shared/sdk/REClassInfo.cpp"
 		"shared/sdk/REComponent.hpp"
 		"shared/sdk/REContext.cpp"
 		"shared/sdk/REContext.hpp"
