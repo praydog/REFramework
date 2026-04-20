@@ -15,52 +15,12 @@
 #include "sdk/REGameObject.hpp"
 #include <sdk/GameIdentity.hpp>
 
-#ifdef REFRAMEWORK_UNIVERSAL
 // Universal build: use re2_tdb70 structs (with ChainCollisionTop).
 // Games with TDB < 69 or MHRISE TDB==70 use flat collision layouts with different
 // struct sizes, so the chain viewer may not display correctly for those games.
 #include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisions.hpp"
-#else
-#if TDB_VER < 69
-#include "sdk/regenny/re3/via/motion/Chain.hpp"
-#include "sdk/regenny/re3/via/motion/ChainCollisions.hpp"
-#elif TDB_VER == 69
-#include "sdk/regenny/re8/via/motion/Chain.hpp"
-#include "sdk/regenny/re8/via/motion/ChainCollisionTop.hpp"
-#include "sdk/regenny/re8/via/motion/ChainCollisions.hpp"
-#elif TDB_VER >= 70
-#if defined(MHRISE)
-#if TDB_VER == 70
-#define MHRISE_CHAIN70
-#include "sdk/regenny/mhrise/via/motion/Chain.hpp"
-#include "sdk/regenny/mhrise/via/motion/ChainCollisions.hpp"
-#else
-#include "sdk/regenny/mhrise_tdb71/via/motion/Chain.hpp"
-#include "sdk/regenny/mhrise_tdb71/via/motion/ChainCollisions.hpp"
-#include "sdk/regenny/mhrise_tdb71/via/motion/ChainCollisionTop.hpp"
-#endif
-#else
-
-#if defined(RE4)
-#include "sdk/regenny/re4/via/motion/Chain.hpp"
-#include "sdk/regenny/re4/via/motion/ChainCollisions.hpp"
-#include "sdk/regenny/re4/via/motion/ChainCollisionTop.hpp"
-#elif defined (SF6)
-#include "sdk/regenny/sf6/via/motion/Chain.hpp"
-#include "sdk/regenny/sf6/via/motion/ChainCollisions.hpp"
-#include "sdk/regenny/sf6/via/motion/ChainCollisionTop.hpp"
-#else
-#include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
-#include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
-#include "sdk/regenny/re2_tdb70/via/motion/ChainCollisions.hpp"
-#endif
-
-#endif
-
-#endif
-#endif
 
 #include "../BackBufferRenderer.hpp"
 #include "ObjectExplorer.hpp"

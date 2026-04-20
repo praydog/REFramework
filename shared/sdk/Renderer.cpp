@@ -800,7 +800,6 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
             spdlog::info("Searching for RenderContext::copy_texture");
 
             std::vector<std::string> string_choices {
-#ifdef REFRAMEWORK_UNIVERSAL
             };
             if (sdk::GameIdentity::get().tdb_ver() < 73) {
                 string_choices.push_back("InterleaveNormalDepthHalfWithoutGBuffer");
@@ -808,15 +807,6 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
             string_choices.push_back("opyImage");
             string_choices.push_back("CopyImage");
             {
-#else
-                // CopyTexture isn't directly behind InterleaveNormalDepthHalfWithoutGBuffer in DD2+
-#if TDB_VER < 73
-                "InterleaveNormalDepthHalfWithoutGBuffer",
-#endif
-                "opyImage", // Engine has a weird optimization sometimes where it starts from the +1 offset
-                "CopyImage",
-            };
-#endif
 
             const auto game = utility::get_executable();
 
@@ -859,9 +849,7 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
                     ip -= 1;
                 }
             }
-#ifdef REFRAMEWORK_UNIVERSAL
             }
-#endif
 
             spdlog::error("Could not find copy_texture");
             return (CopyTexFn)nullptr;
@@ -907,17 +895,11 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     };
 #endif
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() < 82) {
         copy_legacy();
     } else {
         copy_modern();
     }
-#elif TDB_VER < 82
-    copy_legacy();
-#else
-    copy_modern();
-#endif
 //#endif
 }
 
@@ -1565,15 +1547,11 @@ ID3D12Resource* TargetState::get_native_resource_d3d12() const {
 }
 
 DirectXResource<ID3D12Resource>* Texture::get_d3d12_resource_container() {
-#ifdef REFRAMEWORK_UNIVERSAL
     // DMC5 (TDB <71) uses hardcoded offset; newer games bruteforce-scan.
     if (sdk::GameIdentity::get().tdb_ver() < 71) {
         return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + get_s_d3d12_resource_offset());
     }
     // fall through to bruteforce for TDB >= 71
-#elif TDB_VER < 71
-    return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + s_d3d12_resource_offset);
-#endif
     static std::optional<size_t> offset = std::nullopt;
 
     if (offset) {
@@ -1671,7 +1649,6 @@ sdk::intrusive_ptr<RenderTargetView> RenderTargetView::clone(uint32_t new_width,
 }
 
 namespace detail {
-#ifdef REFRAMEWORK_UNIVERSAL
 inline uintptr_t rtv_size() {
     const auto& gi = sdk::GameIdentity::get();
     const auto v = gi.tdb_ver();
@@ -1685,28 +1662,6 @@ inline uintptr_t rtv_size() {
     if (v == 69) return 0x88 - sizeof(void*);
     return 0x88 - sizeof(void*); // TDB <= 67
 }
-#else
-constexpr inline uintptr_t rtv_size() {
-#if TDB_VER >= 74
-    return 0xA8;
-#elif TDB_VER >= 71
-#if defined(SF6) || defined(DD2)
-    return 0x98;
-#elif defined(MHRISE)
-    return 0x88;
-#else
-    return 0x98 - sizeof(void*);
-#endif
-#elif TDB_VER == 70
-    return 0x90 - sizeof(void*);
-#elif TDB_VER == 69
-    return 0x88 - sizeof(void*);
-#elif TDB_VER <= 67
-// TODO: 66 and below
-    return 0x88 - sizeof(void*);
-#endif
-}
-#endif
 }
 
 sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
@@ -1718,7 +1673,6 @@ sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
     if (rtv_type != nullptr && utility::re_type_accessor::get_size(rtv_type) > 0 && utility::re_type_accessor::get_size(rtv_type) < 0x1000) {
         const auto rtv_size = utility::re_type_accessor::get_size(rtv_type);
 
-#ifdef REFRAMEWORK_UNIVERSAL
         const auto v = sdk::GameIdentity::get().tdb_ver();
         if (v >= 74) {
             // TDB >= 74: +4*ptr (0xC8-0xE0 range)
@@ -1728,21 +1682,8 @@ sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
         } else {
             return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 3));
         }
-#else
-#if TDB_VER >= 81
-        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 4)); // 0xE0 usually
-
-#elif TDB_VER >= 74
-        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 4)); // 0xC8 usually
-#elif TDB_VER < 73
-        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + sizeof(void*));
-#else
-        return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + rtv_size + (sizeof(void*) * 3));
-#endif
-#endif
     }
     
-#ifdef REFRAMEWORK_UNIVERSAL
     const auto v2 = sdk::GameIdentity::get().tdb_ver();
     if (v2 >= 74) {
         return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size() + (sizeof(void*) * 4));
@@ -1751,15 +1692,6 @@ sdk::intrusive_ptr<Texture>& RenderTargetView::get_texture_d3d12() const {
     } else {
         return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size() + (sizeof(void*) * 3));
     }
-#else
-#if TDB_VER >= 74
-    return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size() + (sizeof(void*) * 4)); // 0xC8 usually
-#elif TDB_VER < 73
-    return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size() + sizeof(void*));
-#else
-    return *(sdk::intrusive_ptr<Texture>*)((uintptr_t)this + detail::rtv_size() + (sizeof(void*) * 3));
-#endif
-#endif
 }
 
 sdk::intrusive_ptr<TargetState>& RenderTargetView::get_target_state_d3d12() const {

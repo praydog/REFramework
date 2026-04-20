@@ -11,9 +11,7 @@
 
 #include <cstdint>
 
-#ifdef REFRAMEWORK_UNIVERSAL
 #include "GameIdentity.hpp"
-#endif
 
 class REObjectInfo;
 
@@ -53,7 +51,6 @@ namespace tdb_bits18 {
 // ============================================================================
 // Runtime dispatch macros and helpers
 // ============================================================================
-#ifdef REFRAMEWORK_UNIVERSAL
 
 namespace tdb_dispatch {
 
@@ -249,24 +246,5 @@ inline bool needs_plain_impl() {
 #define RPROP_FIELD_69(ptr, field) \
     (reinterpret_cast<const sdk::tdb84::REProperty*>(ptr)->field)
 
-#else // Non-universal builds: no dispatch needed, direct access.
-
-#define TDEF_FIELD(ptr, field) ((ptr)->field)
-#define TDEF_FIELD_69(ptr, field) ((ptr)->field)
-#define TDEF_FIELD_PRE_IMPL(ptr, field) ((ptr)->field)
-#define TDEF_FIELD_SET(ptr, field, value) ((ptr)->field = (value))
-#define TMETH_FIELD(ptr, field) ((ptr)->field)
-#define TMETH_FIELD_71(ptr, field) ((ptr)->field)
-#define TFIELD_FIELD(ptr, field) ((ptr)->field)
-#define TFIELD_FIELD_71(ptr, field) ((ptr)->field)
-#define TPARAM_FIELD(ptr, field) ((ptr)->field)
-#define TIMPL_FIELD(ref, field) ((ref).field)
-#define RMOD_FIELD(ptr, field) ((ptr)->field)
-#define RPROP_FIELD(ptr, field) ((ptr)->field)
-#define RPROP_FIELD_69(ptr, field) ((ptr)->field)
-#define RFIELDIMPL_FIELD(ptr, field) ((ptr)->field)
-#define RMETHIMPL_FIELD(ptr, field) ((ptr)->field)
-#define RPROPIMPL_FIELD(ptr, field) ((ptr)->field)
-#endif // REFRAMEWORK_UNIVERSAL
 
 } // namespace sdk

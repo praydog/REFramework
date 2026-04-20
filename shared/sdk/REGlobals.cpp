@@ -70,11 +70,7 @@ REGlobals::REGlobals() {
     // In universal builds, TDB_VER=84 >= 78 is always true at compile time,
     // so this scan always ran for every game (including DMC5 TDB 67).
     // The scan is additive — it populates named getters alongside raw pointers.
-#ifdef REFRAMEWORK_UNIVERSAL
     {
-#else
-    if (m_objects.empty() || TDB_VER >= 78) {
-#endif
         spdlog::info("Usual pattern for REGlobals not working, falling back to scanning for SingletonBehavior types");
 
         auto& types = reframework::get_types();
@@ -123,11 +119,7 @@ REGlobals::REGlobals() {
     }
 
     // Also scan through TDB types for SingletonBehavior inheritance
-#ifdef REFRAMEWORK_UNIVERSAL
     {
-#else
-    if (m_objects.empty() || TDB_VER >= 78) {
-#endif
         auto tdb = sdk::RETypeDB::get();
 
         for (size_t i = 0; i < tdb->get_num_types(); ++i) try {

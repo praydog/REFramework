@@ -7,7 +7,6 @@
 
 #include <cstdint>
 
-#ifdef REFRAMEWORK_UNIVERSAL
 #include "GameIdentity.hpp"
 
 // MHWILDS/RE9 REType layout (0x68) — super at 0x40 instead of 0x38
@@ -130,16 +129,3 @@ inline ::REFieldList* get_fields(const ::REType* t) { return t->get_fields(); }
 inline ::REClassInfo* get_classInfo(const ::REType* t) { return t->get_classInfo(); }
 } // namespace utility::re_type_accessor
 
-#else
-// Non-universal builds: direct access is always correct.
-namespace utility::re_type_accessor {
-inline uint32_t get_size(const ::REType* t) { return t->size; }
-inline uint32_t get_typeCRC(const ::REType* t) { return t->typeCRC; }
-inline ::REType* get_super(const ::REType* t) { return t->super; }
-inline ::REType* get_childType(const ::REType* t) { return t->childType; }
-inline ::REType* get_chainType(const ::REType* t) { return t->chainType; }
-inline ::REFieldList* get_fields(const ::REType* t) { return t->fields; }
-inline ::REClassInfo* get_classInfo(const ::REType* t) { return t->classInfo; }
-} // namespace utility::re_type_accessor
-
-#endif // REFRAMEWORK_UNIVERSAL

@@ -2612,13 +2612,11 @@ void IntegrityCheckBypass::on_config_save(utility::Config& cfg) {
 
 void IntegrityCheckBypass::on_draw_ui() {
 #if ENABLE_PAK_DIRECTORY_LOAD
-#ifdef REFRAMEWORK_UNIVERSAL
     // In the universal build ENABLE_PAK_DIRECTORY_LOAD is always 1 (TDB_VER=84 >= 81),
     // so we must gate the UI at runtime for games that don't support PAK directory loading.
     if (sdk::GameIdentity::get().tdb_ver() < 81) {
         return;
     }
-#endif
     if (!ImGui::CollapsingHeader("PAK Directory Loading")) {
         return;
     }

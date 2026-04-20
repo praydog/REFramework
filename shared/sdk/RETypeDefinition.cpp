@@ -49,7 +49,6 @@ RETypeDefinition::MethodIterator::REMethodIterator RETypeDefinition::MethodItera
 
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t num_methods;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         const auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(m_parent, impl_index));
@@ -57,12 +56,6 @@ RETypeDefinition::MethodIterator::REMethodIterator RETypeDefinition::MethodItera
     } else {
         num_methods = TDEF_FIELD_PRE_IMPL(m_parent, num_member_method);
     }
-#elif TDB_VER >= 69
-    const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(m_parent, impl_index)];
-    const auto num_methods = TIMPL_DISPATCH(uint32_t, impl, num_member_methods);
-#else
-    const auto num_methods = m_parent->num_member_method;
-#endif
 
     return REMethodIterator{m_parent, static_cast<size_t>(num_methods)};
 }
@@ -70,19 +63,12 @@ RETypeDefinition::MethodIterator::REMethodIterator RETypeDefinition::MethodItera
 size_t RETypeDefinition::MethodIterator::size() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         const auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(m_parent, impl_index));
         return static_cast<size_t>(TIMPL_DISPATCH(uint32_t, impl, num_member_methods));
     } else {
         return static_cast<size_t>(TDEF_FIELD_PRE_IMPL(m_parent, num_member_method));
     }
-#elif TDB_VER >= 69
-    const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(m_parent, impl_index)];
-    return static_cast<size_t>(TIMPL_DISPATCH(uint32_t, impl, num_member_methods));
-#else
-    return static_cast<size_t>(m_parent->num_member_method);
-#endif
 }
 
 sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*() const {
@@ -113,7 +99,6 @@ sdk::REField* sdk::RETypeDefinition::FieldIterator::REFieldIterator::operator*()
 }
 
 size_t sdk::RETypeDefinition::FieldIterator::size() const {
-#ifdef REFRAMEWORK_UNIVERSAL
         uint32_t num_fields;
         if (sdk::GameIdentity::get().tdb_ver() >= 69) {
             auto tdb = sdk::RETypeDB::get();
@@ -122,13 +107,6 @@ size_t sdk::RETypeDefinition::FieldIterator::size() const {
         } else {
             num_fields = TDEF_FIELD_PRE_IMPL(m_parent, num_member_field);
         }
-#elif TDB_VER >= 69
-        auto tdb = sdk::RETypeDB::get();
-        const auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(m_parent, impl_index)];
-        const auto num_fields = TIMPL_DISPATCH(uint32_t, impl, num_member_fields);
-#else
-        const auto num_fields = m_parent->num_member_field;
-#endif
 
         return num_fields;
     }
@@ -149,7 +127,6 @@ size_t RETypeDefinition::PropertyIterator::size() const {
 const char* RETypeDefinition::get_namespace() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_index;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(this, impl_index));
@@ -157,12 +134,6 @@ const char* RETypeDefinition::get_namespace() const {
     } else {
         name_index = TDEF_FIELD_PRE_IMPL(this, namespace_offset);
     }
-#elif TDB_VER >= 69
-    auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(this, impl_index)];
-    const auto name_index = TIMPL_FIELD(impl, namespace_offset);
-#else
-    const auto name_index = this->namespace_offset;
-#endif
 
     return tdb->get_string(name_index);
 }
@@ -170,7 +141,6 @@ const char* RETypeDefinition::get_namespace() const {
 const char* RETypeDefinition::get_name() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_index;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_type_impl_at(TDEF_FIELD_69(this, impl_index));
@@ -178,12 +148,6 @@ const char* RETypeDefinition::get_name() const {
     } else {
         name_index = TDEF_FIELD_PRE_IMPL(this, name_offset);
     }
-#elif TDB_VER >= 69
-    auto& impl = (*tdb->get_typesImpl_ptr())[TDEF_FIELD_69(this, impl_index)];
-    const auto name_index = TIMPL_FIELD(impl, name_offset);
-#else
-    const auto name_index = this->name_offset;
-#endif
 
     return tdb->get_string(name_index);
 }
@@ -397,7 +361,6 @@ sdk::RETypeDefinition* RETypeDefinition::get_parent_type() const {
 }
 
 uint32_t RETypeDefinition::get_element_typeid() const {
-#ifdef REFRAMEWORK_UNIVERSAL
     const auto ver = sdk::GameIdentity::get().tdb_ver();
     if (ver >= 71) {
         return (uint32_t)reinterpret_cast<const sdk::RETypeDefVersion84*>(this)->element_typeid_TBD;
@@ -405,9 +368,6 @@ uint32_t RETypeDefinition::get_element_typeid() const {
         return (uint32_t)reinterpret_cast<const sdk::RETypeDefVersion69*>(this)->element_typeid;
     }
     return 0; // TDB < 69 does not have element_typeid on the typedef
-#else
-    return (uint32_t)this->element_typeid_TBD;
-#endif
 }
 
 static std::shared_mutex g_underlying_mtx{};
@@ -1030,7 +990,6 @@ uint32_t RETypeDefinition::get_size() const {
 }
 
 uint32_t RETypeDefinition::get_valuetype_size() const {
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         auto impl_id = TDEF_FIELD_69(this, impl_index);
@@ -1041,16 +1000,6 @@ uint32_t RETypeDefinition::get_valuetype_size() const {
     } else {
         return TDEF_FIELD_PRE_IMPL(this, element_size);
     }
-#elif TDB_VER >= 69
-    auto tdb = RETypeDB::get();
-    auto impl_id = TDEF_FIELD_69(this, impl_index);
-    if (impl_id == 0) {
-        return 0;
-    }
-    return (*tdb->get_typesImpl_ptr())[impl_id].field_size;
-#else
-    return this->element_size;
-#endif
 }
 
 ::REType* RETypeDefinition::get_type() const {

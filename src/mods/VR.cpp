@@ -119,12 +119,7 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         return;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     void* window = sdk::via::sv_window(scene_view);
-#else
-    auto regenny_view = (regenny::via::SceneView*)scene_view;
-    auto window = regenny_view->window;
-#endif
 
     static auto via_scene_view = sdk::find_type_definition("via.SceneView");
     static auto set_display_type_method = via_scene_view != nullptr ? via_scene_view->get_method("set_DisplayType") : nullptr;
@@ -137,22 +132,12 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
             static auto is_sunbreak = utility::get_module_path(utility::get_executable())->find("MHRiseSunbreakDemo") != std::string::npos;
 
             if (is_sunbreak) {
-#ifdef REFRAMEWORK_UNIVERSAL
                 *(int32_t*)((uintptr_t)scene_view + sdk::via::sv_display_type_offset() + 4) = (int32_t)regenny::via::DisplayType::Fit;
             } else {
                 sdk::via::sv_display_type(scene_view) = (int32_t)regenny::via::DisplayType::Fit;
-#else
-                *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
-            } else {
-                regenny_view->display_type = regenny::via::DisplayType::Fit;
-#endif
             }
         } else {
-#ifdef REFRAMEWORK_UNIVERSAL
             *(int32_t*)((uintptr_t)scene_view + sdk::via::sv_display_type_offset() + 4) = (int32_t)regenny::via::DisplayType::Fit;
-#else
-            *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
-#endif
         }
     }
 
@@ -163,22 +148,13 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     if (window != nullptr) {
         static const auto is_gng = utility::get_module_path(utility::get_executable())->find("makaimura_GG_RE.exe") != std::string::npos;
 
-#ifdef REFRAMEWORK_UNIVERSAL
         auto& window_width = is_gng ? *(uint32_t*)((uintptr_t)window + 0x48) : sdk::via::window_width(window);
         auto& window_height = is_gng ? *(uint32_t*)((uintptr_t)window + 0x4C) : sdk::via::window_height(window);
-#else
-        auto& window_width = is_gng ? *(uint32_t*)((uintptr_t)window + 0x48) : window->width;
-        auto& window_height = is_gng ? *(uint32_t*)((uintptr_t)window + 0x4C) : window->height;
-#endif
 
         if (is_hmd_active()) {
             if (gi.tdb_ver() <= 49) {
                 if (!g_previous_size) {
-#ifdef REFRAMEWORK_UNIVERSAL
                     g_previous_size = regenny::via::Size{ (float)sdk::via::window_width(window), (float)sdk::via::window_height(window) };
-#else
-                    g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
-#endif
                 }
             }
             window_width = get_hmd_width();
@@ -217,22 +193,12 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
             m_backbuffer_inconsistency = false;
 
             if (gi.tdb_ver() > 49) {
-#ifdef REFRAMEWORK_UNIVERSAL
                 window_width = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x88) : (uint32_t)sdk::via::window_borderless_w(window);
                 window_height = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x8C) : (uint32_t)sdk::via::window_borderless_h(window);
-#else
-                window_width = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x88) : (uint32_t)window->borderless_size.w;
-                window_height = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x8C) : (uint32_t)window->borderless_size.h;
-#endif
             } else {
                 if (g_previous_size) {
-#ifdef REFRAMEWORK_UNIVERSAL
                     sdk::via::window_width(window) = (uint32_t)g_previous_size->w;
                     sdk::via::window_height(window) = (uint32_t)g_previous_size->h;
-#else
-                    window->width = (uint32_t)g_previous_size->w;
-                    window->height = (uint32_t)g_previous_size->h;
-#endif
 
                     g_previous_size = std::nullopt;
                 }
@@ -245,13 +211,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         // Might be usable in other games too
         if (gi.is_sf6() || gi.tdb_ver() >= 73) {
             if (!is_gng) {
-#ifdef REFRAMEWORK_UNIVERSAL
                 sdk::via::window_borderless_w(window) = (float)window_width;
                 sdk::via::window_borderless_h(window) = (float)window_height;
-#else
-                window->borderless_size.w = (float)window_width;
-                window->borderless_size.h = (float)window_height;
-#endif
             }
         }
     }
@@ -269,13 +230,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     } else {
         // Stupid optimizations cause the game to not use the result variant of this function
         // but rather update the current scene view's size directly.
-#ifdef REFRAMEWORK_UNIVERSAL
         sdk::via::sv_size_w(scene_view) = wanted_width;
         sdk::via::sv_size_h(scene_view) = wanted_height;
-#else
-        regenny_view->size.w = wanted_width;
-        regenny_view->size.h = wanted_height;
-#endif
         //regenny_view->custom_display_size.w = wanted_width;
         //regenny_view->custom_display_size.h = wanted_height;
         //regenny_view->present_rect.w = wanted_width;

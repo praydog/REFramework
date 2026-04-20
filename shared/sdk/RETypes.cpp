@@ -18,7 +18,6 @@ std::string& game_namespace(std::string_view base_name)
 {
     using namespace std::string_view_literals;
 
-#ifdef REFRAMEWORK_UNIVERSAL
     static const std::string_view prefix = []() -> std::string_view {
         const auto& gi = sdk::GameIdentity::get();
         switch (gi.game()) {
@@ -29,23 +28,6 @@ std::string& game_namespace(std::string_view base_name)
             default: return "app."sv;  // RE7, RE8, RE9, DMC5, SF6, DD2, MHWILDS, etc.
         }
     }();
-#else
-    static constexpr std::string_view prefix{
-#if TDB_VER >= 74
-    "app."sv
-#elif defined(MHRISE)
-    "snow."sv
-#elif defined(RE8) || defined(RE7) || defined(DMC5) || defined(SF6)
-    "app."sv
-#elif RE4
-    "chainsaw."sv
-#elif RE3
-    "offline."sv
-#else
-    "app.ropeway."sv
-#endif
-    };
-#endif
 
     static thread_local std::string buffer = [&]
     {
@@ -73,11 +55,7 @@ RETypes::RETypes() {
     bool re7_version = false;
 
     if (!ref) {
-#ifdef REFRAMEWORK_UNIVERSAL
         const bool use_exhaustive_scan = sdk::GameIdentity::get().tdb_ver() >= 73;
-#else
-        constexpr bool use_exhaustive_scan = TDB_VER >= 73;
-#endif
         if (use_exhaustive_scan) {
         // This is the absolutely foolproof way of finding it
         // We can probably completely replace it with this for all the games, but not doing that just yet to be safe

@@ -2,7 +2,6 @@
 
 #include "REGameObject.hpp"
 
-#ifdef REFRAMEWORK_UNIVERSAL
 #include "GameIdentity.hpp"
 
 static uintptr_t go_transform_offset() {
@@ -58,7 +57,6 @@ SystemString* REGameObject::get_name_field() const {
     // name is 2 pointers after transform (transform, folder, name)
     return *(SystemString**)((uintptr_t)this + go_transform_offset() + sizeof(void*) * 2);
 }
-#endif
 
 namespace utility::re_game_object {
 std::string get_name(REGameObject* obj) {
@@ -68,7 +66,6 @@ std::string get_name(REGameObject* obj) {
 
     // Only doing this on newer versions where we know it works
     // Haven't tested it on older versions so just to be safe.
-#if TDB_VER >= 71
     static const auto game_object_t = sdk::find_type_definition("via.GameObject");
     static const auto get_name_fn = game_object_t != nullptr ? game_object_t->get_method("get_Name") : nullptr;
 
@@ -79,7 +76,6 @@ std::string get_name(REGameObject* obj) {
             return utility::re_string::get_string(str);
         }
     }
-#endif
 
     // We rely on the reflected function first because
     // this offset might change between versions.

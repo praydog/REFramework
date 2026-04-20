@@ -510,21 +510,13 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     // This function is removed (or not reflected) >= TDB74...
     // Additionally, it never existed in RE7 or MHRISE — attempting to hook
     // there returns an error string and aborts the whole Hooks init chain.
-#ifdef REFRAMEWORK_UNIVERSAL
     {
         const auto& gi = sdk::GameIdentity::get();
         if (gi.is_re7() || gi.is_mhrise()) {
             return std::nullopt;
         }
     }
-#endif
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() < 74) {
-#else
-#if TDB_VER < 74
-    {
-#endif
-#endif
     // Hook updateBeforeLockScene
     auto update_before_lock_scene = sdk::find_native_method("via.render.EntityRenderer", "updateBeforeLockScene");
 
@@ -539,13 +531,7 @@ std::optional<std::string> Hooks::hook_update_before_lock_scene() {
     if (!m_update_before_lock_scene_hook->create()) {
         return "Failed to hook via::render::EntityRenderer::updateBeforeLockScene";
     }
-#ifdef REFRAMEWORK_UNIVERSAL
     }
-#else
-#if TDB_VER < 74
-    }
-#endif
-#endif
 
     return std::nullopt;
 }
@@ -610,7 +596,6 @@ std::optional<std::string> Hooks::hook_view_get_size() {
     }
 
     
-#if TDB_VER >= 74
     if (!ref) {
         ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 89 F2 E8"); // >= TDB74 (MHWILDS)
     }
@@ -618,7 +603,6 @@ std::optional<std::string> Hooks::hook_view_get_size() {
     if (!ref) {
         ref = utility::find_pattern_in_path((uint8_t*)get_size_func, 1000, false, "48 8B CF E8"); // Pragmata
     }
-#endif
 
     if (!ref) {
         return "Hook init failed: via.SceneView.get_Size native function not found. Pattern scan failed.";
@@ -654,11 +638,9 @@ std::optional<std::string> Hooks::hook_camera_get_projection_matrix() {
         ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 8B CB E8");
     }
     
-#if TDB_VER >= 74
     if (!ref) {
         ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 89 F2 E8"); // >= TDB74?
     }
-#endif
 
     if (!ref) {
         return "Hook init failed: via.Camera.get_ProjectionMatrix native function not found. Pattern scan failed.";
@@ -694,11 +676,9 @@ std::optional<std::string> Hooks::hook_camera_get_view_matrix() {
         ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 8B CB E8");
     }
 
-#if TDB_VER >= 74
     if (!ref) {
         ref = utility::find_pattern_in_path((uint8_t*)func, 1000, false, "48 89 F2 E8"); // >= TDB74?
     }
-#endif
 
     if (!ref) {
         return "Hook init failed: via.Camera.get_ViewMatrix native function not found. Pattern scan failed.";
@@ -737,11 +717,7 @@ std::optional<std::string> Hooks::hook_render_layer(Hooks::RenderLayerHook<sdk::
 
     spdlog::info("{:s} vtable: {:x}", hook.name, (uintptr_t)obj_vtable - g_framework->get_module());
 
-#ifdef REFRAMEWORK_UNIVERSAL
     auto draw_native = obj_vtable[sdk::renderer::RenderLayer::get_draw_vtable_index()];
-#else
-    auto draw_native = obj_vtable[sdk::renderer::RenderLayer::DRAW_VTABLE_INDEX];
-#endif
 
     if (draw_native == 0) {
         return std::string{"Hooks init failed: "} + hook.name + " draw native not found.";
@@ -760,11 +736,7 @@ std::optional<std::string> Hooks::hook_render_layer(Hooks::RenderLayerHook<sdk::
         spdlog::info("Skipping draw hook for {:s}, stub code detected", hook.name);
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     auto update_native = obj_vtable[sdk::renderer::RenderLayer::get_update_vtable_index()];
-#else
-    auto update_native = obj_vtable[sdk::renderer::RenderLayer::UPDATE_VTABLE_INDEX];
-#endif
 
     if (update_native == 0) {
         return std::string{"Hooks init failed: "} + hook.name + " update native not found.";
@@ -959,13 +931,7 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
     }
 
     if (hash == "BeginRendering"_fnv) {
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 73) {
-#else
-#if TDB_VER >= 73
-    {
-#endif
-#endif
     if (auto primitive_system = sdk::gui::renderer::PrimitiveSystem::get(); primitive_system != nullptr) {
         auto primitive_buffer = primitive_system->get_primitive_buffer();
         
@@ -976,13 +942,7 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
             }
         }
     }
-#ifdef REFRAMEWORK_UNIVERSAL
     }
-#else
-#if TDB_VER >= 73
-    }
-#endif
-#endif
     }
 
     if (m_profiling_enabled) {

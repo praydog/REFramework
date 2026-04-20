@@ -308,15 +308,11 @@ void LooseFileLoader::hook() {
         return;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() > 67) {
         m_path_to_hash_hook = std::make_unique<FunctionHook>(candidate.value(), (uintptr_t)&path_to_hash_hook);
     } else {
         m_path_to_hash_hook = std::make_unique<FunctionHook>(candidate.value(), (uintptr_t)&path_to_hash_hook_legacy);
     }
-#else
-    m_path_to_hash_hook = std::make_unique<FunctionHook>(candidate.value(), (uintptr_t)&path_to_hash_hook);
-#endif
 
     if (!m_path_to_hash_hook->create()) {
         spdlog::error("[LooseFileLoader] Failed to hook path_to_hash");
@@ -439,7 +435,6 @@ bool LooseFileLoader::handle_path(const wchar_t* path, size_t hash) {
     return false;
 }
 
-#ifdef REFRAMEWORK_UNIVERSAL
 uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
     const auto og = g_loose_file_loader->m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>();
     const auto result = og(path);
@@ -461,32 +456,6 @@ uint64_t LooseFileLoader::path_to_hash_hook_legacy(void* This, const wchar_t* pa
 
     return result;
 }
-#else
-#if TDB_VER > 67
-uint64_t LooseFileLoader::path_to_hash_hook(const wchar_t* path) {
-#else
-uint64_t LooseFileLoader::path_to_hash_hook(void* This, const wchar_t* path) {
-#endif
-    const auto og = g_loose_file_loader->m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>();
-
-#if TDB_VER > 67
-    const auto result = og(path);
-#else
-    const auto result = og(This, path);
-#endif
-
-    // true to skip.
-    if (g_loose_file_loader->handle_path(path, result)) {
-#if TDB_VER > 67
-        return 4294967296;
-#else
-        return 0xFFFFFFFF;
-#endif
-    }
-
-    return result;
-}
-#endif
 
 bool LooseFileLoader::can_loosely_load_file(const wchar_t* path) {
     if (!m_enabled->value()) {
@@ -497,34 +466,18 @@ bool LooseFileLoader::can_loosely_load_file(const wchar_t* path) {
         return false;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     // DMC5 (TDB 67) uses the legacy calling convention (extra `this` pointer).
     if (sdk::GameIdentity::get().tdb_ver() <= 67) {
         return safe_exists(path);
     }
     auto hash = m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>()(path);
     return handle_path(path, hash);
-#else
-#if TDB_VER > 67
-    auto hash = m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>()(path);
-    return handle_path(path, hash);
-#else
-    return safe_exists(path);
-#endif
-#endif
 }
 
 void LooseFileLoader::early_initialize() {
-#ifdef REFRAMEWORK_UNIVERSAL
     // LooseTextureLoader only supports TDB >= 81 (MHWILDS+).
     if (sdk::GameIdentity::get().tdb_ver() >= 81) {
         hook();
         m_texture_loader.early_initialize();
     }
-#else
-#if ENABLE_LOOSE_TEXTURE_LOADER
-    hook();
-    m_texture_loader.early_initialize();
-#endif
-#endif
 }

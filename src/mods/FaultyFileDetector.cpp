@@ -671,12 +671,10 @@ void FaultyFileDetector::on_draw_ui() {
 }
 
 void FaultyFileDetector::early_init() {
-#ifdef REFRAMEWORK_UNIVERSAL
     // Pre-TDB81 games don't have the scan patterns the detector looks for.
     if (sdk::GameIdentity::get().tdb_ver() < 81) {
         return;
     }
-#endif
     if (g_faulty_detector_instance == nullptr) {
         g_faulty_detector_instance = std::make_unique<FaultyFileDetector>();
     }

@@ -53,11 +53,7 @@ sdk::REModule* RETypeDB::get_module(uint32_t index) const {
         return nullptr;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     return get_module_at(index);
-#else
-    return &(get_modules_ptr())[index];
-#endif
 }
 
 sdk::RETypeDefinition* RETypeDB::find_type(std::string_view name) const {
@@ -176,14 +172,10 @@ sdk::RETypeDefinition* RETypeDB::get_type(uint32_t index) const {
         return nullptr;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     // TDB 71-73 has stride 0x48 (no unk_new_tdb74_uint64). V84 compiled stride is 0x50.
     const auto stride = get_typedef_stride();
     return reinterpret_cast<sdk::RETypeDefinition*>(
         reinterpret_cast<uintptr_t>(get_types_ptr()) + static_cast<size_t>(index) * stride);
-#else
-    return &(*get_types_ptr())[index];
-#endif
 }
 
 sdk::REMethodDefinition* RETypeDB::get_method(uint32_t index) const {
@@ -191,15 +183,11 @@ sdk::REMethodDefinition* RETypeDB::get_method(uint32_t index) const {
         return nullptr;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     {
         const auto stride = get_method_stride();
         return reinterpret_cast<sdk::REMethodDefinition*>(
             reinterpret_cast<uintptr_t>(get_methods_ptr()) + static_cast<size_t>(index) * stride);
     }
-#else
-    return &(*get_methods_ptr())[index];
-#endif
 }
 
 sdk::REField* RETypeDB::get_field(uint32_t index) const {
@@ -207,15 +195,11 @@ sdk::REField* RETypeDB::get_field(uint32_t index) const {
         return nullptr;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     {
         const size_t stride = get_field_stride();
         return reinterpret_cast<sdk::REField*>(
             reinterpret_cast<uintptr_t>(get_fields_ptr()) + static_cast<size_t>(index) * stride);
     }
-#else
-    return &(*get_fields_ptr())[index];
-#endif
 }
 
 sdk::REProperty* RETypeDB::get_property(uint32_t index) const {
@@ -223,7 +207,6 @@ sdk::REProperty* RETypeDB::get_property(uint32_t index) const {
         return nullptr;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     {
         // REProperty stride: 0x10 on TDB67, 0x08 on TDB69+.
         const size_t stride = sdk::tdb_dispatch::needs_pre_impl()
@@ -232,9 +215,6 @@ sdk::REProperty* RETypeDB::get_property(uint32_t index) const {
         return reinterpret_cast<sdk::REProperty*>(
             reinterpret_cast<uintptr_t>(get_properties_ptr()) + static_cast<size_t>(index) * stride);
     }
-#else
-    return &(*get_properties_ptr())[index];
-#endif
 }
 
 const char* RETypeDB::get_string(uint32_t offset) const {
@@ -272,7 +252,6 @@ sdk::RETypeDefinition* REField::get_declaring_type() const {
 sdk::RETypeDefinition* REField::get_type() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t field_typeid;
     if (sdk::tdb_dispatch::needs_pre_impl()) {
         // TDB 67 (DMC5): field_typeid is directly on tdb67::REField, no impl split.
@@ -286,14 +265,6 @@ sdk::RETypeDefinition* REField::get_type() const {
         // TDB 71+: direct on compiled-in struct.
         field_typeid = TFIELD_FIELD_71(this, field_typeid);
     }
-#elif TDB_VER >= 71
-    const auto field_typeid = this->field_typeid;
-#elif TDB_VER >= 69
-    auto& impl = (*tdb->get_fieldsImpl_ptr())[this->impl_id];
-    const auto field_typeid = (uint32_t)impl.field_typeid;
-#else
-    const auto field_typeid = (uint32_t)this->field_typeid;
-#endif
 
     if (field_typeid == 0) {
         return nullptr;
@@ -305,7 +276,6 @@ sdk::RETypeDefinition* REField::get_type() const {
 const char* REField::get_name() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_offset;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
@@ -313,12 +283,6 @@ const char* REField::get_name() const {
     } else {
         name_offset = reinterpret_cast<const sdk::tdb67::REField*>(this)->name_offset;
     }
-#elif TDB_VER >= 69
-    auto& impl = (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)];
-    const auto name_offset = impl.name_offset & tdb->get_string_pool_bitmask();
-#else
-    const auto name_offset = this->name_offset;
-#endif
 
     return tdb->get_string(name_offset);
 }
@@ -326,19 +290,12 @@ const char* REField::get_name() const {
 uint32_t REField::get_flags() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id));
         return RFIELDIMPL_FIELD(&impl, flags);
     } else {
         return reinterpret_cast<const sdk::tdb67::REField*>(this)->flags;
     }
-#elif TDB_VER >= 69
-    auto& impl = (*tdb->get_fieldsImpl_ptr())[TFIELD_FIELD(this, impl_id)];
-    return impl.flags;
-#else
-    return this->flags;
-#endif
 }
 
 uint32_t REField::get_init_data_index() const {
@@ -395,7 +352,6 @@ void* REField::get_init_data() const {
 }
 
 uint32_t REField::get_offset_from_fieldptr() const {
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::tdb_dispatch::needs_pre_impl()) {
         // TDB 67 (DMC5): offset directly on tdb67::REField.
         return reinterpret_cast<const sdk::tdb67::REField*>(this)->offset;
@@ -407,12 +363,6 @@ uint32_t REField::get_offset_from_fieldptr() const {
         const auto tdb = sdk::RETypeDB::get();
         return reinterpret_cast<const sdk::tdb84::REFieldImpl*>(&tdb->get_field_impl_at(TFIELD_FIELD(this, impl_id)))->offset;
     }
-#elif TDB_VER >= 71
-    const auto tdb = sdk::RETypeDB::get();
-    return (*tdb->get_fieldsImpl_ptr())[this->impl_id].offset;
-#else
-    return this->offset;
-#endif
 }
 
 uint32_t REField::get_offset_from_base() const {
@@ -458,7 +408,6 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
             return Address{object}.get(this->get_offset_from_fieldptr());
         }
 
-#ifdef REFRAMEWORK_UNIVERSAL
         if (sdk::GameIdentity::get().tdb_ver() >= 81) {
             // Read fieldptr_offset from the object's own vtable, not from the
             // declaring type's managed_vt. For abstract declaring types,
@@ -477,24 +426,6 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
                 return nullptr;
             }
         }
-#elif TDB_VER >= 81
-        // Read fieldptr_offset from the object's own vtable, not from the
-        // declaring type's managed_vt. For abstract declaring types,
-        // get_managed_vt() walks up the parent chain and can return an
-        // ancestor's vtable with a WRONG fieldptr_offset. The object's
-        // vtable always has the correct value — this matches what the
-        // .NET runtime does in RuntimeFieldInfo.GetValue.
-        if (object != nullptr) try {
-            const auto vtable_ptr = *(uintptr_t*)object;
-            if (vtable_ptr != 0) {
-                const auto fieldptr_offset = *(int32_t*)(vtable_ptr - sizeof(void*));
-                return Address{object}.get(fieldptr_offset + this->get_offset_from_fieldptr());
-            }
-        } catch (...) {
-            // Occurs if consumer passes some bad object in. Need to look into this more.
-            return nullptr;
-        }
-#endif
 
         return Address{object}.get(this->get_offset_from_base());
     }
@@ -505,11 +436,7 @@ void* REField::get_data_raw(void* object, bool is_value_type) const {
 uint32_t sdk::REField::get_index() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->get_fields_ptr()) / tdb->get_field_stride());
-#else
-    return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->get_fields_ptr()) / sizeof(sdk::REField));
-#endif
 }
 } // namespace sdk
 
@@ -529,7 +456,6 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
     auto tdb = RETypeDB::get();
     const auto params_index = get_param_index();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t return_typeid;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto param_ids = tdb->get_data<sdk::ParamList>(params_index);
@@ -549,22 +475,6 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
         return_typeid = tdb->get_data<sdk::REMethodParamDef>(this->params)->return_typeid;
 #endif
     }
-#elif TDB_VER >= 69
-    auto param_ids = tdb->get_data<sdk::ParamList>(params_index);
-    
-    const auto return_param_id = param_ids->returnType;
-    const auto& p = (*tdb->get_params_ptr())[return_param_id];
-
-    if (TPARAM_FIELD(&p, type_id) == 0) {
-        return nullptr;
-    }
-
-    const auto return_typeid = TPARAM_FIELD(&p, type_id);
-#elif TDB_VER >= 66
-    const auto return_typeid = (uint32_t)this->return_typeid;
-#else
-    const auto return_typeid = tdb->get_data<sdk::REMethodParamDef>(this->params)->return_typeid;
-#endif
 
     if (return_typeid == 0) {
         return nullptr;
@@ -576,7 +486,6 @@ sdk::RETypeDefinition* REMethodDefinition::get_return_type() const {
 const char* REMethodDefinition::get_name() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t name_offset;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
@@ -584,12 +493,6 @@ const char* REMethodDefinition::get_name() const {
     } else {
         name_offset = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->name_offset;
     }
-#elif TDB_VER >= 69
-    auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
-    const auto name_offset = impl.name_offset & tdb->get_string_pool_bitmask();
-#else
-    const auto name_offset = this->name_offset;
-#endif
 
     return tdb->get_string(name_offset);
 }
@@ -598,7 +501,6 @@ std::unordered_set<REMethodDefinition*> logged_encoded_0_methods{};
 std::shared_mutex logged_encoded_0_methods_mtx{};
 
 void* REMethodDefinition::get_function() const {
-#ifdef REFRAMEWORK_UNIVERSAL
     // TDB 67 (DMC5): tdb67::REMethodDefinition has function at offset 0x18, not 0x08.
     // Must cast to tdb67::REMethodDefinition* to read the correct function pointer.
     if (sdk::tdb_dispatch::needs_pre_impl()) {
@@ -608,7 +510,6 @@ void* REMethodDefinition::get_function() const {
     if (sdk::tdb_dispatch::needs_18bit()) {
         return reinterpret_cast<const sdk::tdb_bits18::REMethodDef69*>(this)->function;
     }
-#endif
 #if TDB_VER >= 71
     if (TMETH_FIELD_71(this, encoded_offset) == 0) {
         /*const auto dt = this->get_declaring_type();
@@ -746,7 +647,6 @@ uint32_t sdk::REMethodDefinition::get_invoke_id() const {
 
     const auto params_index = get_param_index();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     uint32_t invoke_id;
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         const auto param_list = params_index;
@@ -756,14 +656,6 @@ uint32_t sdk::REMethodDefinition::get_invoke_id() const {
     } else {
         invoke_id = (uint16_t)reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->invoke_id;
     }
-#elif TDB_VER >= 69
-    const auto param_list = params_index;
-    const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
-    const auto num_params = param_ids->numParams;
-    const auto invoke_id = param_ids->invokeID;
-#else
-    const auto invoke_id = (uint16_t)this->invoke_id;
-#endif
 
     return invoke_id;
 }
@@ -1187,15 +1079,10 @@ void sdk::REMethodDefinition::invoke(void* object, const std::span<void*>& args,
 uint32_t sdk::REMethodDefinition::get_index() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->get_methods_ptr()) / tdb->get_method_stride());
-#else
-    return (uint32_t)(((uintptr_t)this - (uintptr_t)tdb->get_methods_ptr()) / sizeof(sdk::REMethodDefinition));
-#endif
 }
 
 int32_t REMethodDefinition::get_virtual_index() const {
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
@@ -1203,17 +1090,9 @@ int32_t REMethodDefinition::get_virtual_index() const {
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->vtable_index;
     }
-#elif TDB_VER >= 69
-    auto tdb = RETypeDB::get();
-    auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
-    return impl.vtable_index;
-#else
-    return this->vtable_index;
-#endif
 }
 
 uint16_t REMethodDefinition::get_flags() const {
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
@@ -1221,17 +1100,9 @@ uint16_t REMethodDefinition::get_flags() const {
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->flags;
     }
-#elif TDB_VER >= 69
-    auto tdb = RETypeDB::get();
-    auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
-    return impl.flags;
-#else
-    return this->flags;
-#endif
 }
 
 uint16_t REMethodDefinition::get_impl_flags() const {
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         auto& impl = tdb->get_method_impl_at(TMETH_FIELD(this, impl_id));
@@ -1239,13 +1110,6 @@ uint16_t REMethodDefinition::get_impl_flags() const {
     } else {
         return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->impl_flags;
     }
-#elif TDB_VER >= 69
-    auto tdb = RETypeDB::get();
-    auto& impl = (*tdb->get_methodsImpl_ptr())[TMETH_FIELD(this, impl_id)];
-    return impl.impl_flags;
-#else
-    return this->impl_flags;
-#endif
 }
 
 bool REMethodDefinition::is_static() const {
@@ -1257,7 +1121,6 @@ bool REMethodDefinition::is_static() const {
 uint32_t sdk::REMethodDefinition::get_num_params() const {
     const auto params_index = get_param_index();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto tdb = RETypeDB::get();
         const auto param_list = params_index;
@@ -1271,19 +1134,6 @@ uint32_t sdk::REMethodDefinition::get_num_params() const {
         return tdb->get_data<sdk::REMethodParamDef>(this->params)->num_params;
 #endif
     }
-#elif TDB_VER >= 69
-    auto tdb = RETypeDB::get();
-    const auto param_list = params_index;
-    const auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
-    return param_ids->numParams;
-#else
-#if TDB_VER >= 66
-    return this->num_params;
-#else
-    auto tdb = RETypeDB::get();
-    return tdb->get_data<sdk::REMethodParamDef>(this->params)->num_params;
-#endif
-#endif
 }
 
 std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
@@ -1294,7 +1144,6 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
     std::vector<uint32_t> out{};
 
     // Parameters
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
         const auto num_params = param_ids->numParams;
@@ -1325,41 +1174,6 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
 
         return out;
     }
-#elif TDB_VER >= 69
-    auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
-    const auto num_params = param_ids->numParams;
-
-    // Parse all params
-    for (auto f = 0; f < num_params; ++f) {
-        const auto param_index = param_ids->params[f] & tdb->get_param_bitmask();
-
-        if (param_index >= tdb->get_num_params()) {
-            break;
-        }
-
-        auto& p = (*tdb->get_params_ptr())[param_index];
-
-        out.push_back(TPARAM_FIELD(&p, type_id));
-    }
-
-    return out;
-#else
-#if TDB_VER >= 66
-    const auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
-#else
-    const auto param_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
-    const auto param_ids = param_data->params;
-#endif
-
-    const auto num_params = get_num_params();
-
-    for (uint32_t f = 0; f < num_params; ++f) {
-        auto& p = param_ids[f];
-        out.push_back((uint32_t)p.param_typeid);
-    }
-
-    return out;
-#endif
 }
 
 std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const {
@@ -1393,7 +1207,6 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
     auto tdb = RETypeDB::get();
     const auto param_list = get_param_index();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
         const auto num_params = param_ids->numParams;
@@ -1425,42 +1238,6 @@ std::vector<const char*> REMethodDefinition::get_param_names() const {
     
         return out;
     }
-#elif TDB_VER >= 69
-    auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
-    const auto num_params = param_ids->numParams;
-
-    // Parse all params
-    for (auto f = 0; f < num_params; ++f) {
-        const auto param_index = param_ids->params[f];
-
-        if (param_index >= tdb->get_num_params()) {
-            break;
-        }
-
-        auto& p = (*tdb->get_params_ptr())[param_index];
-
-        out.push_back(tdb->get_string(p.name_offset));
-    }
-
-    return out;
-#else
-    const auto num_params = get_num_params();
-
-#if TDB_VER >= 66
-    const auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
-#else
-    const auto param_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
-    const auto param_ids = param_data->params;
-#endif
-
-    for (uint32_t f = 0; f < num_params; ++f) {
-        const auto param_index = param_ids[f].param_typeid;
-        const auto name_offset = (uint32_t)param_ids[f].name_offset;
-        out.push_back(tdb->get_string(name_offset));
-    }
-    
-    return out;
-#endif
 }
 
 const char* REModule::get_assembly_name() const {
@@ -1486,57 +1263,30 @@ std::span<uint32_t> REModule::get_types() const {
 std::span<uint32_t> REModule::get_methods() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 81) {
         spdlog::warn("This TDB version does not support REModule::get_methods()");
         return {};
     }
         return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(RMOD_FIELD(this, methods_start)), (size_t)RMOD_FIELD(this, methods_count)};
-#else
-#if TDB_VER >= 81
-    spdlog::warn("This TDB version does not support REModule::get_methods()");
-    return {};
-#else
-    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->methods_start), (size_t)this->methods_count};
-#endif
-#endif
 }
 
 std::span<uint32_t> REModule::get_instantiated_methods() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 81) {
         spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
         return {};
     }
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(RMOD_FIELD(this, method_instantiations_start)), (size_t)RMOD_FIELD(this, method_instantiations_count)};
-#else
-#if TDB_VER >= 81
-    spdlog::warn("This TDB version does not support REModule::get_instantiated_methods()");
-    return {};
-#else
-    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->method_instantiations_start), (size_t)this->method_instantiations_count};
-#endif
-#endif
 }
 
 std::span<uint32_t> REModule::get_member_references() const {
     auto tdb = RETypeDB::get();
 
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() >= 81) {
         spdlog::warn("This TDB version does not support REModule::get_member_references()");
         return {};
     }
     return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(RMOD_FIELD(this, member_references_start)), (size_t)RMOD_FIELD(this, member_references_count)};
-#else
-#if TDB_VER >= 81
-    spdlog::warn("This TDB version does not support REModule::get_member_references()");
-    return {};
-#else
-    return std::span<uint32_t>{(uint32_t*)tdb->get_bytes(this->member_references_start), (size_t)this->member_references_count};
-#endif
-#endif
 }
 } // namespace sdk

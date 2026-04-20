@@ -449,11 +449,7 @@ static_assert(sizeof(RETypeDefVersion49) == 0x60);
 
 // helper class
 namespace sdk {
-#ifdef REFRAMEWORK_UNIVERSAL
 struct RETypeDefinition {
-#else
-struct RETypeDefinition : public sdk::RETypeDefinition_ {
-#endif
     class MethodIterator {
     public:
         MethodIterator(const sdk::RETypeDefinition* parent)

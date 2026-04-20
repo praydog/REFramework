@@ -5,13 +5,10 @@
 #include "utility/Module.hpp"
 
 #include "Application.hpp"
-#ifdef REFRAMEWORK_UNIVERSAL
 #include "GameIdentity.hpp"
-#endif
 
 namespace sdk {
 
-#ifdef REFRAMEWORK_UNIVERSAL
 const char* Application::Function::get_description() const {
     if (GameIdentity::get().tdb_ver() < 74)
         return *reinterpret_cast<const char* const*>(reinterpret_cast<uintptr_t>(this) + 0x18);
@@ -38,7 +35,6 @@ size_t Application::get_function_stride() {
 Application::Function* Application::get_function_at(Application::Function* base, size_t index) {
     return reinterpret_cast<Function*>(reinterpret_cast<uintptr_t>(base) + index * get_function_stride());
 }
-#endif // REFRAMEWORK_UNIVERSAL
 RETypeDefinition* Application::get_type() {
     return sdk::find_type_definition("via.Application");
 }
@@ -63,13 +59,7 @@ Application::Function* Application::get_functions() {
 
         // Byte-pattern scans for older RE Engine games (TDB < 81).
         // On newer engines these patterns don't exist; fall back to heuristic analysis.
-#ifdef REFRAMEWORK_UNIVERSAL
         if (GameIdentity::get().tdb_ver() < 81) {
-#else
-#if TDB_VER < 81
-        {
-#endif
-#endif
         // For MHRise (game pass only? or TU4)
         for (auto ref = utility::scan(mod, "89 81 ? ? ? ? 48 8B ? 48 81 C1 ? ? ? ?");
             ref;
@@ -145,13 +135,7 @@ Application::Function* Application::get_functions() {
 
             spdlog::info("Skipping invalid Application::functions offset: {:x}", candidate);
         }
-#ifdef REFRAMEWORK_UNIVERSAL
         }
-#else
-#if TDB_VER < 81
-        }
-#endif
-#endif
 
         // Heuristic structure analyis.
         bool found_wait_rendering = false;

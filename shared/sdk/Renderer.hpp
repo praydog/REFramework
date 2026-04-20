@@ -11,9 +11,7 @@
 #include "intrusive_ptr.hpp"
 #include "ManagedObject.hpp"
 
-#ifdef REFRAMEWORK_UNIVERSAL
 #include "GameIdentity.hpp"
-#endif
 
 class REType;
 struct ID3D12Resource;
@@ -47,13 +45,9 @@ template<typename T>
 class DirectXResource : public RenderResource {
 public:
     T* get_native_resource() const {
-#ifdef REFRAMEWORK_UNIVERSAL
         // sizeof(RenderResource) varies by TDB version at runtime in universal.
         // Use the runtime dispatch helper to get the correct offset.
         return *(T**)((uintptr_t)this + RenderResource::get_runtime_size());
-#else
-        return *(T**)((uintptr_t)this + sizeof(RenderResource));
-#endif
     }
 
 private:
@@ -92,17 +86,12 @@ public:
     }
 
     Desc* get_desc() {
-#ifdef REFRAMEWORK_UNIVERSAL
         return (Desc*)((uintptr_t)this + get_s_desc_offset());
-#else
-        return (Desc*)((uintptr_t)this + s_desc_offset);
-#endif
     }
 
     DirectXResource<ID3D12Resource>* get_d3d12_resource_container();
 
 private:
-#ifdef REFRAMEWORK_UNIVERSAL
     // desc sits at sizeof(RenderResource) + one void* for older games, +0x18 for TDB >= 73 / SF6.
     static inline uintptr_t get_s_desc_offset() {
         const auto& gi = sdk::GameIdentity::get();
@@ -124,34 +113,6 @@ private:
         }
         return 0x98; // TDB 69, 70 and below (verified in DMC5)
     }
-#else
-#if TDB_VER >= 73 || defined(SF6)
-    static constexpr inline auto s_desc_offset = sizeof(RenderResource) + 0x18;
-#else
-    static constexpr inline auto s_desc_offset = sizeof(RenderResource) + sizeof(void*);
-#endif
-
-#if TDB_VER >= 73
-    static constexpr inline auto s_d3d12_resource_offset = 0xE0;
-#elif TDB_VER >= 71
-#ifdef SF6
-    // So because this discrepancy in SF6 is > 8 bytes (which is how much was added to RenderResource), trying to automate this
-    // is a bit trickier so we can look into this later, and just hardcode it for now.
-    static constexpr inline auto s_d3d12_resource_offset = 0xB8;
-#elif defined(MHRISE)
-    static constexpr inline auto s_d3d12_resource_offset = 0x98; // WHAT THE HECK!!!
-#else
-    static constexpr inline auto s_d3d12_resource_offset = 0xA0;
-#endif
-#elif TDB_VER == 70
-    static constexpr inline auto s_d3d12_resource_offset = 0x98;
-#elif TDB_VER == 69
-    static constexpr inline auto s_d3d12_resource_offset = 0x98;
-#else
-    // TODO? might not be right offset (verified in DMC5)
-    static constexpr inline auto s_d3d12_resource_offset = 0x98;
-#endif
-#endif
 };
 
 class DepthStencilView : public RenderResource {
@@ -169,21 +130,12 @@ public:
     sdk::intrusive_ptr<RenderTargetView> clone();
     sdk::intrusive_ptr<RenderTargetView> clone(uint32_t new_width, uint32_t new_height);
 
-#ifdef REFRAMEWORK_UNIVERSAL
     Desc& get_desc() {
         return *reinterpret_cast<Desc*>((uintptr_t)this + RenderResource::get_runtime_size());
     }
     const Desc& get_desc() const {
         return *reinterpret_cast<const Desc*>((uintptr_t)this + RenderResource::get_runtime_size());
     }
-#else
-    Desc& get_desc() {
-        return m_desc;
-    }
-    const Desc& get_desc() const {
-        return m_desc;
-    }
-#endif
 
     sdk::intrusive_ptr<Texture>& get_texture_d3d12() const;
     sdk::intrusive_ptr<TargetState>& get_target_state_d3d12() const;
@@ -202,7 +154,6 @@ public:
     sdk::intrusive_ptr<TargetState> clone() const;
     sdk::intrusive_ptr<TargetState> clone(const std::vector<std::array<uint32_t, 2>>& new_dimensions) const;
 
-#ifdef REFRAMEWORK_UNIVERSAL
     // The compiled `m_desc` member is at `sizeof(compiled RenderResource)` bytes
     // past `this`, but the real per-game RenderResource size varies (0x10 / 0x18 / 0x20).
     // `get_desc_ptr()` / `get_desc()` compute the runtime offset and return a reference
@@ -242,43 +193,9 @@ public:
         }
         rtvs[index] = rtv;
     }
-#else
-    Desc& get_desc() {
-        return m_desc;
-    }
-
-    const Desc& get_desc() const {
-        return m_desc;
-    }
-
-    uint32_t get_rtv_count() const {
-        return m_desc.num_rtv;
-    }
-
-    sdk::intrusive_ptr<RenderTargetView> get_rtv(int32_t index) const {
-        if (index < 0 || index >= get_rtv_count() || m_desc.rtvs == nullptr) {
-            return nullptr;
-        }
-
-        return m_desc.rtvs[index];
-    }
-
-    void set_rtv(int32_t index, RenderTargetView* rtv) {
-        if (index < 0 || index >= get_rtv_count() || m_desc.rtvs == nullptr) {
-            return;
-        }
-
-        m_desc.rtvs[index] = rtv;
-    }
-#endif
 
 public:
     struct Desc {
-#ifndef REFRAMEWORK_UNIVERSAL
-#if TDB_VER <= 67
-        void* _unk_pad;
-#endif
-#endif
         sdk::intrusive_ptr<RenderTargetView>* rtvs;
         sdk::intrusive_ptr<DepthStencilView> dsv;
         uint32_t num_rtv;
@@ -288,25 +205,6 @@ public:
 
     // more here but not needed... for now
 };
-#ifndef REFRAMEWORK_UNIVERSAL
-#if TDB_VER >= 82
-static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x30);
-#elif TDB_VER >= 73
-static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
-#elif TDB_VER > 67
-#ifdef SF6
-static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
-#else
-#ifdef RE4
-static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
-#else
-static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x20);
-#endif
-#endif
-#else
-static_assert(offsetof(TargetState, m_desc) + offsetof(TargetState::Desc, num_rtv) == 0x28);
-#endif
-#endif
 
 class Buffer : public RenderResource {
 public:
@@ -426,20 +324,12 @@ public:
 
     void draw(void* render_context) {
         const auto vtable = *(void(***)(void*, void*))this;
-#ifdef REFRAMEWORK_UNIVERSAL
         return vtable[get_draw_vtable_index()](this, render_context);
-#else
-        return vtable[DRAW_VTABLE_INDEX](this, render_context);
-#endif
     }
 
     void update() {
         const auto vtable = *(void(***)(void*))this;
-#ifdef REFRAMEWORK_UNIVERSAL
         return vtable[get_update_vtable_index()](this);
-#else
-        return vtable[UPDATE_VTABLE_INDEX](this);
-#endif
     }
 
 public:
@@ -562,29 +452,14 @@ public:
     }
 
     void set_lod_bias(float x, float y) {
-#ifdef REFRAMEWORK_UNIVERSAL
         if (sdk::GameIdentity::get().is_re4()) {
             *(float*)((uintptr_t)this + s_lod_bias_offset) = x;
             *(float*)((uintptr_t)this + s_lod_bias_offset + 4) = y;
         }
-#else
-#ifdef RE4
-        *(float*)((uintptr_t)this + s_lod_bias_offset) = x;
-        *(float*)((uintptr_t)this + s_lod_bias_offset + 4) = y;
-#endif
-#endif
     }
 
 private:
-#ifdef REFRAMEWORK_UNIVERSAL
     constexpr static auto s_lod_bias_offset = 0x1818; // RE4 offset, only used when is_re4()
-#else
-#ifdef RE4
-    constexpr static auto s_lod_bias_offset = 0x1818;
-#else // TODO
-    constexpr static auto s_lod_bias_offset = 0;
-#endif
-#endif
 };
 
 class PrepareOutput : public sdk::renderer::RenderLayer {
@@ -614,19 +489,11 @@ public:
 class Overlay : public sdk::renderer::RenderLayer {
 public:
     sdk::intrusive_ptr<sdk::renderer::TargetState>& get_main_target_state() {
-#ifdef REFRAMEWORK_UNIVERSAL
         return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + RenderLayer::get_runtime_sizeof() + sizeof(void*));
-#else
-        return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + sizeof(sdk::renderer::RenderLayer) + sizeof(void*));
-#endif
     }
 
     sdk::intrusive_ptr<sdk::renderer::TargetState>& get_main_depth_target_state() {
-#ifdef REFRAMEWORK_UNIVERSAL
         return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + RenderLayer::get_runtime_sizeof());
-#else
-        return *(sdk::intrusive_ptr<sdk::renderer::TargetState>*)((uintptr_t)this + sizeof(sdk::renderer::RenderLayer));
-#endif
     }
 
     sdk::renderer::Texture** get_b8g8r8a8_unorm_textures() {
@@ -668,15 +535,10 @@ class PostEffect : public sdk::renderer::RenderLayer {
 class RenderOutput {
 public:
     sdk::NativeArray<sdk::renderer::layer::Scene*>& get_scene_layers() {
-#ifdef REFRAMEWORK_UNIVERSAL
         return *(sdk::NativeArray<sdk::renderer::layer::Scene*>*)((uintptr_t)this + get_s_scene_layers_offset());
-#else
-        return *(sdk::NativeArray<sdk::renderer::layer::Scene*>*)((uintptr_t)this + s_scene_layers_offset);
-#endif
     }
 
 private:
-#ifdef REFRAMEWORK_UNIVERSAL
     static inline uintptr_t get_s_scene_layers_offset() {
         const auto v = sdk::GameIdentity::get().tdb_ver();
         if (v >= 71) return 0x98;
@@ -684,16 +546,6 @@ private:
         if (v == 69) return 0x98;
         return 0x98; // TODO! VERIFY!
     }
-#elif TDB_VER >= 71
-    // verify for other games, this is for RE4
-    static constexpr inline auto s_scene_layers_offset = 0x98;
-#elif TDB_VER >= 70
-    static constexpr inline auto s_scene_layers_offset = 0xB8;
-#elif TDB_VER == 69
-    static constexpr inline auto s_scene_layers_offset = 0x98;
-#else
-    static constexpr inline auto s_scene_layers_offset = 0x98; // TODO! VERIFY!
-#endif
 };
 
 struct Fence {
@@ -792,16 +644,9 @@ public:
         return *(bool*)((uintptr_t)this + s_is_delay_enabled_offset);
     }
 
-#if TDB_VER >= 69
     static constexpr inline auto s_protect_frame_offset = 0x68;
     static constexpr inline auto s_is_delay_enabled_offset = 0x7B;
     static constexpr inline auto s_current_render_state_offset = 0x98;
-#else
-    // verify
-    static constexpr inline auto s_protect_frame_offset = 0x68;
-    static constexpr inline auto s_is_delay_enabled_offset = 0x7B;
-    static constexpr inline auto s_current_render_state_offset = 0x98;
-#endif
 };
 
 class Renderer {

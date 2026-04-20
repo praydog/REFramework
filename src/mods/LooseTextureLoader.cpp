@@ -62,11 +62,9 @@ void LooseTextureLoader::on_draw_ui() {
 #if !ENABLE_LOOSE_TEXTURE_LOADER
     return;
 #else
-#ifdef REFRAMEWORK_UNIVERSAL
     if (sdk::GameIdentity::get().tdb_ver() < 81) {
         return;
     }
-#endif
 
 
     if (ImGui::TreeNode("Loose Texture")) {
@@ -124,12 +122,10 @@ void LooseTextureLoader::on_draw_ui() {
 
 void LooseTextureLoader::early_initialize() {
 #if ENABLE_LOOSE_TEXTURE_LOADER
-#ifdef REFRAMEWORK_UNIVERSAL
     // Only TDB>=81 games (MHWILDS+) have the DStorage-based loose texture path.
     if (sdk::GameIdentity::get().tdb_ver() < 81) {
         return;
     }
-#endif
     hook_dstorage_path_checks();
     hook_dstorage_enqueue_chain();
     hook_resource_path_hashing();

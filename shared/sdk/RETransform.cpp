@@ -5,7 +5,6 @@
 #include "REString.hpp"
 #include "RETransform.hpp"
 
-#ifdef REFRAMEWORK_UNIVERSAL
 #include "GameIdentity.hpp"
 
 static uintptr_t joints_offset() {
@@ -26,7 +25,6 @@ REJointArray& RETransform::get_joints() {
 const REJointArray& RETransform::get_joints() const {
     return *reinterpret_cast<const REJointArray*>((uintptr_t)this + joints_offset());
 }
-#endif
 
 namespace sdk {
 Vector4f sdk::get_transform_position(RETransform* transform) {
@@ -210,32 +208,10 @@ std::string sdk::get_joint_name(REJoint* joint) {
 
 namespace utility::re_transform {
 REJoint* get_joint(const ::RETransform& transform, uint32_t index) {
-#if TDB_VER < 69
-    auto& joint_array = transform.get_joints();
-
-    if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
-        return nullptr;
-    }
-
-    auto joint = joint_array.data->get_joints()[index];
-
-    if (joint == nullptr) {
-        return nullptr;
-    }
-
-    auto joint_info = joint->info;
-
-    if (joint_info == nullptr || joint_info->name == nullptr) {
-        return nullptr;
-    }
-
-    return joint;
-#else
     static auto get_joints_method = sdk::find_method_definition("via.Transform", "get_Joints");
     auto joints = get_joints_method->call<REArrayBase*>(sdk::get_thread_context(), &transform);
 
     return utility::re_array::get_element<REJoint>(joints, index);
-#endif
 }
 
 glm::mat4 calculate_base_transform(const ::RETransform& transform, REJoint* target) {
