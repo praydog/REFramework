@@ -26,13 +26,29 @@ Mods::Mods() {
     m_mods.emplace_back(BackBufferRenderer::get());
     m_mods.emplace_back(REFrameworkConfig::get());
 
+#if defined(PRAGMATA)
+    // Pragmata stable profile:
+    // keep script/plugin functionality enabled while render hooks are disabled.
+    m_mods.emplace_back(MethodDatabase::get());
+    m_mods.emplace_back(LooseFileLoader::get());
+#if FAULTY_FILE_DETECTOR_ENABLED
+    m_mods.emplace_back(FaultyFileDetector::get());
+#endif
+    m_mods.emplace_back(APIProxy::get());
+    m_mods.emplace_back(PluginLoader::get());
+    m_mods.emplace_back(ScriptRunner::get());
+    return;
+#endif
+
 #if defined(REENGINE_AT)
     m_mods.emplace_back(IntegrityCheckBypass::get_shared_instance());
 #endif
 
 #ifndef BAREBONES
     m_mods.emplace_back(MethodDatabase::get());
+#if !defined(PRAGMATA)
     m_mods.emplace_back(Hooks::get());
+#endif
     m_mods.emplace_back(LooseFileLoader::get());
 
 #if FAULTY_FILE_DETECTOR_ENABLED

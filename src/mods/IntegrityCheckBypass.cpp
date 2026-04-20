@@ -255,7 +255,9 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
 }
 
 void IntegrityCheckBypass::on_frame() {
+#if !defined(PRAGMATA)
     re9_heartbeat_bypass();
+#endif
 
 #ifdef RE3
     if (m_bypass_integrity_checks != nullptr) {

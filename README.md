@@ -45,6 +45,12 @@ Supports both DirectX 11 and DirectX 12.
 * Game Objects Display
 * Object Explorer
 
+## Pragmata Stability Mode
+* Pragmata currently defaults to a stability profile that disables D3D11/D3D12 hooking to avoid startup black screens.
+* An experimental D3D12 hook path can be enabled by creating this file in the game's REFramework persistent directory:
+  * `reframework_experimental_d3d12_hook.txt`
+* If instability returns, remove the file to restore stable behavior.
+
 ## Supported Games
 * Resident Evil 2
 * Resident Evil 3

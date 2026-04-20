@@ -55,7 +55,28 @@ DEFINE_GUID(XUSB_INTERFACE_CLASS_GUID, 0xEC87F1E3, 0xC13B, 0x4100, 0xB5, 0xF7, 0
 
 std::unique_ptr<REFramework> g_framework{};
 
+#if defined(PRAGMATA)
+static bool pragmata_experimental_d3d12_hook_enabled() {
+    static const bool enabled = []() {
+        try {
+            const auto flag_path = REFramework::get_persistent_dir() / "reframework_experimental_d3d12_hook.txt";
+            return fs::exists(flag_path);
+        } catch (...) {
+            return false;
+        }
+    }();
+
+    return enabled;
+}
+#endif
+
 void REFramework::hook_monitor() {
+#if defined(PRAGMATA)
+    if (!pragmata_experimental_d3d12_hook_enabled()) {
+        return;
+    }
+#endif
+
     if (m_do_not_hook_d3d_count.load() > 0) {
         // Wait until nothing important is happening
         m_last_present_time = std::chrono::steady_clock::now() + std::chrono::seconds(5);
@@ -524,19 +545,23 @@ REFramework::REFramework(HMODULE reframework_module)
     IntegrityCheckBypass::immediate_patch_re4();
 #endif
 
-#if defined(DD2) || TDB_VER >= 74
+#if defined(DD2) || (TDB_VER >= 74 && !defined(PRAGMATA))
     // Fixes new code added in DD2 only. Maybe >= TDB73 too. Probably will change.
     IntegrityCheckBypass::immediate_patch_dd2();
 #endif
 
-#if TDB_VER >= 82
+#if TDB_VER >= 82 && !defined(PRAGMATA)
     // Fixes new code added in RE9 only. Maybe >= TDB83 too. Probably will change.
     // Addendum: Found to be present in MHSTORIES3 (TDB 82) as well, so this is not RE9 exclusive.
     IntegrityCheckBypass::immediate_patch_re9();
 #endif
 
     // Seen in SF6
+    // Pragmata currently shows unstable behavior with this pre-init patching path.
+    // Keep startup conservative until signatures are validated for current builds.
+#if !defined(PRAGMATA)
     IntegrityCheckBypass::remove_stack_destroyer();
+#endif
     suspender.resume();
 #endif
 
@@ -710,6 +735,17 @@ REFramework::REFramework(HMODULE reframework_module)
 }
 
 bool REFramework::hook_d3d11() {
+#if defined(PRAGMATA)
+    static bool logged = false;
+
+    if (!logged) {
+        spdlog::info("[PRAGMATA] D3D11 hook disabled in stability mode.");
+        logged = true;
+    }
+
+    return false;
+#endif
+
     //if (m_d3d11_hook == nullptr) {
         m_d3d11_hook.reset();
         m_d3d11_hook = std::make_unique<D3D11Hook>();
@@ -742,6 +778,19 @@ bool REFramework::hook_d3d11() {
 }
 
 bool REFramework::hook_d3d12() {
+#if defined(PRAGMATA)
+    if (!pragmata_experimental_d3d12_hook_enabled()) {
+        static bool logged = false;
+
+        if (!logged) {
+            spdlog::info("[PRAGMATA] D3D12 hook disabled in stability mode. Create reframework_experimental_d3d12_hook.txt to enable experimental D3D12 hooking.");
+            logged = true;
+        }
+
+        return false;
+    }
+#endif
+
     // windows 7?
     if (LoadLibraryA("d3d12.dll") == nullptr) {
         spdlog::info("d3d12.dll not found, user is probably running Windows 7.");
