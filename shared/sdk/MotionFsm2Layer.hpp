@@ -6,6 +6,9 @@
 #include "REString.hpp"
 #include "RENativeArray.hpp"
 
+// TDB >= 69 (RE8, MHRise, SF6, DD2, etc.) — TreeNode is 0xD0, has parent_condition field
+// TODO: DMC5 (TDB 67) has a different layout (TreeNode 0xC8, no parent_condition).
+//       Needs runtime dispatch using regenny/re3/ headers under a separate namespace.
 #include "regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 #include "regenny/mhrise_tdb71/via/motion/MotionFsm2Layer.hpp"
 #include "regenny/mhrise_tdb71/via/behaviortree/TreeNodeData.hpp"
@@ -13,14 +16,6 @@
 #include "regenny/mhrise_tdb71/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/mhrise_tdb71/via/behaviortree/TreeObject.hpp"
 #include "regenny/mhrise_tdb71/via/behaviortree/BehaviorTree.hpp"
-/*#elif TDB_VER >= 69
-#include "regenny/re2_tdb70/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
-#include "regenny/re2_tdb70/via/motion/MotionFsm2Layer.hpp"
-#include "regenny/re2_tdb70/via/behaviortree/TreeNodeData.hpp"
-#include "regenny/re2_tdb70/via/behaviortree/TreeNode.hpp"
-#include "regenny/re2_tdb70/via/behaviortree/TreeObjectData.hpp"
-#include "regenny/re2_tdb70/via/behaviortree/TreeObject.hpp"
-#include "regenny/re2_tdb70/via/behaviortree/BehaviorTree.hpp"*/
 
 namespace sdk {
 class MotionFsm2Layer;
