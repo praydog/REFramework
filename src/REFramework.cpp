@@ -1062,7 +1062,27 @@ void REFramework::on_frame_d3d12() {
         return;
     }
 
-    cmd_ctx->wait(INFINITE);
+    // On frame-generation swapchains (DLSS-G/FSR3 FG), the Streamline/FSR
+    // interposer holds extra in-flight frames internally for interpolation,
+    // which can leave our ring-buffer's per-context fence unsignalled when we
+    // reach this point. Blocking the Present thread here (wait(INFINITE))
+    // directly jitters the game's Present interval, which FG uses as its
+    // pacing signal -- producing the "micro-stutter with FG on" reports. When
+    // the fence isn't ready, we'd rather skip our overlay for this one frame
+    // (imperceptible at 100+ FPS) than stall Streamline's capture.
+    if (m_d3d12_hook->is_framegen_swapchain()) {
+        if (!cmd_ctx->try_wait(0)) {
+            // GPU still has this context's previous submission in flight.
+            // Skip overlay rendering this frame; we'll pick it up next rotation.
+            if (is_init_ok) {
+                m_mods->on_post_frame();
+            }
+            return;
+        }
+    } else {
+        cmd_ctx->wait(INFINITE);
+    }
+
     {
         std::scoped_lock _{ cmd_ctx->mtx };
         cmd_ctx->has_commands = true;
@@ -2341,7 +2361,16 @@ bool REFramework::init_d3d12() {
 
     m_d3d12.cmd_ctxs.clear();
 
-    for (auto i = 0; i < 3; ++i) {
+    // Frame-generation swapchains (DLSS-G / FSR3 FG) extend the render
+    // pipeline with extra in-flight frames for the interpolation pass. A
+    // 3-deep ring buffer means our per-context fence from "3 game-frames ago"
+    // is often still pending when the next Present comes in, forcing a CPU
+    // stall on wait() that jitters Present timing. 5 contexts gives enough
+    // headroom for the interpolated + real frame queue in the interposer
+    // plus the game's own pipelining, so the common case becomes lock-free.
+    const int num_cmd_ctxs = m_d3d12_hook->is_framegen_swapchain() ? 5 : 3;
+
+    for (auto i = 0; i < num_cmd_ctxs; ++i) {
         auto& ctx = m_d3d12.cmd_ctxs.emplace_back(std::make_unique<d3d12::CommandContext>());
 
         if (!ctx->setup(L"Framework::m_d3d12.cmd_ctx")) {

@@ -15,6 +15,11 @@ struct CommandContext {
     bool setup(const wchar_t* name = L"CommandContext object");
     void reset();
     void wait(uint32_t ms);
+    // Non-blocking variant: returns true if the fence was already signalled (or
+    // nothing was pending) and the context was reset for reuse. Returns false
+    // if the GPU is still busy on this context's previous submission. Used to
+    // avoid stalling the Present thread on frame-generation swapchains.
+    bool try_wait(uint32_t ms = 0);
     void copy(ID3D12Resource* src, ID3D12Resource* dst, 
         D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
         D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);

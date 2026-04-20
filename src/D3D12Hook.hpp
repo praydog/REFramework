@@ -91,7 +91,38 @@ public:
     }
     
     bool is_framegen_swapchain() const {
-        return m_using_frame_generation_swapchain;
+        if (m_using_frame_generation_swapchain) {
+            return true;
+        }
+
+        // RTTI-based detection on the dummy swapchain can fail (seen on
+        // Pragmata: "Failed to get type info: unknown exception"), which
+        // leaves m_using_frame_generation_swapchain false even though the
+        // game's real swapchain IS being interposed for frame generation.
+        // Fall back to signals that don't depend on RTTI:
+        //   1. Streamline's linkSwapchainToCmdQueue hook got installed
+        //      (s_streamline.setup) -- means sl.dlss_g.dll loaded and is
+        //      actively interposing. Set before init_d3d12() runs.
+        //   2. sl.dlss_g.dll / sl.interposer.dll present as a backstop.
+        //   3. amd_fidelityfx_framegeneration_dx12.dll present for FSR3 FG.
+        //   4. libxess_fg.dll present for Intel XeSS Frame Generation.
+        if (s_streamline.setup) {
+            return true;
+        }
+        if (GetModuleHandleW(L"sl.dlss_g.dll") != nullptr) {
+            return true;
+        }
+        if (GetModuleHandleW(L"sl.interposer.dll") != nullptr) {
+            return true;
+        }
+        if (GetModuleHandleW(L"amd_fidelityfx_framegeneration_dx12.dll") != nullptr) {
+            return true;
+        }
+        if (GetModuleHandleW(L"libxess_fg.dll") != nullptr) {
+            return true;
+        }
+
+        return false;
     }
 
     void ignore_next_present() {

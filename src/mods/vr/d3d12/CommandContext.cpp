@@ -77,6 +77,46 @@ void CommandContext::wait(uint32_t ms) {
     }
 }
 
+bool CommandContext::try_wait(uint32_t ms) {
+    std::scoped_lock _{this->mtx};
+
+    // Nothing pending - context is already free for reuse.
+    if (!this->fence_event || !this->waiting_for_fence) {
+        return true;
+    }
+
+    // Fast poll of the fence value first so we avoid a kernel transition in
+    // the common (ready) case. If the value on the fence already meets the
+    // expected count, we know WaitForSingleObject will return immediately.
+    if (this->fence && this->fence->GetCompletedValue() < this->fence_value) {
+        if (ms == 0) {
+            // Caller wants a non-blocking poll. GPU isn't done yet -- bail.
+            return false;
+        }
+    }
+
+    const DWORD wait_result = WaitForSingleObject(this->fence_event, ms);
+    if (wait_result != WAIT_OBJECT_0) {
+        // Timed out (or wait failed). Leave waiting_for_fence set so the next
+        // wait()/try_wait() call will pick it up; do NOT reset the allocator
+        // while the GPU may still be reading from it.
+        return false;
+    }
+
+    ResetEvent(this->fence_event);
+    this->waiting_for_fence = false;
+
+    if (FAILED(this->cmd_allocator->Reset())) {
+        spdlog::error("[VR] Failed to reset command allocator for {}", utility::narrow(this->internal_name));
+    }
+
+    if (FAILED(this->cmd_list->Reset(this->cmd_allocator.Get(), nullptr))) {
+        spdlog::error("[VR] Failed to reset command list for {}", utility::narrow(this->internal_name));
+    }
+    this->has_commands = false;
+    return true;
+}
+
 void CommandContext::copy(ID3D12Resource* src, ID3D12Resource* dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
     std::scoped_lock _{this->mtx};
 
