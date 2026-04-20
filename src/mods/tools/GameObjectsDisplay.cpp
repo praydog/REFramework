@@ -384,7 +384,7 @@ void GameObjectsDisplay::on_frame() {
                 m_d3d12.effect->Apply(data.command_list);
                 m_d3d12.quad->Draw(data.command_list);
             });
-        } else {
+        } else if (world_to_screen != nullptr) {
             world_to_screen->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
             draw_list->AddText(ImVec2(screen_pos.x, screen_pos.y), ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)), owner_name.c_str());
         }
