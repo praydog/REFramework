@@ -2195,20 +2195,16 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::sdk::behaviortree::TreeNodeData>("BehaviorTreeNodeData",
         "as_memoryview", [](::sdk::behaviortree::TreeNodeData* data) {
-            return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeNodeData));
+            return api::sdk::MemoryView((uint8_t*)data, sdk::behaviortree::tree_node_data_stride());
         },
-        "to_valuetype", [](::sdk::behaviortree::TreeNodeData* data) {
-            return *data;
-        },
-        "id", &::sdk::behaviortree::TreeNodeData::id,
-        "parent", &::sdk::behaviortree::TreeNodeData::parent,
-        "is_branch", &::sdk::behaviortree::TreeNodeData::is_branch,
-        "is_end", &::sdk::behaviortree::TreeNodeData::is_end,
-        "has_selector", &::sdk::behaviortree::TreeNodeData::has_selector,
-        //"selector_id", &::sdk::behaviortree::TreeNodeData::selector_id,
-        "attr", &::sdk::behaviortree::TreeNodeData::attr,
-        "parent", &::sdk::behaviortree::TreeNodeData::parent,
-        "parent_2", &::sdk::behaviortree::TreeNodeData::parent_2,
+        "id", sol::property(&::sdk::behaviortree::TreeNodeData::get_id),
+        "parent", sol::property(&::sdk::behaviortree::TreeNodeData::get_parent),
+        "is_branch", sol::property(&::sdk::behaviortree::TreeNodeData::get_is_branch),
+        "is_end", sol::property(&::sdk::behaviortree::TreeNodeData::get_is_end),
+        "has_selector", sol::property(&::sdk::behaviortree::TreeNodeData::get_has_selector),
+        //"selector_id", ...,
+        "attr", sol::property(&::sdk::behaviortree::TreeNodeData::get_attr),
+        "parent_2", sol::property(&::sdk::behaviortree::TreeNodeData::get_parent_2),
         "get_children", &::sdk::behaviortree::TreeNodeData::get_children,
         "get_actions", &::sdk::behaviortree::TreeNodeData::get_actions,
         "get_states", &::sdk::behaviortree::TreeNodeData::get_states,
@@ -2227,12 +2223,9 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::sdk::behaviortree::TreeNode>("BehaviorTreeNode",
         "as_memoryview", [](::sdk::behaviortree::TreeNode* node) {
-            return api::sdk::MemoryView((uint8_t*)node, sizeof(::sdk::behaviortree::TreeNode));
+            return api::sdk::MemoryView((uint8_t*)node, sdk::behaviortree::tree_node_stride());
         },
-        "to_valuetype", [](::sdk::behaviortree::TreeNode* node) {
-            return *node;
-        },
-        "id", &::sdk::behaviortree::TreeNode::id,
+        "id", sol::property(&::sdk::behaviortree::TreeNode::get_id),
         "get_id", &::sdk::behaviortree::TreeNode::get_id,
         "get_data", &::sdk::behaviortree::TreeNode::get_data,
         "get_owner", &::sdk::behaviortree::TreeNode::get_owner,
@@ -2256,13 +2249,42 @@ void bindings::open_sdk(ScriptState* s) {
         }
     );
 
-    DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNode, "DynamicArrayNoCapacityTreeNode");
-    DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNodeData, "DynamicArrayNoCapacityTreeNodeData");
+    // TreeNode and TreeNodeData are opaque; provide minimal array bindings without copy semantics.
+    lua.new_usertype<sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>>("DynamicArrayNoCapacityTreeNode",
+        "as_memoryview", [](sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>& data) {
+            return api::sdk::MemoryView((uint8_t*)&data, sizeof(sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>));
+        },
+        "size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::size,
+        "get_size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::size,
+        "empty", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::empty,
+        sol::meta_function::index, [](sol::this_state s, sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>& arr, uint32_t i) -> sol::object {
+            if (i >= arr.size()) {
+                return sol::make_object(s, sol::nil);
+            }
+            return sol::make_object(s, sdk::behaviortree::tree_node_at(arr.elements, i));
+        },
+        sol::meta_function::length, &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::size
+    );
+    lua.new_usertype<sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>>("DynamicArrayNoCapacityTreeNodeData",
+        "as_memoryview", [](sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>& data) {
+            return api::sdk::MemoryView((uint8_t*)&data, sizeof(sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>));
+        },
+        "size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::size,
+        "get_size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::size,
+        "empty", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::empty,
+        sol::meta_function::index, [](sol::this_state s, sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>& arr, uint32_t i) -> sol::object {
+            if (i >= arr.size()) {
+                return sol::make_object(s, sol::nil);
+            }
+            return sol::make_object(s, sdk::behaviortree::tree_node_data_at(arr.elements, i));
+        },
+        sol::meta_function::length, &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::size
+    );
     DYNAMIC_ARRAY_CAP_TYPE_PTR(::REManagedObject*, "DynamicArrayManagedObject");
 
     lua.new_usertype<::sdk::behaviortree::TreeObjectData>("BehaviorTreeObjectData",
         "as_memoryview", [](::sdk::behaviortree::TreeObjectData* data) {
-            return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeObjectData));
+            return api::sdk::MemoryView((uint8_t*)data, 0x300);
         },
         "get_nodes", &::sdk::behaviortree::TreeObjectData::get_nodes,
         "get_static_actions", &::sdk::behaviortree::TreeObjectData::get_static_actions,
@@ -2275,7 +2297,7 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::sdk::behaviortree::TreeObject>("BehaviorTreeObject",
         "as_memoryview", [](::sdk::behaviortree::TreeObject* obj) {
-            return api::sdk::MemoryView((uint8_t*)obj, sizeof(::sdk::behaviortree::TreeObject));
+            return api::sdk::MemoryView((uint8_t*)obj, 0xD8);
         },
         "get_data", &::sdk::behaviortree::TreeObject::get_data,
         "get_node_by_id", &::sdk::behaviortree::TreeObject::get_node_by_id,

@@ -26,10 +26,10 @@ std::vector<TreeNode*> TreeNode::get_children() const {
     }
     
     std::vector<TreeNode*> out{};
+    auto& children = tree_data->get_children();
 
-    for (auto i = 0; i < tree_data->children.count; ++i) {
-        const auto child_index = tree_data->children.data[i];
-
+    for (uint64_t i = 0; i < children.size(); ++i) {
+        const auto child_index = children[i];
         auto node = tree_owner->get_node(child_index);
 
         if (node != nullptr) {
@@ -55,9 +55,10 @@ std::vector<::REManagedObject*> TreeNode::get_unloaded_actions() const {
         }
     
         std::vector<::REManagedObject*> out{};
+        auto& actions = tree_data->get_actions();
 
-        for (auto i = 0; i < tree_data->actions.count; ++i) {
-            const auto action_index = tree_data->actions.data[i];
+        for (uint64_t i = 0; i < actions.size(); ++i) {
+            const auto action_index = actions[i];
             const auto action = tree_owner->get_unloaded_action(action_index);
 
             out.push_back(action);
@@ -83,9 +84,10 @@ std::vector<::REManagedObject*> TreeNode::get_actions() const {
     }
     
     std::vector<::REManagedObject*> out{};
+    auto& actions = tree_data->get_actions();
 
-    for (auto i = 0; i < tree_data->actions.count; ++i) {
-        const auto action_index = tree_data->actions.data[i];
+    for (uint64_t i = 0; i < actions.size(); ++i) {
+        const auto action_index = actions[i];
         const auto action = tree_owner->get_action(action_index);
 
         // Push it back even if it's null, because the action may not be loaded
@@ -110,9 +112,10 @@ std::vector<::REManagedObject*> TreeNode::get_transition_conditions() const {
     }
     
     std::vector<::REManagedObject*> out{};
+    auto& tc = tree_data->get_transition_conditions();
 
-    for (auto i = 0; i < tree_data->transition_conditions.count; ++i) {
-        const auto transition_index = tree_data->transition_conditions.data[i];
+    for (uint64_t i = 0; i < tc.size(); ++i) {
+        const auto transition_index = tc[i];
         const auto transition = tree_owner->get_condition(transition_index);
 
         out.push_back(transition);
@@ -135,9 +138,10 @@ std::vector<::REManagedObject*> TreeNode::get_transition_events() const {
     }
 
     std::vector<::REManagedObject*> out{};
+    auto& st = tree_data->get_start_transitions();
 
-    for (auto i = 0; i < tree_data->start_transitions.count; ++i) {
-        const auto transition_index = tree_data->start_transitions.data[i];
+    for (uint64_t i = 0; i < st.size(); ++i) {
+        const auto transition_index = st[i];
         const auto transition = tree_owner->get_transition(transition_index);
 
         out.push_back(transition);
@@ -160,9 +164,10 @@ std::vector<::REManagedObject*> TreeNode::get_conditions() const {
     }
 
     std::vector<::REManagedObject*> out{};
+    auto& conds = tree_data->get_conditions();
 
-    for (auto i = 0; i < tree_data->conditions.count; ++i) {
-        const auto condition_index = tree_data->conditions.data[i];
+    for (uint64_t i = 0; i < conds.size(); ++i) {
+        const auto condition_index = conds[i];
         const auto condition = tree_owner->get_condition(condition_index);
 
          out.push_back(condition);
@@ -185,10 +190,10 @@ std::vector<TreeNode*> TreeNode::get_states() const {
     }
     
     std::vector<TreeNode*> out{};
+    auto& states = tree_data->get_states();
 
-    for (auto i = 0; i < tree_data->states.count; ++i) {
-        const auto state_index = tree_data->states.data[i];
-
+    for (uint64_t i = 0; i < states.size(); ++i) {
+        const auto state_index = states[i];
         auto node = tree_owner->get_node(state_index);
 
         out.push_back(node);
@@ -211,10 +216,10 @@ std::vector<TreeNode*> TreeNode::get_start_states() const {
     }
     
     std::vector<TreeNode*> out{};
+    auto& ss = tree_data->get_start_states();
 
-    for (auto i = 0; i < tree_data->start_states.count; ++i) {
-        const auto state_index = tree_data->start_states.data[i];
-
+    for (uint64_t i = 0; i < ss.size(); ++i) {
+        const auto state_index = ss[i];
         auto node = tree_owner->get_node(state_index);
 
         out.push_back(node);
@@ -230,22 +235,8 @@ void TreeNode::append_action(uint32_t action_index) {
         return;
     }
 
-    auto& arr = *(sdk::NativeArrayNoCapacity<uint32_t>*)&tree_data->actions;
+    auto& arr = tree_data->get_actions();
     arr.push_back(action_index);
-
-
-    /*auto new_array = (uint32_t*)sdk::memory::allocate(sizeof(uint32_t) * (tree_data->actions.count + 1));
-
-    if (tree_data->actions.data != nullptr) {
-        for (int32_t i = 0; i < tree_data->actions.count; ++i) {
-            new_array[i] = tree_data->actions.data[i];
-        }
-
-        sdk::memory::deallocate(tree_data->actions.data);
-    }
-
-    new_array[tree_data->actions.count++] = action_index;
-    tree_data->actions.data = new_array;*/
 }
 
 void TreeNode::replace_action(uint32_t index, uint32_t action_index) {
@@ -255,11 +246,12 @@ void TreeNode::replace_action(uint32_t index, uint32_t action_index) {
         return;
     }
 
-    if (index >= tree_data->actions.count) {
+    auto& arr = tree_data->get_actions();
+    if (index >= arr.size()) {
         return;
     }
 
-    tree_data->actions.data[index] = action_index;
+    arr[index] = action_index;
 }
 
 void TreeNode::remove_action(uint32_t index) {
@@ -269,36 +261,8 @@ void TreeNode::remove_action(uint32_t index) {
         return;
     }
 
-    auto& arr = *(sdk::NativeArrayNoCapacity<uint32_t>*)&tree_data->actions;
+    auto& arr = tree_data->get_actions();
     arr.erase(index);
-
-    /*if (index >= tree_data->actions.count || tree_data->actions.data == nullptr) {
-        return;
-    }
-
-    if (index == 0 && tree_data->actions.count == 1) {
-        // easy.
-        tree_data->actions.count = 0;
-        return;
-    }
-
-    auto new_array = (uint32_t*)sdk::memory::allocate(sizeof(uint32_t) * (tree_data->actions.count - 1));
-
-    for (int32_t i = 0; i < tree_data->actions.count; ++i) {
-        if (i == index) {
-            continue;
-        }
-
-        if (i > index) {
-            new_array[i - 1] = tree_data->actions.data[i];
-        } else {
-            new_array[i] = tree_data->actions.data[i];
-        }
-    }
-
-    sdk::memory::deallocate(tree_data->actions.data);
-    --tree_data->actions.count;
-    tree_data->actions.data = new_array;*/
 }
 
 void TreeNode::relocate(uintptr_t old_start, uintptr_t old_end, uintptr_t new_start) {
@@ -312,7 +276,7 @@ void TreeNode::relocate(uintptr_t old_start, uintptr_t old_end, uintptr_t new_st
         }
     }
 
-    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 0, sizeof(void*), sizeof(*this));
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 0, sizeof(void*), tree_node_stride());
 }
 
 void BehaviorTree::set_current_node(sdk::behaviortree::TreeNode* node, uint32_t tree_idx, void* set_node_info) {
@@ -335,9 +299,16 @@ bool TreeObject::is_delayed() const {
         const auto is_delay_setup_objects = utility::re_managed_object::get_field<bool>((::REManagedObject*)bhvt_manager, is_delay_setup_objects_prop);
 
         if (!is_delay_setup_objects) {
+            auto& actions = get_action_array();
+            auto& conditions = get_condition_array();
+            auto& transitions = get_transition_array();
+            auto& delayed_actions = get_delayed_actions();
+            auto& delayed_conditions = get_delayed_conditions();
+            auto& delayed_transitions = get_delayed_transitions();
+
             // For some reason this can happen
-            if (this->actions.count == 0 && this->conditions.count == 0 && this->transitions.count == 0) {
-                if (this->delayed_actions.count > 0 || this->delayed_conditions.count > 0 || this->delayed_transitions.count > 0) {
+            if (actions.size() == 0 && conditions.size() == 0 && transitions.size() == 0) {
+                if (delayed_actions.size() > 0 || delayed_conditions.size() > 0 || delayed_transitions.size() > 0) {
                     return true;
                 }
             }
@@ -350,39 +321,39 @@ bool TreeObject::is_delayed() const {
 }
 
 void TreeObject::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes) {
-    const auto new_start = (uintptr_t)new_nodes.begin();
-    const auto new_end = (uintptr_t)new_nodes.end();
+    const auto new_start = (uintptr_t)new_nodes.elements;
+    const auto node_count = new_nodes.num;
+    const auto stride = tree_node_stride();
 
-    //utility::relocate_pointers((uint8_t*)old_start, old_start, old_end, new_start, 1, sizeof(void*), old_start - old_end);
-    //utility::relocate_pointers((uint8_t*)new_start, old_start, old_end, new_start, 0, sizeof(void*), new_end - new_start);
-
-    for (auto& node : new_nodes) {
-        node.relocate(old_start, old_end, new_start);
+    for (uint32_t i = 0; i < node_count; i++) {
+        auto* node = (TreeNode*)((uint8_t*)new_nodes.elements + i * stride);
+        node->relocate(old_start, old_end, new_start);
     }
 
-    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), sizeof(*this));
+    // TreeObject is 0xD8 in both layouts
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), 0xD8);
 
-    this->root_node = new_nodes.begin();
+    set_root_node((TreeNode*)new_nodes.elements);
 }
 
 void TreeObject::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNodeData>& new_nodes) {
-    const auto new_start = (uintptr_t)new_nodes.begin();
-    const auto new_end = (uintptr_t)new_nodes.end();
+    const auto new_start = (uintptr_t)new_nodes.elements;
 
-    // This ISN'T the data. This is the actual nodes. Inside of the nodes contains a pointer to the data
-    // Which we need to fix.
-    const auto& actual_nodes = this->get_node_array();
+    // Fix the pointers that point to the data inside the actual nodes (not the datas themselves).
+    const auto node_count = get_node_count();
+    auto* nodes_base = get_nodes_ptr();
+    const auto total_nodes_bytes = node_count * tree_node_stride();
 
-    // Fix the pointers that point to the data inside of the nodes.
-    utility::relocate_pointers((uint8_t*)actual_nodes.begin(), old_start, old_end, new_start, 1, sizeof(void*), actual_nodes.size() * sizeof(TreeNode));
-    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), sizeof(*this));
+    utility::relocate_pointers((uint8_t*)nodes_base, old_start, old_end, new_start, 1, sizeof(void*), total_nodes_bytes);
+    utility::relocate_pointers((uint8_t*)this, old_start, old_end, new_start, 1, sizeof(void*), 0xD8);
 }
 
 ::REManagedObject* TreeObject::get_uservariable_hub() const {
     static uint32_t uservar_hub_offset = [this]() -> uint32_t {
         spdlog::info("Searching for uservar hub offset...");
 
-        for (auto i = 0; i < sizeof(*this); i += sizeof(void*)) {
+        // TreeObject is 0xD8 in both layouts
+        for (uint32_t i = 0; i < 0xD8; i += sizeof(void*)) {
             const auto obj = *(::REManagedObject**)((uintptr_t)this + i);
 
             if (obj == nullptr || !utility::re_managed_object::is_managed_object(obj)) {
@@ -403,8 +374,7 @@ void TreeObject::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 }
 
 void CoreHandle::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNode>& new_nodes) {
-    const auto new_start = (uintptr_t)new_nodes.begin();
-    const auto new_end = (uintptr_t)new_nodes.end();
+    const auto new_start = (uintptr_t)new_nodes.elements;
 
     this->get_tree_object()->relocate(old_start, old_end, new_nodes);
 
@@ -412,8 +382,7 @@ void CoreHandle::relocate(uintptr_t old_start, uintptr_t old_end, sdk::NativeArr
 }
 
 void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::NativeArrayNoCapacity<TreeNodeData>& new_nodes) {
-    const auto new_start = (uintptr_t)new_nodes.begin();
-    const auto new_end = (uintptr_t)new_nodes.end();
+    const auto new_start = (uintptr_t)new_nodes.elements;
 
     this->get_tree_object()->relocate_datas(old_start, old_end, new_nodes);
 
@@ -422,39 +391,44 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
 ::REManagedObject* TreeObject::get_action(uint32_t index) const {
     const auto is_delay_setup_objects = is_delayed();
+    const auto data = get_data();
 
-    if (this->data == nullptr) {
+    if (data == nullptr) {
         return nullptr;
     }
 
     if (_bittest((const long*)&index, 30)) {
         const auto new_idx = index & 0xFFFFFFF;
-        if (new_idx >= this->data->static_actions.count || this->data->static_actions.objects == nullptr) {
+        auto& sa = data->get_static_actions();
+        if (new_idx >= sa.size() || sa.elements == nullptr) {
             return nullptr;
         }
 
-        return (::REManagedObject*)this->data->static_actions.objects[new_idx];
+        return (::REManagedObject*)sa[new_idx];
     } else {
         if (sdk::GameIdentity::get().tdb_ver() >= 69) {
             if (is_delay_setup_objects) {
-                if (index >= this->delayed_actions.count || this->delayed_actions.objects == nullptr) {
+                auto& da = get_delayed_actions();
+                if (index >= da.size() || da.elements == nullptr) {
                     return nullptr;
                 }
 
-                return (::REManagedObject*)this->delayed_actions.objects[index];
+                return (::REManagedObject*)da[index];
             } else {
-                if (index >= this->actions.count || this->actions.objects == nullptr) {
+                auto& a = get_action_array();
+                if (index >= a.size() || a.elements == nullptr) {
                     return nullptr;
                 }
 
-                return (::REManagedObject*)this->actions.objects[index];
+                return (::REManagedObject*)a[index];
             }
         } else {
-            if (index >= this->actions.count || this->actions.objects == nullptr) {
+            auto& a = get_action_array();
+            if (index >= a.size() || a.elements == nullptr) {
                 return nullptr;
             }
 
-            return (::REManagedObject*)this->actions.objects[index];
+            return (::REManagedObject*)a[index];
         }
     }
 
@@ -463,23 +437,26 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
 ::REManagedObject* TreeObject::get_unloaded_action(uint32_t index) const {
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
-        if (this->data == nullptr) {
+        const auto data = get_data();
+        if (data == nullptr) {
             return nullptr;
         }
 
         if (_bittest((const long*)&index, 30)) {
             const auto new_idx = index & 0xFFFFFFF;
-            if (new_idx >= this->data->static_actions.count || this->data->static_actions.objects == nullptr) {
+            auto& sa = data->get_static_actions();
+            if (new_idx >= sa.size() || sa.elements == nullptr) {
                 return nullptr;
             }
 
-            return (::REManagedObject*)this->data->static_actions.objects[new_idx];
+            return (::REManagedObject*)sa[new_idx];
         } else {
-            if (index >= this->data->actions.count || this->data->actions.objects == nullptr) {
+            auto& a = data->get_actions();
+            if (index >= a.size() || a.elements == nullptr) {
                 return nullptr;
             }
 
-            return (::REManagedObject*)this->data->actions.objects[index];
+            return (::REManagedObject*)a[index];
         }
     }
 
@@ -488,39 +465,44 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
 ::REManagedObject* TreeObject::get_condition(int32_t index) const {
     const auto is_delay_setup_objects = is_delayed();
+    const auto data = get_data();
 
-    if (this->data == nullptr || index == -1) {
+    if (data == nullptr || index == -1) {
         return nullptr;
     }
 
     if (_bittest((const long*)&index, 30)) {
         const auto new_idx = index & 0xFFFFFFF;
-        if (new_idx >= this->data->static_conditions.count || this->data->static_conditions.objects == nullptr) {
+        auto& sc = data->get_static_conditions();
+        if (new_idx >= sc.size() || sc.elements == nullptr) {
             return nullptr;
         }
 
-        return (::REManagedObject*)this->data->static_conditions.objects[new_idx];
+        return (::REManagedObject*)sc[new_idx];
     } else {
         if (sdk::GameIdentity::get().tdb_ver() >= 69) {
             if (is_delay_setup_objects) {
-                if (index >= this->delayed_conditions.count || this->delayed_conditions.objects == nullptr) {
+                auto& dc = get_delayed_conditions();
+                if (index >= (int32_t)dc.size() || dc.elements == nullptr) {
                     return nullptr;
                 }
 
-                return (::REManagedObject*)this->delayed_conditions.objects[index];
+                return (::REManagedObject*)dc[index];
             } else {
-                if (index >= this->conditions.count || this->conditions.objects == nullptr) {
+                auto& c = get_condition_array();
+                if (index >= (int32_t)c.size() || c.elements == nullptr) {
                     return nullptr;
                 }
 
-                return (::REManagedObject*)this->conditions.objects[index];
+                return (::REManagedObject*)c[index];
             }
         } else {
-            if (index >= this->conditions.count || this->conditions.objects == nullptr) {
+            auto& c = get_condition_array();
+            if (index >= (int32_t)c.size() || c.elements == nullptr) {
                 return nullptr;
             }
 
-            return (::REManagedObject*)this->conditions.objects[index];
+            return (::REManagedObject*)c[index];
         }
     }
 
@@ -529,39 +511,44 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
 ::REManagedObject* TreeObject::get_transition(int32_t index) const {
     const auto is_delay_setup_objects = is_delayed();
+    const auto data = get_data();
 
-    if (this->data == nullptr) {
+    if (data == nullptr) {
         return nullptr;
     }
 
     if (_bittest((const long*)&index, 30)) {
         const auto new_idx = index & 0xFFFFFFF;
-        if (new_idx >= this->data->static_transitions.count || this->data->static_transitions.objects == nullptr) {
+        auto& st = data->get_static_transitions();
+        if (new_idx >= st.size() || st.elements == nullptr) {
             return nullptr;
         }
 
-        return (::REManagedObject*)this->data->static_transitions.objects[new_idx];
+        return (::REManagedObject*)st[new_idx];
     } else {
         if (sdk::GameIdentity::get().tdb_ver() >= 69) {
             if (is_delay_setup_objects) {
-                if (index >= this->delayed_transitions.count || this->delayed_transitions.objects == nullptr) {
+                auto& dt = get_delayed_transitions();
+                if (index >= (int32_t)dt.size() || dt.elements == nullptr) {
                     return nullptr;
                 }
 
-                return (::REManagedObject*)this->delayed_transitions.objects[index];
+                return (::REManagedObject*)dt[index];
             } else {
-                if (index >= this->transitions.count || this->transitions.objects == nullptr) {
+                auto& t = get_transition_array();
+                if (index >= (int32_t)t.size() || t.elements == nullptr) {
                     return nullptr;
                 }
 
-                return (::REManagedObject*)this->transitions.objects[index];
+                return (::REManagedObject*)t[index];
             }
         } else {
-            if (index >= this->transitions.count || this->transitions.objects == nullptr) {
+            auto& t = get_transition_array();
+            if (index >= (int32_t)t.size() || t.elements == nullptr) {
                 return nullptr;
             }
 
-            return (::REManagedObject*)this->transitions.objects[index];
+            return (::REManagedObject*)t[index];
         }
     }
 
@@ -570,20 +557,17 @@ void CoreHandle::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
 
 uint32_t TreeObject::get_action_count() const {
     const auto is_delay_setup_objects = is_delayed();
-
-    return is_delay_setup_objects ? this->delayed_actions.count : this->actions.count;
+    return is_delay_setup_objects ? get_delayed_actions().size() : get_action_array().size();
 }
 
 uint32_t TreeObject::get_condition_count() const {
     const auto is_delay_setup_objects = is_delayed();
-
-    return is_delay_setup_objects ? this->delayed_conditions.count : this->conditions.count;
+    return is_delay_setup_objects ? get_delayed_conditions().size() : get_condition_array().size();
 }
 
 uint32_t TreeObject::get_transition_count() const {
     const auto is_delay_setup_objects = is_delayed();
-
-    return is_delay_setup_objects ? this->delayed_transitions.count : this->transitions.count;
+    return is_delay_setup_objects ? get_delayed_transitions().size() : get_transition_array().size();
 }
 }
 }
