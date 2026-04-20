@@ -6,7 +6,6 @@
 #include "REString.hpp"
 #include "RENativeArray.hpp"
 
-#if TDB_VER >= 69
 #include "regenny/mhrise_tdb71/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
 #include "regenny/mhrise_tdb71/via/motion/MotionFsm2Layer.hpp"
 #include "regenny/mhrise_tdb71/via/behaviortree/TreeNodeData.hpp"
@@ -22,15 +21,6 @@
 #include "regenny/re2_tdb70/via/behaviortree/TreeObjectData.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/TreeObject.hpp"
 #include "regenny/re2_tdb70/via/behaviortree/BehaviorTree.hpp"*/
-#else
-#include "regenny/re3/via/behaviortree/TreeObjectData.hpp"
-#include "regenny/re3/via/behaviortree/BehaviorTreeCoreHandleArray.hpp"
-#include "regenny/re3/via/motion/MotionFsm2Layer.hpp"
-#include "regenny/re3/via/behaviortree/TreeNodeData.hpp"
-#include "regenny/re3/via/behaviortree/TreeNode.hpp"
-#include "regenny/re3/via/behaviortree/TreeObject.hpp"
-#include "regenny/re3/via/behaviortree/BehaviorTree.hpp"
-#endif
 
 namespace sdk {
 class MotionFsm2Layer;
@@ -161,11 +151,7 @@ public:
     }
 
     regenny::via::behaviortree::Condition* get_parent_condition() const {
-#if TDB_VER >= 69
         return this->parent_condition;
-#else
-        return nullptr;
-#endif
     }
 
     regenny::via::behaviortree::NodeStatus get_status1() const {
@@ -353,7 +339,6 @@ public:
     uint32_t get_transition_count() const;
 
     uint32_t get_unloaded_action_count() const {
-#if TDB_VER >= 69
         const auto data = get_data();
 
         if (data == nullptr) {
@@ -361,9 +346,6 @@ public:
         }
 
         return data->actions.count;
-#else
-        return 0;
-#endif
     }
 
     uint32_t get_static_action_count() const {

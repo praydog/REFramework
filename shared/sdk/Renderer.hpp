@@ -262,7 +262,6 @@ public:
         return state != nullptr ? state->get_native_resource_d3d12() : nullptr;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     static inline uint32_t get_draw_vtable_index() {
         const auto ver = sdk::GameIdentity::get().tdb_ver();
         if (ver >= 81) return 15;
@@ -299,28 +298,6 @@ public:
         // TDB >= 69: 7 slots — matches the compiled-in array size.
         return sizeof(RenderLayer);
     }
-#else
-#if TDB_VER >= 81
-    static constexpr uint32_t DRAW_VTABLE_INDEX = 15;
-#elif TDB_VER >= 69
-    static constexpr uint32_t DRAW_VTABLE_INDEX = 14;
-#elif TDB_VER > 49
-    static constexpr uint32_t DRAW_VTABLE_INDEX = 12;
-#else
-    static constexpr uint32_t DRAW_VTABLE_INDEX = 10;
-#endif
-
-    static constexpr uint32_t UPDATE_VTABLE_INDEX = DRAW_VTABLE_INDEX + 1;
-
-    // only verified in RE8 and RE2.
-#if TDB_VER >= 69
-    static constexpr uint32_t NUM_PRIORITY_OFFSETS = 7;
-#elif TDB_VER >= 66
-    static constexpr uint32_t NUM_PRIORITY_OFFSETS = 6;
-#else
-    static constexpr uint32_t NUM_PRIORITY_OFFSETS = 0;
-#endif
-#endif
 
     void draw(void* render_context) {
         const auto vtable = *(void(***)(void*, void*))this;

@@ -262,7 +262,6 @@ bool is_managed_object(Address address) {
         return false;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     const auto& gi = sdk::GameIdentity::get();
     if (gi.tdb_ver() >= 71) {
         const auto td = (sdk::RETypeDefinition*)class_info;
@@ -308,80 +307,6 @@ bool is_managed_object(Address address) {
             return false;
         }
     }
-#elif TDB_VER >= 71
-    const auto td = (sdk::RETypeDefinition*)class_info;
-
-    if ((uintptr_t)td->managed_vt != (uintptr_t)object->info) {
-        // This allows for cases when a vtable hook is being used to replace this pointer.
-        if (IsBadReadPtr(td->managed_vt, sizeof(void*)) || *(sdk::RETypeDefinition**)td->managed_vt != td) {
-            return false;
-        }
-    }
-
-    if (td->type == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(td->type, REType::runtime_size()) || td->type->get_type_name() == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(td->type->get_type_name(), sizeof(void*))) {
-        return false;
-    }
-#elif TDB_VER > 49
-    if (class_info->get_managed_vt() != object->info) {
-        // This allows for cases when a vtable hook is being used to replace this pointer.
-        if (IsBadReadPtr(class_info->get_managed_vt(), sizeof(void*)) || class_info->get_managed_vt()->get_class_info() != class_info) {
-            return false;
-        }
-    }
-
-    if (class_info->get_type() == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(class_info->get_type(), REType::runtime_size()) || class_info->get_type()->get_type_name() == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(class_info->get_type()->get_type_name(), sizeof(void*))) {
-        return false;
-    }
-#else
-    auto info = object->info;
-
-    if (info->type == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(info->type, REType::runtime_size()) || info->type->get_type_name() == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(info->type->get_type_name(), sizeof(void*))) {
-        return false;
-    }
-
-    if (get_super(info->type) != nullptr && IsBadReadPtr(get_super(info->type), REType::runtime_size())) {
-        return false;
-    }
-
-    if (get_classInfo(info->type) != nullptr && IsBadReadPtr(get_classInfo(info->type), sizeof(REObjectInfo))) {
-        return false;
-    }
-
-    static auto vm = sdk::VM::get();
-    const auto tdef = (sdk::RETypeDefinition*)info->get_class_info();
-    
-    if (&vm->types[tdef->get_index()] != (regenny::via::clr::VM::Type*)object->info) {
-        return false;
-    }
-
-    /*if (info->type->classInfo != nullptr && info->type->classInfo != object->info) {
-        return false;
-    }*/
-#endif
 
     return true;
 }
@@ -397,7 +322,6 @@ REType* get_type(::REManagedObject* object) {
         return nullptr;
     }
 
-#ifdef REFRAMEWORK_UNIVERSAL
     const auto& gi = sdk::GameIdentity::get();
     if (gi.tdb_ver() >= 71) {
         const auto td = get_type_definition(object);
@@ -416,25 +340,6 @@ REType* get_type(::REManagedObject* object) {
 
         return ((sdk::RETypeDefinition*)class_info)->get_type();
     }
-#elif TDB_VER >= 71
-    const auto td = get_type_definition(object);
-
-    if (td == nullptr) {
-        return nullptr;
-    }
-
-    return td->type;
-#elif TDB_VER > 49
-    auto class_info = info->get_class_info();
-
-    if (class_info == nullptr) {
-        return nullptr;
-    }
-
-    return class_info->get_type();
-#else
-    return info->type;
-#endif
 }
 
 sdk::RETypeDefinition* get_type_definition(::REManagedObject* object) {
@@ -510,12 +415,8 @@ uint32_t get_size(::REManagedObject* object) {
         return 0;
     }
 
-#if TDB_VER > 49
     const auto td = get_type_definition(object);
     auto size = td->get_size();
-#else
-    auto size = info->size;
-#endif
 
     switch (get_vm_type(object)) {
     case via::clr::VMObjType::Array:
