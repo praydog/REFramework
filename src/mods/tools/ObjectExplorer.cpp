@@ -2560,7 +2560,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         context_menu(real_address);
 
         if (is_game_object) {
-            additional_text = utility::re_game_object::get_name(address.as<REGameObject*>());
+            additional_text = address.as<REGameObject*>()->get_name();
         }
         else {
             // Change name based on VMType
@@ -2778,7 +2778,7 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
         m_add_component_name.reserve(256);
     }
 
-    auto game_object_name = utility::re_game_object::get_name(game_object);
+    auto game_object_name = game_object->get_name();
 
     ImGui::Text("Name: %s", game_object_name.c_str());
     make_tree_offset(game_object, REGameObject::offset_of_transform(), "Transform");
@@ -2791,7 +2791,7 @@ void ObjectExplorer::handle_component(REComponent* component) {
     auto display_component_preview = [&](REComponent* comp) {
         if (comp != nullptr && comp->get_game_object() != nullptr) {
             auto prev_name = comp->get_type_name();
-            auto prev_gameobject_name = utility::re_game_object::get_name(comp->get_game_object());
+            auto prev_gameobject_name = comp->get_game_object()->get_name();
 
             auto tree_hovered = ImGui::IsItemHovered();
 
@@ -4339,7 +4339,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
                     }
                     else {
                         auto owner = obj->get_game_object();
-                        spdlog::info("[{:s}] {:s} ({:x})", utility::re_game_object::get_name(owner), t->get_type_name(), (uintptr_t)obj);
+                        spdlog::info("[{:s}] {:s} ({:x})", owner->get_name(), t->get_type_name(), (uintptr_t)obj);
                     }
                 }
 

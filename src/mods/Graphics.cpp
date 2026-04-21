@@ -500,7 +500,7 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         return;
     }
 
-    const auto go_name = utility::re_game_object::get_name(game_object);
+    const auto go_name = game_object->get_name();
 
     if (go_name == "BlackFade") {
         return; // Don't do anything with the black fade, it should be taking over the whole screen
@@ -597,7 +597,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
             }
         }
 
-        const auto name = utility::re_game_object::get_name(game_object);
+        const auto name = game_object->get_name();
         const auto name_hash = utility::hash(name);
 
         switch(name_hash) {
@@ -704,7 +704,7 @@ void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
 
     const auto camera_gameobject = utility::re_component::get_game_object(camera);
 
-    const auto name = utility::re_game_object::get_name(camera_gameobject);
+    const auto name = camera_gameobject->get_name();
 
     if (name.empty()) {
         return;
@@ -1147,7 +1147,7 @@ void Graphics::setup_rt_component() {
         return;
     }
 
-    const auto go_name = utility::re_game_object::get_name(game_object);
+    const auto go_name = game_object->get_name();
 
     if ((!go_name.starts_with("Main") && !go_name.starts_with("main")) && !go_name.contains("DefaultCamera")) {
         return;

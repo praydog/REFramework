@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include "REManagedObject.hpp"
 
 class RETransform;
@@ -19,6 +20,8 @@ public:
 
     static uintptr_t offset_of_transform();
     static uintptr_t offset_of_folder();
+
+    std::string get_name() const;
 #else
     RETransform* get_transform() const { return m_transform; }
     bool get_shouldDraw() const { return m_shouldDraw; }
@@ -30,6 +33,8 @@ public:
 
     static uintptr_t offset_of_transform() { return offsetof(REGameObject, m_transform); }
     static uintptr_t offset_of_folder()    { return offsetof(REGameObject, m_folder); }
+
+    std::string get_name() const;
 #endif
 
 private:

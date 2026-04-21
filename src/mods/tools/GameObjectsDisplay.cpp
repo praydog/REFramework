@@ -288,7 +288,7 @@ void GameObjectsDisplay::on_frame() {
             continue;
         }
 
-        auto owner_name = utility::re_game_object::get_name(owner);
+        auto owner_name = owner->get_name();
 
         if (owner_name.empty()) {
             continue;

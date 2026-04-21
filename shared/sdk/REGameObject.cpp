@@ -58,9 +58,8 @@ SystemString* REGameObject::get_name_field() const {
     return *(SystemString**)((uintptr_t)this + go_transform_offset() + sizeof(void*) * 2);
 }
 
-namespace utility::re_game_object {
-std::string get_name(REGameObject* obj) {
-    if (obj == nullptr) {
+std::string REGameObject::get_name() const {
+    if (this == nullptr) {
         return {};
     }
 
@@ -70,7 +69,7 @@ std::string get_name(REGameObject* obj) {
     static const auto get_name_fn = game_object_t != nullptr ? game_object_t->get_method("get_Name") : nullptr;
 
     if (get_name_fn != nullptr) {
-        auto str = get_name_fn->call<::SystemString*>(sdk::get_thread_context(), obj);
+        auto str = get_name_fn->call<::SystemString*>(sdk::get_thread_context(), const_cast<REGameObject*>(this));
 
         if (str != nullptr) {
             return utility::re_string::get_string(str);
@@ -79,6 +78,5 @@ std::string get_name(REGameObject* obj) {
 
     // We rely on the reflected function first because
     // this offset might change between versions.
-    return utility::re_string::get_string(obj->get_name_field());
-}
+    return utility::re_string::get_string(get_name_field());
 }

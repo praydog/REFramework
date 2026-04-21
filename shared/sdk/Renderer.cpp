@@ -1857,7 +1857,7 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
         return nullptr;
     }
 
-    const auto name = utility::re_game_object::get_name(camera_gameobject);
+    const auto name = camera_gameobject->get_name();
 
     static const std::vector<std::string> camera_names = {
         "MainCamera",

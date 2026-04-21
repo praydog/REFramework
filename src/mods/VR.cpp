@@ -2368,7 +2368,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         auto context = sdk::get_thread_context();
         const auto& gi = sdk::GameIdentity::get();
 
-        const auto name = utility::re_game_object::get_name(game_object);
+        const auto name = game_object->get_name();
         const auto name_hash = utility::hash(name);
 
         switch (name_hash) {

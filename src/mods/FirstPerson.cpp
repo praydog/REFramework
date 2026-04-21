@@ -738,7 +738,7 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
             return false;
         }
 
-        m_player_name = utility::re_game_object::get_name(owner->get_game_object());
+        m_player_name = owner->get_game_object()->get_name();
 
         if (m_player_name.empty()) {
             return false;
@@ -760,7 +760,7 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
             return false;
         }
 
-        if (utility::re_game_object::get_name(CAMCTRL(controller, activeCamera)->get_game_object()) == "PlayerCameraController") {
+        if (CAMCTRL(controller, activeCamera)->get_game_object()->get_name() == "PlayerCameraController") {
             m_player_camera_controller = controller;
             spdlog::info("Found PlayerCameraController {:p}", (void*)m_player_camera_controller);
         }
