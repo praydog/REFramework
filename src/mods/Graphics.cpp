@@ -494,7 +494,7 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         return;
     }
 
-    auto game_object = utility::re_component::get_game_object(gui_element);
+    auto game_object = gui_element->get_game_object();
 
     if (game_object == nullptr || game_object->get_transform() == nullptr) {
         return;
@@ -506,7 +506,7 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         return; // Don't do anything with the black fade, it should be taking over the whole screen
     }
 
-    const auto gui_component = utility::re_component::find<REComponent*>(game_object->get_transform(), "via.gui.GUI");
+    const auto gui_component = game_object->get_transform()->find<REComponent*>("via.gui.GUI");
 
     if (gui_component == nullptr) {
         return;
@@ -580,7 +580,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         }
     }
 
-    auto game_object = utility::re_component::get_game_object(gui_element);
+    auto game_object = gui_element->get_game_object();
     static auto letter_box_behavior_t = sdk::find_type_definition("app.LetterBoxBehavior");
     static auto letter_box_behavior_retype = letter_box_behavior_t != nullptr ? letter_box_behavior_t->get_type() : nullptr;
     static auto csmaskui_t = sdk::find_type_definition("app.solid.gui.CSMaskUI");
@@ -589,7 +589,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
     if (game_object != nullptr && game_object->get_transform() != nullptr) {
         // Ultrawide for Dead Rising Deluxe Remaster
         if (csmaskui_retype != nullptr) {
-            auto csmaskui = utility::re_component::find<REComponent*>(game_object->get_transform(), csmaskui_retype);
+            auto csmaskui = game_object->get_transform()->find<REComponent*>(csmaskui_retype);
 
             if (csmaskui != nullptr) {
                 game_object->set_shouldDraw(false);
@@ -609,7 +609,7 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
         
         case "Gui_ui0211"_fnv: // Kunitsu-Gami
             if (letter_box_behavior_t != nullptr) {
-                auto letter_box_behavior = utility::re_component::find<REComponent*>(game_object->get_transform(), letter_box_behavior_retype);
+                auto letter_box_behavior = game_object->get_transform()->find<REComponent*>(letter_box_behavior_retype);
 
                 if (letter_box_behavior != nullptr) {
                     game_object->set_shouldDraw(false);
@@ -702,7 +702,7 @@ void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
         return;
     }
 
-    const auto camera_gameobject = utility::re_component::get_game_object(camera);
+    const auto camera_gameobject = camera->get_game_object();
 
     const auto name = camera_gameobject->get_name();
 
@@ -717,7 +717,7 @@ void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
     static auto render_output_t = sdk::find_type_definition("via.render.RenderOutput");
     static auto render_output_tt = render_output_t->get_type();
 
-    auto render_output = utility::re_component::find(camera, render_output_tt);
+    auto render_output = camera->find(render_output_tt);
 
     if (render_output == nullptr) {
         return;
@@ -1141,7 +1141,7 @@ void Graphics::setup_rt_component() {
         return;
     }
 
-    const auto game_object = utility::re_component::get_game_object(camera);
+    const auto game_object = camera->get_game_object();
 
     if (game_object == nullptr || game_object->get_transform() == nullptr) {
         return;
@@ -1153,7 +1153,7 @@ void Graphics::setup_rt_component() {
         return;
     }
 
-    auto rt_component = utility::re_component::find<REComponent>(game_object->get_transform(), rt_t->get_type());
+    auto rt_component = game_object->get_transform()->find<REComponent>(rt_t->get_type());
     
     // Attempt to create the component if it doesn't exist
     if (rt_component == nullptr || (m_ray_trace_always_recreate_rt_component->value() && m_rt_recreated_component.get() != (sdk::ManagedObject*)rt_component)) {
@@ -1283,7 +1283,7 @@ void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void
         static std::recursive_mutex mtx{};
         std::scoped_lock _{mtx};
 
-        auto go = utility::re_component::get_game_object(rt);
+        auto go = rt->get_game_object();
 
         if (go == nullptr || go->get_transform() == nullptr) {
             return og(rt, draw_context, r8, r9);
@@ -1295,7 +1295,7 @@ void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void
             return og(rt, draw_context, r8, r9);
         }
 
-        auto replaceable_rt = utility::re_component::find_replaceable<REComponent>(go->get_transform(), rt_t->get_type());
+        auto replaceable_rt = go->get_transform()->find_replaceable<REComponent>(rt_t->get_type());
 
         // The cursed part of the code
         if (replaceable_rt != nullptr) {

@@ -22,6 +22,42 @@ public:
     static constexpr uintptr_t offset_of_child_component() { return 0x18; }
     static constexpr uintptr_t offset_of_prev_component()  { return 0x20; }
     static constexpr uintptr_t offset_of_next_component()  { return 0x28; }
+
+    // Reflection property helpers
+    bool get_valid() const { return get_reflection_property<bool>("Valid"); }
+    REComponent* get_chain() const { return get_reflection_property<REComponent*>("Chain"); }
+    float get_delta_time() const { return get_reflection_property<float>("DeltaTime"); }
+
+    // Find a child component by type name or REType*
+    template<typename T = REComponent>
+    T* find(std::string_view name) const {
+        for (auto child = get_child_component(); child != nullptr && child != this; child = child->get_child_component()) {
+            if (child->is_a(name)) {
+                return (T*)child;
+            }
+        }
+        return nullptr;
+    }
+
+    template<typename T = REComponent>
+    T* find(REType* t) const {
+        for (auto child = get_child_component(); child != nullptr && child != this; child = child->get_child_component()) {
+            if (child->is_a(t)) {
+                return (T*)child;
+            }
+        }
+        return nullptr;
+    }
+
+    template<typename T = REComponent>
+    T** find_replaceable(REType* t) {
+        for (auto* child = &child_component_ref(); *child != nullptr && *child != this; child = &(*child)->child_component_ref()) {
+            if ((*child)->is_a(t)) {
+                return (T**)child;
+            }
+        }
+        return nullptr;
+    }
 };
 static_assert(sizeof(REComponent) == 0x30);
 

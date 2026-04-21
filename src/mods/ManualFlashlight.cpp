@@ -104,7 +104,7 @@ void ManualFlashlight::on_update_transform(RETransform* transform) {
 
         // Wait until "AppPlayerHandLight" is valid...
         if (m_player_hand_light == nullptr) {
-            m_player_hand_light = re_component::find<AppPlayerHandLight2>(player_transform, game_namespace("PlayerHandLight"));
+            m_player_hand_light = player_transform->find<AppPlayerHandLight2>(game_namespace("PlayerHandLight"));
             if (m_player_hand_light == nullptr) {
                 return;
             }

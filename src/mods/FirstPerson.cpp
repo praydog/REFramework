@@ -587,7 +587,7 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
         return true;
     }
 
-    auto flashlight_mesh = utility::re_component::find(flashlight_transform, via_render_mesh->get_type());
+    auto flashlight_mesh = flashlight_transform->find(via_render_mesh->get_type());
     if (flashlight_mesh == nullptr) {
         return true;
     }
@@ -658,7 +658,7 @@ void FirstPerson::reset() {
 void FirstPerson::set_vignette(via::render::ToneMapping::Vignetting value) {
     // Assign tone mapping controller
     if (m_tone_mapping_controller == nullptr && m_post_effect_controller != nullptr) {
-        m_tone_mapping_controller = utility::re_component::find<RopewayPostEffectControllerBase>(m_post_effect_controller, game_namespace("posteffect.ToneMapController"));
+        m_tone_mapping_controller = m_post_effect_controller->find<RopewayPostEffectControllerBase>(game_namespace("posteffect.ToneMapController"));
     }
 
     if (m_tone_mapping_controller == nullptr) {
@@ -812,7 +812,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     static auto r_arm_wrist_hash = sdk::murmur_hash::calc32(L"r_arm_wrist");
 
     static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
-    const auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->get_type());
+    const auto via_motion = transform->find<REComponent>(via_motion_def->get_type());
 
     glm::quat original_left_rot_relative{glm::identity<glm::quat>()};
     Vector4f original_left_pos_relative{};
@@ -913,7 +913,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     const auto is_holding_left_grip = vr->is_action_active(vr->get_action_grip(), vr->get_left_joystick());
 
     static auto player_condition_def = sdk::find_type_definition(game_namespace("survivor.SurvivorCondition"));
-    const auto player_condition = utility::re_component::find<REComponent>(transform, player_condition_def->get_type());
+    const auto player_condition = transform->find<REComponent>(player_condition_def->get_type());
     const bool is_reloading = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsReload") : false;
     const bool is_aiming = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsHold") : false;
     
@@ -959,7 +959,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
 
         // Get Arm IK component
         static auto arm_fit_t = sdk::find_type_definition(game_namespace("IkArmFit"));
-        auto arm_fit = utility::re_component::find<REComponent>(transform, arm_fit_t->get_type());
+        auto arm_fit = transform->find<REComponent>(arm_fit_t->get_type());
 
         // We will use the game's IK system instead of building our own because it's a pain in the ass
         // The arm fit component by default will only update the left wrist position (I don't know why, maybe the right arm is a blended animation?)
@@ -1143,7 +1143,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
     // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
     // Luckily the game has that built-in so we don't really need to hook anything
     static auto equipment_t = sdk::find_type_definition(game_namespace("survivor.Equipment"));
-    auto equipment = utility::re_component::find<REComponent>(transform, equipment_t->get_type());
+    auto equipment = transform->find<REComponent>(equipment_t->get_type());
 
     if (equipment != nullptr) {
         auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
@@ -1255,8 +1255,8 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
 
     static auto ik_leg_def = sdk::find_type_definition("via.motion.IkLeg");
     static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
-    auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->get_type());
-    auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->get_type());
+    auto ik_leg = transform->find<REComponent>(ik_leg_def->get_type());
+    auto via_motion = transform->find<REComponent>(via_motion_def->get_type());
 
     // We're going to use the leg IK to adjust the height of the player according to headset position
     if (ik_leg != nullptr && via_motion != nullptr) {
@@ -1911,7 +1911,7 @@ void FirstPerson::update_joint_names() {
 }
 
 float FirstPerson::update_delta_time(REComponent* component) {
-    return utility::re_component::get_delta_time(component);
+    return component->get_delta_time();
 }
 
 bool FirstPerson::is_first_person_allowed() const {
@@ -1931,7 +1931,7 @@ bool FirstPerson::is_jacked(RETransform* transform) const {
     static auto jack_dominator_typedef = sdk::find_type_definition(game_namespace("JackDominator"));
     static auto jacked_method = jack_dominator_typedef->get_method("get_Jacked");
 
-    auto jack_dominator = utility::re_component::find<::REComponent*>(transform, jack_dominator_typedef->get_type());
+    auto jack_dominator = transform->find<::REComponent*>(jack_dominator_typedef->get_type());
 
     if (jack_dominator != nullptr) {
         return jacked_method->call<bool>(sdk::get_thread_context(), jack_dominator);

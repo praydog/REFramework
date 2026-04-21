@@ -204,7 +204,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
         Vector4f dir{};
         float delta;
         if (gi.tdb_ver() > 49) {
-            delta = re_component::get_delta_time(transform);
+            delta = transform->get_delta_time();
         } else {
             delta = sdk::call_native_func_easy<float>(m_application.object, m_application.t, "get_DeltaTime");
         }
@@ -388,7 +388,7 @@ void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t has
                     }
 
                     const auto comp = (REComponent*)args[1];
-                    const auto owner = utility::re_component::get_game_object(comp);
+                    const auto owner = comp->get_game_object();
 
                     if (owner == m_re4_body) {
                         return HookManager::PreHookResult::SKIP_ORIGINAL;
@@ -434,7 +434,7 @@ void FreeCam::on_pre_application_entry(void* entry, const char* name, size_t has
 
                                 // The component is in arg2 because ValueTypes push everything to the right
                                 const auto comp = (REComponent*)args[2];
-                                const auto owner = utility::re_component::get_game_object(comp);
+                                const auto owner = comp->get_game_object();
 
                                 if (owner == m_re4_body) {
                                     return HookManager::PreHookResult::SKIP_ORIGINAL;

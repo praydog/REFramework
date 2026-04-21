@@ -455,7 +455,7 @@ bool VR::on_pre_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, 
     }
     
     static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
-    auto render_output_component = utility::re_component::find(camera, render_output_type);
+    auto render_output_component = camera->find(render_output_type);
 
     if (render_output_component == nullptr) {
         return true;
@@ -1497,7 +1497,7 @@ void VR::update_camera() {
     if ((sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3()) && FirstPerson::get()->will_be_used()) {
         m_needs_camera_restore = false;
 
-        auto camera_object = utility::re_component::get_game_object(camera);
+        auto camera_object = camera->get_game_object();
 
         if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
             return;
@@ -1555,7 +1555,7 @@ void VR::update_camera_origin() {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    auto camera_object = camera->get_game_object();
 
     if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
         spdlog::error("VR: Failed to get camera game object or transform!");
@@ -1656,7 +1656,7 @@ void VR::update_audio_camera() {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    auto camera_object = camera->get_game_object();
 
     if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
         return;
@@ -1691,7 +1691,7 @@ void VR::update_render_matrix() {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    auto camera_object = camera->get_game_object();
 
     if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
         return;
@@ -1724,7 +1724,7 @@ void VR::restore_audio_camera() {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    auto camera_object = camera->get_game_object();
 
     if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
         m_needs_audio_restore = false;
@@ -1763,7 +1763,7 @@ void VR::restore_camera() {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    auto camera_object = camera->get_game_object();
 
     if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
         m_needs_camera_restore = false;
@@ -1799,7 +1799,7 @@ void VR::set_lens_distortion(bool value) {
         static auto lens_distortion_tdef = sdk::find_type_definition(game_namespace("LensDistortionController"));
         static auto lens_distortion_t = lens_distortion_tdef->get_type();
 
-        auto lens_distortion_component = utility::re_component::find(camera, lens_distortion_t);
+        auto lens_distortion_component = camera->find(lens_distortion_t);
 
         if (lens_distortion_component != nullptr) {
             // Get "LensDistortion" field
@@ -2020,7 +2020,7 @@ void VR::disable_bad_effects() {
             return;
         }
 
-        auto camera_game_object = utility::re_component::get_game_object(camera);
+        auto camera_game_object = camera->get_game_object();
 
         if (camera_game_object == nullptr) {
             return;
@@ -2042,8 +2042,8 @@ void VR::disable_bad_effects() {
 
         // Do not draw the game object if it is hidden for VR (this was there for the original PSVR release i guess)
         for (auto child = camera_transform->get_child(); child != nullptr; child = child->get_child()) {
-            if (utility::re_component::find(child, effect_player_t) != nullptr) {
-                if (utility::re_component::find(child, hide_effect_for_vr_t) != nullptr) {
+            if (child->find(effect_player_t) != nullptr) {
+                if (child->find(hide_effect_for_vr_t) != nullptr) {
                     auto game_object = child->get_game_object();
 
                     game_object->set_shouldDraw(false);
@@ -2063,7 +2063,7 @@ void VR::fix_temporal_effects() {
     }
     
     static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
-    auto render_output_component = utility::re_component::find(camera, render_output_type);
+    auto render_output_component = camera->find(render_output_type);
 
     if (render_output_component == nullptr) {
         return;
@@ -2362,7 +2362,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         return true;
     }
 
-    auto game_object = utility::re_component::get_game_object(gui_element);
+    auto game_object = gui_element->get_game_object();
 
     if (game_object != nullptr && game_object->get_transform() != nullptr) {
         auto context = sdk::get_thread_context();
@@ -2467,7 +2467,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 // we don't want to mess with any game object that has a mesh
                 // because it might be something physical in the game world
                 // that the player can interact with
-                if (utility::re_component::find(game_object->get_transform(), via_render_mesh_typedef->get_type()) != nullptr) {
+                if (game_object->get_transform()->find(via_render_mesh_typedef->get_type()) != nullptr) {
                     return true;
                 }
 
@@ -2511,7 +2511,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                 // Set the gui element's position to be in front of the camera
                 if (camera != nullptr) {
-                    auto camera_object = utility::re_component::get_game_object(camera);
+                    auto camera_object = camera->get_game_object();
 
                     if (camera_object != nullptr && camera_object->get_transform() != nullptr) {
                         auto& gui_matrix = game_object->get_transform()->get_world_transform();
@@ -2587,7 +2587,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             // Fix for other kinds of world pos attach elements.
                             if (gi.is_re7()) {
                                 if (name_hash == "InteractOperationCursor"_fnv) {
-                                    auto world_pos_attach_comp = utility::re_component::find(game_object->get_transform(), ui_world_pos_attach_typedef->get_type());
+                                    auto world_pos_attach_comp = game_object->get_transform()->find(ui_world_pos_attach_typedef->get_type());
 
                                     // Fix the world position of the gui element
                                     if (world_pos_attach_comp != nullptr) {
@@ -2752,7 +2752,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         
                             fix_2d_position(original_game_object_pos);
                         } else if(gui_driver_typedef != nullptr) { // RE8
-                            auto interact_icon_comp = utility::re_component::find(game_object->get_transform(), gui_driver_typedef->get_type());
+                            auto interact_icon_comp = game_object->get_transform()->find(gui_driver_typedef->get_type());
 
                             if (interact_icon_comp != nullptr) {
                                 auto interact_icon_object = sdk::call_object_func<REGameObject*>(interact_icon_comp, "get_attachTarget", context, interact_icon_comp);
@@ -2772,7 +2772,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     continue;
                                 }
 
-                                auto element_comp = utility::re_component::find(game_object->get_transform(), element_type->get_type());
+                                auto element_comp = game_object->get_transform()->find(element_type->get_type());
 
                                 if (element_comp == nullptr) {
                                     continue;
@@ -2852,7 +2852,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                         // ... RE7
                         if (gi.is_re7()) {
-                            auto world_pos_attach_comp = utility::re_component::find(game_object->get_transform(), ui_world_pos_attach_typedef->get_type());
+                            auto world_pos_attach_comp = game_object->get_transform()->find(ui_world_pos_attach_typedef->get_type());
 
                             // Fix the world position of the gui element
                             if (world_pos_attach_comp != nullptr) {
@@ -2883,7 +2883,7 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
         sdk::call_object_func<void*>(data->view, "set_Overlay", context, data->view, data->overlay);
         sdk::call_object_func<void*>(data->view, "set_Detonemap", context, data->view, data->detonemap);
         
-        auto game_object = utility::re_component::get_game_object(data->element);
+        auto game_object = data->element->get_game_object();
 
         if (game_object != nullptr && game_object->get_transform() != nullptr) {
             //sdk::set_transform_position(game_object->get_transform(), data->original_position);

@@ -119,7 +119,7 @@ void Camera::on_application_entry(void* entry, const char* name, size_t hash) {
 void Camera::update_vignetting() noexcept {
     // Cache off "RenderToneMapping" once (if camera ptr changes, this will be cached again).
     if (m_tone_map == nullptr) {
-        m_tone_map = re_component::find<RenderToneMapping>(m_camera, "via.render.ToneMapping");
+        m_tone_map = m_camera->find<RenderToneMapping>("via.render.ToneMapping");
     }
 
     m_tone_map_internal = (m_tone_map != nullptr) ? m_tone_map->toneMappingInternal : nullptr;
@@ -136,7 +136,7 @@ void Camera::on_player_transform(RETransform* transform) noexcept {
     if (sdk::GameIdentity::get().is_re8()) {
         // Cache off "AppPlayerConfigure" once (if player ptr changes, this will be cached again).
         if (m_player_configure == nullptr) {
-            m_player_configure = re_component::find<AppPlayerConfigure>(transform, game_namespace("PlayerConfigure"));
+            m_player_configure = transform->find<AppPlayerConfigure>(game_namespace("PlayerConfigure"));
         }
 
         if (m_player_configure != nullptr) {

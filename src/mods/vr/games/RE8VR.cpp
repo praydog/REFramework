@@ -254,7 +254,7 @@ void RE8VR::update_hand_ik() {
     const auto controllers = vr->get_controllers();
 
     ::REJoint* head_joint = nullptr;
-    auto motion = utility::re_component::find<::REManagedObject>(m_player->get_transform(), motion_type);
+    auto motion = m_player->get_transform()->find<::REManagedObject>(motion_type);
 
     std::optional<glm::quat> original_head_rotation{};
     auto original_right_rot = glm::identity<glm::quat>();
@@ -436,7 +436,7 @@ void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
     static auto ik_leg_set_enabled = via_motion_ik_leg->get_method("set_Enabled");
 
     auto& vr = VR::get();
-    auto ik_leg = utility::re_component::find<::REManagedObject>(m_player->get_transform(), via_motion_ik_leg_type);
+    auto ik_leg = m_player->get_transform()->find<::REManagedObject>(via_motion_ik_leg_type);
 
     if (ik_leg == nullptr) {
         if (!vr->is_using_controllers() || m_is_in_cutscene || camera_rotation == nullptr || camera_pos == nullptr) {
@@ -472,7 +472,7 @@ void RE8VR::update_body_ik(glm::quat* camera_rotation, Vector4f* camera_pos) {
         return;
     }
 
-    auto motion = utility::re_component::find<::REManagedObject>(m_player->get_transform(), via_motion_motion_type);
+    auto motion = m_player->get_transform()->find<::REManagedObject>(via_motion_motion_type);
 
     if (motion == nullptr) {
         spdlog::error("[RE8VR] Failed to get motion component");
@@ -938,7 +938,7 @@ void RE8VR::fix_player_shadow() {
         }
     } else {
         static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
-        mesh_controller = utility::re_component::find<::REManagedObject>(m_player->get_transform(), app_player_mesh_controller_type);
+        mesh_controller = m_player->get_transform()->find<::REManagedObject>(app_player_mesh_controller_type);
     }
 
     if (mesh_controller == nullptr) {
@@ -1129,7 +1129,7 @@ void RE8VR::fix_player_shadow() {
 
     if (gi.is_re7()) {
         static auto equip_manager_type = sdk::find_type_definition("app.EquipManager")->get_type();
-        auto equip_manager = utility::re_component::find<::REManagedObject>(player->get_transform(), equip_manager_type);
+        auto equip_manager = player->get_transform()->find<::REManagedObject>(equip_manager_type);
 
         if (equip_manager == nullptr) {
             return nullptr;
@@ -1225,7 +1225,7 @@ bool RE8VR::update_pointers() {
             return;
         }
 
-        a = utility::re_component::find<::REManagedObject>(m_player->get_transform(), t);
+        a = m_player->get_transform()->find<::REManagedObject>(t);
     };
 
     static auto hand_touch_type = get_ambiguous_re_type("app.PlayerHandTouch");
@@ -1461,8 +1461,8 @@ void RE8VR::update_heal_gesture() {
         static auto app_player_mesh_controller_type = app_player_mesh_controller->get_type();
 
         items_list = *sdk::get_object_field<::REManagedObject*>(m_inventory, "_ItemList");
-        weapon_change = utility::re_component::find<::REManagedObject>(m_player->get_transform(), app_player_weapon_change_type);
-        mesh_controller = utility::re_component::find<::REManagedObject>(m_player->get_transform(), app_player_mesh_controller_type);
+        weapon_change = m_player->get_transform()->find<::REManagedObject>(app_player_weapon_change_type);
+        mesh_controller = m_player->get_transform()->find<::REManagedObject>(app_player_mesh_controller_type);
     }
 
     if (items_list == nullptr || weapon_change == nullptr || mesh_controller == nullptr) {
@@ -1538,7 +1538,7 @@ void RE8VR::update_heal_gesture() {
     static auto via_render_mesh_type = via_render_mesh->get_type();
 
     auto current_mesh = *sdk::get_object_field<::REManagedObject*>(mesh_controller, "WeaponMesh");
-    auto item_mesh = utility::re_component::find<::REManagedObject>(owner->get_transform(), via_render_mesh_type);
+    auto item_mesh = owner->get_transform()->find<::REManagedObject>(via_render_mesh_type);
 
     const auto is_same_mesh = current_mesh == item_mesh;
 
@@ -1549,7 +1549,7 @@ void RE8VR::update_heal_gesture() {
 
     auto dequip_item = [&]() {
         if (gi.is_re7()) {
-            auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->get_transform(), "app.EquipManager");
+            auto equip_manager = m_player->get_transform()->find<::REManagedObject>("app.EquipManager");
             if (equip_manager == nullptr) {
                 return;
             }
@@ -1591,7 +1591,7 @@ void RE8VR::update_heal_gesture() {
 
                     m_heal_gesture.last_grab_time = now;
                 } else {
-                    auto equip_manager = utility::re_component::find<::REManagedObject>(m_player->get_transform(), "app.EquipManager");
+                    auto equip_manager = m_player->get_transform()->find<::REManagedObject>("app.EquipManager");
 
                     if (equip_manager == nullptr) {
                         spdlog::info("[RE8VR] No equip manager found");

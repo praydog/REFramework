@@ -283,7 +283,7 @@ void ChainViewer::on_frame() {
     const auto& gi = sdk::GameIdentity::get();
     const bool has_collision_top = gi.tdb_ver() >= 69 && !(gi.is_mhrise() && gi.tdb_ver() == 70);
     auto attempt_display_chains = [&](RETransform* transform) {
-        auto chain = utility::re_component::find<regenny::via::motion::Chain>(transform, chain_re_type);
+        auto chain = transform->find<regenny::via::motion::Chain>(chain_re_type);
         bool made = false;
 
         if (chain == nullptr) {

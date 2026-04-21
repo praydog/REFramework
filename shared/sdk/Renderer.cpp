@@ -1851,7 +1851,7 @@ RECamera* layer::Scene::get_main_camera_if_possible() const {
         return nullptr;
     }
 
-    const auto camera_gameobject = utility::re_component::get_game_object(camera);
+    const auto camera_gameobject = camera->get_game_object();
 
     if (camera_gameobject == nullptr) {
         return nullptr;
