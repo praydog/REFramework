@@ -2347,7 +2347,7 @@ bool REFramework::init_d3d12() {
 
     m_d3d12.cmd_ctxs.clear();
 
-    for (auto i = 0; i < 3; ++i) {
+    for (auto i = 0; i < 9; ++i) {
         auto& ctx = m_d3d12.cmd_ctxs.emplace_back(std::make_unique<d3d12::CommandContext>());
 
         if (!ctx->setup(L"Framework::m_d3d12.cmd_ctx")) {
