@@ -63,8 +63,8 @@ public:
 
     // ParamWrapper + call_method declared in REManagedObject.hpp (needs ReClass.hpp)
     struct ParamWrapper;
-    template<typename Arg> static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, FunctionDescriptor* desc, const Arg& arg);
-    template<typename Arg> static std::unique_ptr<ParamWrapper> call_method(::REManagedObject* obj, std::string_view name, const Arg& arg);
+    template<typename Arg> std::unique_ptr<ParamWrapper> call_method(FunctionDescriptor* desc, const Arg& arg);
+    template<typename Arg> std::unique_ptr<ParamWrapper> call_method(std::string_view name, const Arg& arg);
 
 private:
     uint32_t    m_ref_count;    // 0x08

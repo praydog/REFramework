@@ -1266,7 +1266,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
 
             sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::None);
             sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &zero_offset);
-            REManagedObject::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::Center);
+            ik_leg->call_method("set_CenterAdjust", via::motion::IkLeg::CenterAdjust::Center);
 
             return;
         }
@@ -1335,7 +1335,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
         // so the head adjustment will be more accurate and smooth if the player is standing straight.
         // a small side effect is that the player can slightly float, but it's worth it.
         // not a TDB method unfortunately.
-        REManagedObject::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
+        ik_leg->call_method("set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
         update_player_arm_ik(transform);
     }
 }

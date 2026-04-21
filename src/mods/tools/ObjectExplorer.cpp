@@ -3150,7 +3150,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
 
                 if (descriptor->get_functionPtr() != nullptr && ImGui::Button("Attempt to call")) {
                     char poop[0x100]{ 0 };
-                    REManagedObject::call_method(obj, descriptor->get_name(), poop);
+                    obj->call_method(descriptor->get_name(), poop);
                 }
 
                 auto t2 = get_type(ret);

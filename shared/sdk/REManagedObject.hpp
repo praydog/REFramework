@@ -67,7 +67,7 @@ T REManagedObject::get_reflection_property(std::string_view field) const {
 }
 
 template <typename Arg>
-std::unique_ptr<REManagedObject::ParamWrapper> REManagedObject::call_method(::REManagedObject* obj, FunctionDescriptor* desc, const Arg& arg) {
+std::unique_ptr<REManagedObject::ParamWrapper> REManagedObject::call_method(FunctionDescriptor* desc, const Arg& arg) {
     if (desc == nullptr) {
         return nullptr;
     }
@@ -75,7 +75,7 @@ std::unique_ptr<REManagedObject::ParamWrapper> REManagedObject::call_method(::RE
     auto method_func = (ParamWrapper * (*)(MethodParams*, ::REThreadContext*)) desc->get_functionPtr();
 
     if (method_func != nullptr) {
-        auto params = std::make_unique<ParamWrapper>(obj);
+        auto params = std::make_unique<ParamWrapper>(this);
 
         params->params.in_data = (void***)&arg;
 
@@ -87,6 +87,6 @@ std::unique_ptr<REManagedObject::ParamWrapper> REManagedObject::call_method(::RE
 }
 
 template <typename Arg>
-std::unique_ptr<REManagedObject::ParamWrapper> REManagedObject::call_method(::REManagedObject* obj, std::string_view name, const Arg& arg) {
-    return call_method(obj, obj->get_method_desc(name), arg);
+std::unique_ptr<REManagedObject::ParamWrapper> REManagedObject::call_method(std::string_view name, const Arg& arg) {
+    return call_method(get_method_desc(name), arg);
 }
