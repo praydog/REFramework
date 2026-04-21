@@ -118,7 +118,7 @@ REFrameworkSDKFunctions g_sdk_functions {
                 continue;
             }
             
-            auto tdef = utility::re_managed_object::get_type_definition(instance);
+            auto tdef = instance->get_type_definition();
 
             out[out_written].instance = (REFrameworkManagedObjectHandle)instance;
             out[out_written].t = (REFrameworkTypeDefinitionHandle)tdef;
@@ -439,17 +439,17 @@ REFrameworkTDB g_tdb_data {
 #define REMANAGEDOBJECT(var) ((::REManagedObject*)var)
 
 REFrameworkManagedObject g_managed_object_data {
-    [](REFrameworkManagedObjectHandle obj) { utility::re_managed_object::add_ref(REMANAGEDOBJECT(obj)); },
-    [](REFrameworkManagedObjectHandle obj) { utility::re_managed_object::release(REMANAGEDOBJECT(obj)); },
-    [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeDefinitionHandle)utility::re_managed_object::get_type_definition(REMANAGEDOBJECT(obj)); },
-    [](void* potential_obj) { return utility::re_managed_object::is_managed_object(potential_obj); },
+    [](REFrameworkManagedObjectHandle obj) { REMANAGEDOBJECT(obj)->add_ref(); },
+    [](REFrameworkManagedObjectHandle obj) { REMANAGEDOBJECT(obj)->release(); },
+    [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeDefinitionHandle)REMANAGEDOBJECT(obj)->get_type_definition(); },
+    [](void* potential_obj) { return REManagedObject::is_managed_object(potential_obj); },
     [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->get_ref_count(); },
-    [](REFrameworkManagedObjectHandle obj) { return utility::re_managed_object::get_size(REMANAGEDOBJECT(obj)); },
-    [](REFrameworkManagedObjectHandle obj) { return (unsigned int)utility::re_managed_object::get_vm_type(REMANAGEDOBJECT(obj)); },
-    [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeInfoHandle)utility::re_managed_object::get_type(REMANAGEDOBJECT(obj)); },
-    [](REFrameworkManagedObjectHandle obj) { return (void*)utility::re_managed_object::get_variables(REMANAGEDOBJECT(obj)); },
-    [](REFrameworkManagedObjectHandle obj, const char* name) { return (REFrameworkReflectionPropertyHandle)utility::re_managed_object::get_field_desc(REMANAGEDOBJECT(obj), name); },
-    [](REFrameworkManagedObjectHandle obj, const char* name) { return (REFrameworkReflectionMethodHandle)utility::re_managed_object::get_method_desc(REMANAGEDOBJECT(obj), name); },
+    [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->get_size(); },
+    [](REFrameworkManagedObjectHandle obj) { return (unsigned int)REMANAGEDOBJECT(obj)->get_vm_type(); },
+    [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeInfoHandle)REMANAGEDOBJECT(obj)->get_type(); },
+    [](REFrameworkManagedObjectHandle obj) { return (void*)REMANAGEDOBJECT(obj)->get_variables(); },
+    [](REFrameworkManagedObjectHandle obj, const char* name) { return (REFrameworkReflectionPropertyHandle)REMANAGEDOBJECT(obj)->get_field_desc(name); },
+    [](REFrameworkManagedObjectHandle obj, const char* name) { return (REFrameworkReflectionMethodHandle)REMANAGEDOBJECT(obj)->get_method_desc(name); },
 };
 
 #define RERESOURCEMGR(var) ((sdk::ResourceManager*)var)
@@ -481,7 +481,7 @@ REFrameworkResourceManager g_resource_manager_data {
 
         // The intrusive_ptr holds the reference for us initially, but when we return it back to the plugin
         // we need to add another reference so that the plugin can hold onto it before we release it.
-        utility::re_managed_object::add_ref(obj.get());
+        obj.get()->add_ref();
         return (REFrameworkManagedObjectHandle)obj.get();
     }
 };

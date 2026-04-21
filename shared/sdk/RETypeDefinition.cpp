@@ -424,7 +424,7 @@ sdk::RETypeDefinition* RETypeDefinition::get_underlying_type() const {
         const auto full_name = get_name_method->call<::REManagedObject*>(sdk::get_thread_context(), underlying_type);
 
         if (full_name != nullptr) {
-            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(full_name) - REManagedObject::runtime_size());
+            const auto managed_str = (SystemString*)((uintptr_t)full_name->get_field_ptr() - REManagedObject::runtime_size());
             const auto str = utility::narrow(managed_str->data);
 
             managed_str->set_ref_count(0);
@@ -723,7 +723,7 @@ bool RETypeDefinition::is_by_ref() const {
         return false;
     }
 
-    auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
+    auto runtime_typedef = runtime_type->get_type_definition();
 
     if (runtime_typedef == nullptr) {
         g_by_ref_map[this] = false;
@@ -767,7 +767,7 @@ bool RETypeDefinition::is_pointer() const {
         return false;
     }
 
-    auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
+    auto runtime_typedef = runtime_type->get_type_definition();
 
     if (runtime_typedef == nullptr) {
         g_pointer_map[this] = false;
@@ -809,7 +809,7 @@ bool RETypeDefinition::is_primitive() const {
         return false;
     }
 
-    auto runtime_typedef = utility::re_managed_object::get_type_definition(runtime_type);
+    auto runtime_typedef = runtime_type->get_type_definition();
 
     if (runtime_typedef == nullptr) {
         g_primitive_map[this] = false;
@@ -846,7 +846,7 @@ bool RETypeDefinition::has_attribute(::REManagedObject* attribute_runtime_type, 
         return false;
     }
 
-    const auto runtime_type_t = utility::re_managed_object::get_type_definition(runtime_type);
+    const auto runtime_type_t = runtime_type->get_type_definition();
 
     if (runtime_type_t == nullptr) {
         return false;
@@ -987,7 +987,7 @@ static std::shared_mutex g_runtime_type_mtx{};
                             continue;
                         }
 
-                        auto type_t = utility::re_managed_object::get_type_definition(type);
+                        auto type_t = type->get_type_definition();
 
                         if (type_t == nullptr) {
                             continue;

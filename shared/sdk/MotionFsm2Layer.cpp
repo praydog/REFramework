@@ -268,8 +268,8 @@ void TreeNode::remove_action(uint32_t index) {
 void TreeNode::relocate(uintptr_t old_start, uintptr_t old_end, uintptr_t new_start) {
     auto selector = (::REManagedObject*)get_selector();
 
-    if (selector != nullptr && utility::re_managed_object::is_managed_object(selector)) {
-        const auto td = utility::re_managed_object::get_type_definition(selector);
+    if (selector != nullptr && REManagedObject::is_managed_object(selector)) {
+        const auto td = selector->get_type_definition();
 
         if (td != nullptr) {
             utility::relocate_pointers((uint8_t*)selector, old_start, old_end, new_start, 1, sizeof(void*), td->get_size());
@@ -296,7 +296,7 @@ bool TreeObject::is_delayed() const {
         static auto bhvt_manager_retype = bhvt_manager_t->get_type();
         static auto is_delay_setup_objects_prop = utility::re_type::get_field_desc(bhvt_manager_retype, "DelaySetupObjects");
 
-        const auto is_delay_setup_objects = utility::re_managed_object::get_field<bool>((::REManagedObject*)bhvt_manager, is_delay_setup_objects_prop);
+        const auto is_delay_setup_objects = ((::REManagedObject*)bhvt_manager)->get_reflection_property<bool>(is_delay_setup_objects_prop);
 
         if (!is_delay_setup_objects) {
             auto& actions = get_action_array();
@@ -356,11 +356,11 @@ void TreeObject::relocate_datas(uintptr_t old_start, uintptr_t old_end, sdk::Nat
         for (uint32_t i = 0; i < 0xD8; i += sizeof(void*)) {
             const auto obj = *(::REManagedObject**)((uintptr_t)this + i);
 
-            if (obj == nullptr || !utility::re_managed_object::is_managed_object(obj)) {
+            if (obj == nullptr || !REManagedObject::is_managed_object(obj)) {
                 continue;
             }
 
-            if (utility::re_managed_object::is_a(obj, "via.userdata.UserVariablesHub")) {
+            if (obj->is_a("via.userdata.UserVariablesHub")) {
                 spdlog::info("Found uservar hub at offset {:x}", i);
                 return i;
             }

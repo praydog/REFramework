@@ -438,8 +438,8 @@ void ObjectExplorer::on_draw_dev_ui() {
         // REType::name at offset 0x20 is stable across all supported TDB versions.
         // first loop, sort
         std::sort(singletons.begin(), singletons.end(), [](REManagedObject* a, REManagedObject* b) {
-            auto a_type = utility::re_managed_object::safe_get_type(a);
-            auto b_type = utility::re_managed_object::safe_get_type(b);
+            auto a_type = a->safe_get_type();
+            auto b_type = b->safe_get_type();
 
             if (a_type == nullptr || a_type->get_type_name() == nullptr) {
                 return true;
@@ -454,7 +454,7 @@ void ObjectExplorer::on_draw_dev_ui() {
 
         // Display the nodes
         for (auto obj : singletons) {
-            auto t = utility::re_managed_object::safe_get_type(obj);
+            auto t = obj->safe_get_type();
 
             if (t == nullptr || t->get_type_name() == nullptr) {
                 continue;
@@ -2358,10 +2358,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 os << "// " << (descriptor->returnTypeName != nullptr ? descriptor->returnTypeName : "") << "\n";
 
                 if (!is_singleton) {
-                    os << "return utility::re_managed_object::call_method((REManagedObject*)this, \"" << descriptor->get_name() << "\", *args);";
+                    os << "return REManagedObject::call_method((REManagedObject*)this, \"" << descriptor->get_name() << "\", *args);";
                 }
                 else {
-                    os << "return utility::re_managed_object::call_method((REManagedObject*)this, utility::re_type::get_method_desc(get_type_info(), \"" << descriptor->get_name() << "\"), *args);";
+                    os << "return REManagedObject::call_method((REManagedObject*)this, utility::re_type::get_method_desc(get_type_info(), \"" << descriptor->get_name() << "\"), *args);";
                 }
 
                 m->param("args")->type(g->type("void**"));
@@ -2420,7 +2420,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
                     os << "auto tbl = sdk::VM::get()->get_static_tbl_for_type(*(uint32_t*)get_classInfo(get_type_info()) & 0x3FFF);\n";
                     os << "if (tbl == nullptr) {\n return nullptr;\n}\n";
-                    os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)tbl, utility::re_type::get_field_desc(get_type_info(), \"" << variable->get_name() << "\"));\n";
+                    os << "return (REManagedObject*)tbl->get_reflection_property<sdk::DummyData>(utility::re_type::get_field_desc(get_type_info(), \"" << variable->get_name() << "\"));\n";
 
                     m->procedure(os.str());
                 }
@@ -2428,10 +2428,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                     m = c->function(variable->get_name());
 
                     if (!is_singleton) {
-                        os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)this, " << "\"" << variable->get_name() << "\");";
+                        os << "return (REManagedObject*)this->get_reflection_property<sdk::DummyData>(" << "\"" << variable->get_name() << "\");";
                     }
                     else {
-                        os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)this, utility::re_type::get_field_desc(get_type_info(), " << "\"" << variable->get_name() << "\"));";
+                        os << "return (REManagedObject*)this->get_reflection_property<sdk::DummyData>(utility::re_type::get_field_desc(get_type_info(), " << "\"" << variable->get_name() << "\"));";
                     }
 
                     m->procedure(os.str());
@@ -2540,9 +2540,9 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
     }
 
     bool made_node = false;
-    const auto is_game_object = utility::re_managed_object::is_a(object, "via.GameObject");
-    const auto is_bhvt = utility::re_managed_object::is_a(object, "via.behaviortree.BehaviorTree");
-    const auto obj_typedef = utility::re_managed_object::get_type_definition(object);
+    const auto is_game_object = object->is_a("via.GameObject");
+    const auto is_bhvt = object->is_a("via.behaviortree.BehaviorTree");
+    const auto obj_typedef = object->get_type_definition();
 
     if (obj_typedef != nullptr) {
         m_current_path.emplace_back(obj_typedef->get_name());
@@ -2564,7 +2564,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         }
         else {
             // Change name based on VMType
-            switch (utility::re_managed_object::get_vm_type(object)) {
+            switch (object->get_vm_type()) {
             case via::clr::VMObjType::Array:
             {
                 auto arr = (REArrayBase*)object;
@@ -2584,7 +2584,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
             case via::clr::VMObjType::String: {
                 additional_text = "String";
 
-                auto t = utility::re_managed_object::get_type(object);
+                auto t = object->get_type();
 
                 if (t != nullptr) {
                     auto type_name = std::string{t->get_type_name()};
@@ -2592,7 +2592,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
                     switch (ret) {
                     case "System.String"_fnv: {
-                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - REManagedObject::runtime_size());
+                        auto str = (SystemString*)((uintptr_t)object->get_field_ptr() - REManagedObject::runtime_size());
 
                         if (str->size > 0) {
                             additional_text2 = utility::narrow(str->data);
@@ -2616,7 +2616,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
                 additional_text = "ValType";
                 break;
             case via::clr::VMObjType::Object: {
-                auto t = utility::re_managed_object::get_type(object);
+                auto t = object->get_type();
 
                 if (t != nullptr) {
                     additional_text = t->get_type_name();
@@ -2626,7 +2626,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
                     switch (ret) {
                     case "System.String"_fnv: {
-                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - REManagedObject::runtime_size());
+                        auto str = (SystemString*)((uintptr_t)object->get_field_ptr() - REManagedObject::runtime_size());
 
                         if (str->size > 0) {
                             additional_text2 = utility::narrow(str->data);
@@ -2667,17 +2667,17 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
             handle_game_object(address.as<REGameObject*>());
         }
 
-        if (utility::re_managed_object::is_a(object, "via.Component")) {
+        if (object->is_a("via.Component")) {
             handle_component(address.as<REComponent*>());
         }
 
-        if (utility::re_managed_object::is_a(object, "via.render.RenderLayer")) {
+        if (object->is_a("via.render.RenderLayer")) {
             handle_render_layer(address.as<sdk::renderer::RenderLayer*>());
         }
 
-        handle_type(object, utility::re_managed_object::get_type(object));
+        handle_type(object, object->get_type());
 
-        if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
+        if (object->get_vm_type() == via::clr::VMObjType::Array) {
             auto arr = (REArrayBase*)object;
 
             const auto made_array_entries = ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries");
@@ -2703,7 +2703,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
 
                         memcpy(&copied_obj[0], &fake_obj, REManagedObject::runtime_size());
                         memcpy(&copied_obj[REManagedObject::runtime_size()], elem, real_size - REManagedObject::runtime_size());
-                        real_size = utility::re_managed_object::get_size((REManagedObject*)copied_obj.data());
+                        real_size = ((REManagedObject*)copied_obj.data())->get_size();
                         copied_obj.resize(real_size);
 
                         memcpy(&copied_obj[REManagedObject::runtime_size()], elem, real_size - REManagedObject::runtime_size());
@@ -2721,7 +2721,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         }
 
         if (ImGui::TreeNode(real_address.ptr(), "AutoGenerated Types")) {
-            auto size = utility::re_managed_object::get_size(object);
+            auto size = object->get_size();
 
             for (auto i = (uint32_t)sizeof(void*); i < size; i += sizeof(void*)) {
                 auto ptr = Address(object).get(i).to<REManagedObject*>();
@@ -2790,7 +2790,7 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
 void ObjectExplorer::handle_component(REComponent* component) {
     auto display_component_preview = [&](REComponent* comp) {
         if (comp != nullptr && comp->get_game_object() != nullptr) {
-            auto prev_name = utility::re_managed_object::get_type_name(comp);
+            auto prev_name = comp->get_type_name();
             auto prev_gameobject_name = utility::re_game_object::get_name(comp->get_game_object());
 
             auto tree_hovered = ImGui::IsItemHovered();
@@ -2828,11 +2828,11 @@ void ObjectExplorer::handle_component(REComponent* component) {
             // Iterate the children
             for (auto child = component->get_child_component(); child != nullptr && child != component; child = child->get_child_component()) {
                 // uh oh
-                if (!utility::re_managed_object::is_managed_object(child)) {
+                if (!REManagedObject::is_managed_object(child)) {
                     continue;
                 }
 
-                auto child_name = utility::re_managed_object::get_type_name(child);
+                auto child_name = child->get_type_name();
 
                 made_node = widget_with_context(child, [&]() { return stretched_tree_node(child, "%i", count++); });
                 auto tree_hovered = ImGui::IsItemHovered();
@@ -2865,7 +2865,7 @@ void ObjectExplorer::handle_transform(RETransform* transform) {
 
 void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
     if (ImGui::Button("Attempt to Clone")) {
-        layer->add_layer(utility::re_managed_object::get_type_definition(layer)->get_type(), layer->m_priority)->clone_layers(layer);
+        layer->add_layer(layer->get_type_definition()->get_type(), layer->m_priority)->clone_layers(layer);
     }
 
     const auto made_node = ImGui::TreeNode(&layer->m_layers, "Child Layers");
@@ -2972,7 +2972,7 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
 
     auto count = 0;
     const bool is_singleton = utility::re_type::is_singleton(t);
-    const bool is_real_obj = utility::re_managed_object::is_managed_object(obj);
+    const bool is_real_obj = REManagedObject::is_managed_object(obj);
     bool is_top_type_open = false;
 
     for (auto type_info = t; type_info != nullptr; type_info = (REType*)get_super(type_info)) {
@@ -3000,11 +3000,11 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
             is_top_type_open = true;
         }
 
-        const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+        const auto is_real_object = REManagedObject::is_managed_object(obj);
 
         // Topmost type
         if (type_info == t && is_real_object) {
-            ImGui::Text("Size: 0x%X", utility::re_managed_object::get_size(obj));
+            ImGui::Text("Size: 0x%X", obj->get_size());
         }
         // Super types
         else {
@@ -3150,7 +3150,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
 
                 if (descriptor->get_functionPtr() != nullptr && ImGui::Button("Attempt to call")) {
                     char poop[0x100]{ 0 };
-                    utility::re_managed_object::call_method(obj, descriptor->get_name(), poop);
+                    REManagedObject::call_method(obj, descriptor->get_name(), poop);
                 }
 
                 auto t2 = get_type(ret);
@@ -3178,7 +3178,7 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
     }
 
     const auto& gi = sdk::GameIdentity::get();
-    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    const auto is_real_object = REManagedObject::is_managed_object(obj);
     auto descriptors = get_fields(type_info)->get_variables()->data->descriptors;
 
     if (ImGui::TreeNode(get_fields(type_info), "Reflection Properties: %i", get_fields(type_info)->get_variables()->num)) {
@@ -3289,7 +3289,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
         return;
     }
 
-    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    const auto is_real_object = REManagedObject::is_managed_object(obj);
     auto fields = tdef->get_fields();
 
     if (fields.size() == 0) {
@@ -3690,7 +3690,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
         return;
     }
 
-    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    const auto is_real_object = REManagedObject::is_managed_object(obj);
     auto methods = tdef->get_methods();
     auto tdb = reframework::get_types()->get_type_db();
 
@@ -3755,7 +3755,7 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
     // but there is a TDB getter and setter for it
     if (real_data == nullptr && obj != nullptr) {
         // Attempt to find a getter/setter for this field
-        const auto tdef = utility::re_managed_object::get_type_definition(obj);
+        const auto tdef = obj->get_type_definition();
 
         if (tdef != nullptr) {
             getter = tdef->get_method(std::string{"get_"} + desc->get_name());
@@ -4208,7 +4208,7 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
     };
 
     const auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->get_function();
-    const auto class_size = utility::re_managed_object::is_managed_object(obj) ? utility::re_managed_object::get_size(obj) : get_size(type_info);
+    const auto class_size = REManagedObject::is_managed_object(obj) ? obj->get_size() : get_size(type_info);
     const auto size = 1;
 
     // Copy the object so we don't cause a crash by replacing
@@ -4308,7 +4308,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
             ImGui::SetClipboardText(name->c_str());
         }
 
-        const auto is_managed_object = utility::re_managed_object::is_managed_object(address);
+        const auto is_managed_object = REManagedObject::is_managed_object(address);
 
         if (auto it = std::find_if(m_pinned_objects.begin(), m_pinned_objects.end(), [address](auto& pinned_obj) { return pinned_obj.address == address; }); it != m_pinned_objects.end()) {
             if (ImGui::Selectable("Unpin")) {
@@ -4318,7 +4318,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
             if (ImGui::Selectable("Pin")) {
                 auto& pinned = m_pinned_objects.emplace_back();
 
-                const auto type_definition = is_managed_object ? utility::re_managed_object::get_type_definition((REManagedObject*)address) : nullptr;
+                const auto type_definition = is_managed_object ? ((REManagedObject*)address)->get_type_definition() : nullptr;
 
                 pinned.address = address;
                 pinned.name = type_definition != nullptr ? type_definition->get_name() : std::to_string((uintptr_t)address);
@@ -4327,11 +4327,11 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
         }
 
         // Log component hierarchy to disk
-        if (is_managed_object && utility::re_managed_object::is_a((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
+        if (is_managed_object && ((REManagedObject*)address)->is_a("via.Component") && ImGui::Selectable("Log Hierarchy")) {
             auto comp = (REComponent*)address;
 
             for (auto obj = comp; obj; obj = obj->get_child_component()) {
-                auto t = utility::re_managed_object::safe_get_type(obj);
+                auto t = obj->safe_get_type();
 
                 if (t != nullptr) {
                     if (obj->get_game_object() == nullptr) {
@@ -4350,7 +4350,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
         }
 
         if (is_managed_object && ImGui::Selectable("Hook All Methods")) {
-            const auto t = utility::re_managed_object::get_type_definition((REManagedObject*)address);
+            const auto t = ((REManagedObject*)address)->get_type_definition();
 
             if (t != nullptr) {
                 hook_all_methods(t);
@@ -4559,7 +4559,7 @@ void ObjectExplorer::make_tree_offset(REManagedObject* object, uint32_t offset, 
 }
 
 bool ObjectExplorer::is_managed_object(Address address) const {
-    return utility::re_managed_object::is_managed_object(address);
+    return REManagedObject::is_managed_object(address);
 }
 
 // NOTE: REType::name at offset 0x20 is accessed directly throughout this function.

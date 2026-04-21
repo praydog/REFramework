@@ -636,8 +636,8 @@ namespace sdk {
 
                 const auto exception_managed_object = (::REManagedObject*)context->unkPtr->unkPtr;
 
-                if (utility::re_managed_object::is_managed_object(exception_managed_object)) {
-                    const auto exception_tdb_type = utility::re_managed_object::get_type_definition(exception_managed_object);
+                if (REManagedObject::is_managed_object(exception_managed_object)) {
+                    const auto exception_tdb_type = exception_managed_object->get_type_definition();
 
                     if (exception_tdb_type != nullptr) {
                         const auto exception_name = exception_tdb_type->get_full_name();

@@ -834,7 +834,7 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
         for (auto it : m_fov_map) {
             auto camera = it.first;
             set_fov_method->call(sdk::get_thread_context(), camera, m_fov_map[camera]);
-            utility::re_managed_object::release(camera);
+            camera->release();
         }
         m_fov_map.clear();
     }
@@ -843,7 +843,7 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
         for (auto it : m_vertical_fov_map) {
             auto camera = it.first;
             set_vertical_enable_method->call(sdk::get_thread_context(), camera, m_vertical_fov_map[camera]);
-            utility::re_managed_object::release(camera);
+            camera->release();
         }
         m_vertical_fov_map.clear();
     }
@@ -895,7 +895,7 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
 
             if (!m_vertical_fov_map.contains(camera)) {
                 m_vertical_fov_map[camera] = was_vertical_fov_enabled;
-                utility::re_managed_object::add_ref(camera);
+                camera->add_ref();
             } else {
                 m_vertical_fov_map[camera] = was_vertical_fov_enabled;
             }
@@ -919,7 +919,7 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
             
         if (!m_fov_map.contains(camera)) {
             m_fov_map[camera] = fov;
-            utility::re_managed_object::add_ref(camera);
+            camera->add_ref();
         } else {
             m_fov_map[camera] = fov;
         }

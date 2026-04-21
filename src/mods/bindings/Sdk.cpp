@@ -52,7 +52,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     
     // we shouldn't really do this very much
     // so it shouldn't be too terrible on performance
-    if (!utility::re_managed_object::is_managed_object(obj)) {
+    if (!REManagedObject::is_managed_object(obj)) {
         throw sol::error{(std::stringstream{} << "sol_lua_push: " << (uintptr_t)obj << " is not a managed object").str()};
     }
 
@@ -65,7 +65,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     // addendum: only do it when reference count is > 0, local objects seem buggy...
     if (force || (int32_t)obj->get_ref_count() > 0) {
         if (!force) {
-            utility::re_managed_object::add_ref(obj);
+            obj->add_ref();
         }
 
         // the reference counting is not necessary, but it will let us
@@ -87,7 +87,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
             // only add the ref once when the user requests it
             // so they don't screw something up
             if (force) {
-                utility::re_managed_object::add_ref(obj);
+                obj->add_ref();
             }
 
             ref_counts[(uintptr_t)obj] = 1;
@@ -129,11 +129,11 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
 }
 
 ::REManagedObject* add_ref_permanent(sol::this_state s, ::REManagedObject* obj) {
-    if (!utility::re_managed_object::is_managed_object(obj)) {
+    if (!REManagedObject::is_managed_object(obj)) {
         throw sol::error{(std::stringstream{} << "add_ref_permanent: " << (uintptr_t)obj << " is not a managed object").str()};
     } 
 
-    utility::re_managed_object::add_ref(obj);
+    obj->add_ref();
 
     return obj;
 }
@@ -149,8 +149,8 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
     if (std::optional<int> ref_count = ref_counts[(uintptr_t)obj]; ref_count && *ref_count > 0) {
         // because of our internal refcount keeping, we shouldn't need to double check
         // whether it's an actual object or not. hopefully?
-        //if (utility::re_managed_object::is_managed_object(obj)) {
-            utility::re_managed_object::release(obj);
+        //if (REManagedObject::is_managed_object(obj)) {
+            obj->release();
         //}
 
         int new_ref_count = *ref_count - 1;
@@ -167,8 +167,8 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
 
         //ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
     } else if (std::optional<int> ephemeral_count = ephemeral_counts[(uintptr_t)obj]; ephemeral_count && *ephemeral_count > 0) {
-        if (force && utility::re_managed_object::is_managed_object(obj)) {
-            utility::re_managed_object::release(obj);
+        if (force && REManagedObject::is_managed_object(obj)) {
+            obj->release();
         }
 
         // ephemeral counts don't actually release the object, they just decrement the count.
@@ -182,8 +182,8 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
         }
     } else {
         if (force) {
-            if (utility::re_managed_object::is_managed_object(obj)) {
-                utility::re_managed_object::release(obj);
+            if (REManagedObject::is_managed_object(obj)) {
+                obj->release();
             }
         } else {
             spdlog::warn("REManagedObject:release attempted to release an object that was not managed by our Lua state");
@@ -219,7 +219,7 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
 
             if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
                 uint32_t typename_hash = 0;
-                const auto td = utility::re_managed_object::get_type_definition(obj);
+                const auto td = obj->get_type_definition();
 
                 if (td != nullptr) {
                     if (auto it = api::sdk::s_fnv_cache.find(td); it != api::sdk::s_fnv_cache.end()) {
@@ -763,13 +763,13 @@ sol::object create_global_object(sol::this_state &s, ::REManagedObject *obj) {
 
     // Mark object as global so that lua knows
     if (is_currently_local) {
-        utility::re_managed_object::add_ref(obj);
+        obj->add_ref();
     }
 
     auto obj_safe = sol::make_object(s, obj);
 
     if (is_currently_local) {
-        utility::re_managed_object::release(obj);
+        obj->release();
     }
 
     return obj_safe;
@@ -950,7 +950,7 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
         switch (full_name_hash) {
         case "System.String"_fnv: {
             const auto managed_ret_val = *(::REManagedObject**)data;
-            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - REManagedObject::runtime_size());
+            const auto managed_str = (SystemString*)((uintptr_t)managed_ret_val->get_field_ptr() - REManagedObject::runtime_size());
             const auto str = utility::narrow(managed_str->data);
 
             return sol::make_object(l, str);
@@ -1048,7 +1048,7 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
                 case via::clr::VMObjType::Array:
                     return sol::make_object(l, *(::sdk::SystemArray**)data);
                 default: {
-                    const auto td = utility::re_managed_object::get_type_definition(*(::REManagedObject**)data);
+                    const auto td = (*(::REManagedObject**)data)->get_type_definition();
 
                     // another fallback incase the method returns an object which is an array
                     if (td != nullptr && td->get_vm_obj_type() == via::clr::VMObjType::Array) {
@@ -1181,7 +1181,7 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                 REManagedObject** field = (REManagedObject**) data;
                 if (field != nullptr && *field != new_data) {
                     if (new_data != nullptr) {
-                        utility::re_managed_object::add_ref(new_data);
+                        new_data->add_ref();
                     }
 
                     // Use a thread-safe atomic exchange. This is what Capcom does for all field assignments.
@@ -1191,7 +1191,7 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                     }
 
                     if (old != nullptr) {
-                        utility::re_managed_object::release(old);
+                        old->release();
                     }
                 }
 
@@ -1371,7 +1371,7 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
         return sol::make_object(obj.lua_state(), sol::nil);
     }
 
-    auto def = utility::re_managed_object::get_type_definition((::REManagedObject*)real_obj);
+    auto def = ((::REManagedObject*)real_obj)->get_type_definition();
 
     if (def == nullptr) {
         return sol::make_object(obj.lua_state(), sol::nil);
@@ -1391,7 +1391,7 @@ bool is_managed_object(sol::object obj) {
         return false;
     }
 
-    return utility::re_managed_object::is_managed_object(real_obj);
+    return REManagedObject::is_managed_object(real_obj);
 }
 
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_object) {
@@ -1420,7 +1420,7 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
     }
     auto index = args[0];
 
-    auto type_def = utility::re_managed_object::get_type_definition(obj);
+    auto type_def = obj->get_type_definition();
     std::string name;
     if (index.is<const char*>()) {
         name = index.as<const char*>();
@@ -1473,7 +1473,7 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
     auto index = args[0];
     auto assign = args[1];
 
-    auto type_def = utility::re_managed_object::get_type_definition(obj);
+    auto type_def = obj->get_type_definition();
     std::string name;
     if (index.is<const char*>()) {
         name = index.as<const char*>();
@@ -1510,11 +1510,11 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
 }
 
 bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
-    if (obj == nullptr || !::utility::re_managed_object::is_managed_object(obj)) {
+    if (obj == nullptr || !REManagedObject::is_managed_object(obj)) {
         return false;
     }
 
-    const auto typedefinition = ::utility::re_managed_object::get_type_definition(obj);
+    const auto typedefinition = obj->get_type_definition();
 
     if (typedefinition == nullptr) {
         return false;
@@ -1523,7 +1523,7 @@ bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
     auto size = typedefinition->get_size();
 
     if (typedefinition->is_array()) {
-        size = utility::re_managed_object::get_size(obj);
+        size = obj->get_size();
     }
 
     // trying to limit the impact of this function.
@@ -1648,7 +1648,7 @@ void bindings::open_sdk(ScriptState* s) {
         }
 
         auto data = data_obj.as<std::vector<uint8_t>>();
-        auto result = ::utility::re_managed_object::deserialize(data.data(), data.size(), false);
+        auto result = REManagedObject::deserialize(data.data(), data.size(), false);
 
         // Explicitly create a lua table so we know for certain we are
         // pushing the REManagedObjects to the stack, adding a reference to them.
@@ -1804,7 +1804,7 @@ void bindings::open_sdk(ScriptState* s) {
                     return sol::make_object(l, sol::nil);
                 }
 
-                auto ty = utility::re_managed_object::get_type_definition(managed_obj);
+                auto ty = managed_obj->get_type_definition();
 
                 if (ty == nullptr) {
                     return sol::make_object(l, sol::nil);
@@ -1853,25 +1853,25 @@ void bindings::open_sdk(ScriptState* s) {
                 }
             }
 
-            return ::utility::re_managed_object::deserialize_native(obj, data.data(), data.size(), objects);
+            return obj->deserialize_native(data.data(), data.size(), objects);
         },
         "get_reference_count", [] (::REManagedObject* obj) { return obj->get_ref_count(); },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
-        "get_type_definition", &utility::re_managed_object::get_type_definition,
+        "get_type_definition", [](::REManagedObject* obj) { return obj->get_type_definition(); },
         "get_field", [s](REManagedObject* obj, const char* name) {
             if (obj == nullptr) {
                 return sol::make_object(s->lua(), sol::nil);
             }
 
-            return api::sdk::get_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name); 
+            return api::sdk::get_native_field(sol::make_object(s->lua(), obj), obj->get_type_definition(), name); 
         },
-        "get_object_size", &utility::re_managed_object::get_size,
+        "get_object_size", [](::REManagedObject* obj) { return obj->get_size(); },
         "set_field", [s](REManagedObject* obj, const char* name, sol::object value) {
             if (obj == nullptr) {
                 return;
             }
 
-            return api::sdk::set_native_field(sol::this_state{s->lua()}, sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+            return api::sdk::set_native_field(sol::this_state{s->lua()}, sol::make_object(s->lua(), obj), obj->get_type_definition(), name, value); 
         },
         "call", [s](REManagedObject* obj, const char* name, sol::variadic_args args) {
             if (obj == nullptr) {

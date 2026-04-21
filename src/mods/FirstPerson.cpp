@@ -334,7 +334,7 @@ void FirstPerson::on_pre_update_transform(RETransform* transform) {
         const auto is_paused = gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::PAUSE || gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::INVENTORY;
 
         m_last_pause_state = is_paused;
-        m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
+        m_last_camera_type = m_camera_system->get_reflection_property<app::ropeway::camera::CameraControlType>("BusyCameraType");
 
         m_cached_bone_matrix = nullptr;
 
@@ -460,7 +460,7 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
     }
 
     if (CAMSYS(m_camera_system, cameraController) == m_player_camera_controller) {
-        m_ignore_next_player_angles = m_ignore_next_player_angles || utility::re_managed_object::get_field<bool>(CAMSYS(m_camera_system, mainCameraController), "SwitchingCamera");
+        m_ignore_next_player_angles = m_ignore_next_player_angles || ((::REManagedObject*)CAMSYS(m_camera_system, mainCameraController))->get_reflection_property<bool>("SwitchingCamera");
 
         if (m_ignore_next_player_angles) {
             // keep ignoring player input until no longer switching cameras
@@ -976,7 +976,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
                 if (arm_fit_data != nullptr) {
                     //spdlog::info("First element: {:x}", (uintptr_t)first_element);
 
-                    auto arm_fit_data_t = utility::re_managed_object::get_type_definition(arm_fit_data);
+                    auto arm_fit_data_t = arm_fit_data->get_type_definition();
                     auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
                     auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
 
@@ -1000,7 +1000,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
                             if (first_solver != nullptr) {
                                 //spdlog::info("First solver: {:x}", (uintptr_t)first_solver);
 
-                                auto first_solver_t = utility::re_managed_object::get_type_definition(first_solver);
+                                auto first_solver_t = first_solver->get_type_definition();
                                 auto apply_joint_field = first_solver_t->get_field("<ApplyJoint>k__BackingField");
                                 auto& apply_joint = apply_joint_field->get_data<REJoint*>(first_solver);
 
@@ -1156,13 +1156,13 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
             static auto implement_gun_typedef = sdk::find_type_definition(game_namespace("implement.Gun"));
             static auto implement_melee_typedef = sdk::find_type_definition(game_namespace("implement.Melee"));
 
-            auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
+            auto main_weapon_t = main_weapon->get_type_definition();
 
             if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_gun_typedef)) {
                 auto& fire_bullet_param = *sdk::get_object_field<REManagedObject*>(main_weapon, "<FireBulletParam>k__BackingField");
 
                 if (fire_bullet_param != nullptr) {
-                    auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
+                    auto fire_bullet_param_t = fire_bullet_param->get_type_definition();
                     auto& fire_bullet_type = *sdk::get_object_field<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param, "_FireBulletType");
 
                     // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
@@ -1172,7 +1172,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
                         auto is_grenade = false;
 
                         if (shell_generator != nullptr) {
-                            auto shell_generator_t = utility::re_managed_object::get_type_definition(shell_generator);
+                            auto shell_generator_t = shell_generator->get_type_definition();
 
                             if (shell_generator_t != nullptr && shell_generator_t->is_a(throw_grenade_generator_type)) {
                                 is_grenade = true;
@@ -1266,7 +1266,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
 
             sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::None);
             sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &zero_offset);
-            utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::Center);
+            REManagedObject::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::Center);
 
             return;
         }
@@ -1335,7 +1335,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
         // so the head adjustment will be more accurate and smooth if the player is standing straight.
         // a small side effect is that the player can slightly float, but it's worth it.
         // not a TDB method unfortunately.
-        utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
+        REManagedObject::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
         update_player_arm_ik(transform);
     }
 }
@@ -1470,11 +1470,11 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     const auto gui_state = *sdk::get_object_field<int32_t>(m_gui_master, "<State_>k__BackingField");
     const auto is_paused = gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::PAUSE || gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::INVENTORY;
 
-    m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
+    m_last_camera_type = m_camera_system->get_reflection_property<app::ropeway::camera::CameraControlType>("BusyCameraType");
     m_last_pause_state = is_paused;
 
     const auto is_player_camera = m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER && !is_paused;
-    const auto is_switching_camera = utility::re_managed_object::get_field<bool>(CAMSYS(m_camera_system, mainCameraController), "SwitchingCamera");
+    const auto is_switching_camera = ((::REManagedObject*)CAMSYS(m_camera_system, mainCameraController))->get_reflection_property<bool>("SwitchingCamera");
     const auto is_player_in_control = (is_player_camera && !is_switching_camera && !m_last_pause_state);
     const auto is_switching_to_player_camera = is_player_camera && is_switching_camera;
 

@@ -183,11 +183,11 @@ sdk::NativeArray<RenderLayer*>& RenderLayer::get_layers() {
                 continue;
             }
 
-            if (!utility::re_managed_object::is_managed_object(potential_layer)) {
+            if (!REManagedObject::is_managed_object(potential_layer)) {
                 continue;
             }
 
-            if (utility::re_managed_object::is_a(potential_layer, "via.render.RenderLayer")) {
+            if (potential_layer->is_a("via.render.RenderLayer")) {
                 layers_offset = i;
                 break;
             }
@@ -207,7 +207,7 @@ RenderLayer** RenderLayer::find_layer(::REType* layer_type) {
             continue;
         }
 
-        const auto t = utility::re_managed_object::get_type(layer);
+        const auto t = layer->get_type();
 
         if (t == layer_type) {
             return &layer;
@@ -225,7 +225,7 @@ std::tuple<RenderLayer*, RenderLayer**> RenderLayer::find_layer_recursive(const 
             continue;
         }
 
-        const auto t = utility::re_managed_object::get_type(layer);
+        const auto t = layer->get_type();
 
         if (t == layer_type) {
             return std::make_tuple<RenderLayer*, RenderLayer**>(this, &layer);
@@ -265,7 +265,7 @@ std::vector<RenderLayer*> RenderLayer::find_layers(::REType* layer_type) {
             continue;
         }
 
-        const auto t = utility::re_managed_object::get_type(layer);
+        const auto t = layer->get_type();
 
         if (t == layer_type) {
             out.push_back(layer);
@@ -341,7 +341,7 @@ RenderLayer* RenderLayer::find_parent(::REType* layer_type) {
             break;
         }
 
-        const auto t = utility::re_managed_object::get_type(parent);
+        const auto t = parent->get_type();
 
         if (t == layer_type) {
             return parent;
@@ -352,7 +352,7 @@ RenderLayer* RenderLayer::find_parent(::REType* layer_type) {
 }
 
 RenderLayer* RenderLayer::clone(bool recursive) {
-    auto new_layer = (RenderLayer*)utility::re_managed_object::get_type_definition(this)->create_instance_full();
+    auto new_layer = (RenderLayer*)this->get_type_definition()->create_instance_full();
 
     if (new_layer == nullptr) {
         spdlog::error("[Renderer] Failed to clone layer");
@@ -381,7 +381,7 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
             continue;
         }
 
-        const auto def = utility::re_managed_object::get_type_definition(child_layer);
+        const auto def = child_layer->get_type_definition();
 
         if (def == nullptr) {
             continue;
@@ -406,7 +406,7 @@ void RenderLayer::clone_layers(RenderLayer* other, bool recursive) {
 }
 
 ::sdk::renderer::TargetState* RenderLayer::get_target_state(std::string_view name) {
-    return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, name);
+    return this->get_reflection_property<::sdk::renderer::TargetState*>(name);
 }
 
 void RenderContext::set_pipeline_state(sdk::renderer::PipelineState* pipeline_state) {
@@ -910,7 +910,7 @@ ConstantBuffer* Renderer::get_constant_buffer(std::string_view name) const {
     static auto tdef = sdk::find_type_definition("via.render.Renderer");
     static auto t = tdef->get_type();
     const auto field_desc = utility::re_type::get_field_desc(t, name);
-    return utility::re_managed_object::get_field<ConstantBuffer*>((::REManagedObject*)this, field_desc);
+    return ((::REManagedObject*)this)->get_reflection_property<ConstantBuffer*>(field_desc);
 }
 
 Renderer* get_renderer() {
@@ -1006,11 +1006,11 @@ RenderLayer* get_root_layer() {
                     continue;
                 }
 
-                if (!utility::re_managed_object::is_managed_object(ptr)) {
+                if (!REManagedObject::is_managed_object(ptr)) {
                     continue;
                 }
 
-                if (utility::re_managed_object::is_a(ptr, "via.render.RenderLayer")) {
+                if (ptr->is_a("via.render.RenderLayer")) {
                     root_layer_offset = i;
                     spdlog::info("[Renderer] Found root_layer_offset with fallback: {:x}", root_layer_offset);
                     return *(RenderLayer**)((uintptr_t)renderer + root_layer_offset);
@@ -1088,11 +1088,11 @@ RenderLayer* find_layer(::REType* layer_type) {
                 continue;
             }
 
-            if (!utility::re_managed_object::is_managed_object(ptr)) {
+            if (!REManagedObject::is_managed_object(ptr)) {
                 continue;
             }
 
-            if (utility::re_managed_object::is_a(ptr, "via.render.RenderLayer")) {
+            if (ptr->is_a("via.render.RenderLayer")) {
                 layers_offset = i;
                 break;
             }
@@ -1113,7 +1113,7 @@ RenderLayer* find_layer(::REType* layer_type) {
             continue;
         }
 
-        const auto t = utility::re_managed_object::get_type(layer);
+        const auto t = layer->get_type();
 
         if (t == layer_type) {
             return layer;
@@ -1902,27 +1902,27 @@ bool layer::Scene::is_enabled() const {
 }
 
 sdk::renderer::SceneInfo* layer::Scene::get_scene_info() {
-    return utility::re_managed_object::get_field<SceneInfo*>(this, "SceneInfo");
+    return this->get_reflection_property<SceneInfo*>("SceneInfo");
 }
 
 sdk::renderer::SceneInfo* layer::Scene::get_depth_distortion_scene_info() {
-    return utility::re_managed_object::get_field<SceneInfo*>(this, "DepthDistortionSceneInfo");
+    return this->get_reflection_property<SceneInfo*>("DepthDistortionSceneInfo");
 }
 
 sdk::renderer::SceneInfo* layer::Scene::get_filter_scene_info() {
-    return utility::re_managed_object::get_field<SceneInfo*>(this, "FilterSceneInfo");
+    return this->get_reflection_property<SceneInfo*>("FilterSceneInfo");
 }
 
 sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_scene_info() {
-    return utility::re_managed_object::get_field<SceneInfo*>(this, "JitterDisableSceneInfo");
+    return this->get_reflection_property<SceneInfo*>("JitterDisableSceneInfo");
 }
 
 sdk::renderer::SceneInfo* layer::Scene::get_jitter_disable_post_scene_info() {
-    return utility::re_managed_object::get_field<SceneInfo*>(this, "JitterDisablePostSceneInfo");
+    return this->get_reflection_property<SceneInfo*>("JitterDisablePostSceneInfo");
 }
 
 sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
-    return utility::re_managed_object::get_field<SceneInfo*>(this, "ZPrepassSceneInfo");
+    return this->get_reflection_property<SceneInfo*>("ZPrepassSceneInfo");
 }
 
 std::optional<size_t> layer::PrepareOutput::get_output_state_offset() {
@@ -1993,15 +1993,15 @@ std::optional<size_t> layer::PrepareOutput::get_output_state_offset() {
 }
 
 Texture* layer::Scene::get_depth_stencil() {
-    return utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");;
+    return this->get_reflection_property<::sdk::renderer::Texture*>("DepthStencilTex");;
 }
 
 TargetState* layer::Scene::get_motion_vectors_state() {
-    return utility::re_managed_object::get_field<::sdk::renderer::TargetState*>(this, "VelocityTarget");
+    return this->get_reflection_property<::sdk::renderer::TargetState*>("VelocityTarget");
 }
 
 ID3D12Resource* layer::Scene::get_depth_stencil_d3d12() {
-    const auto tex = utility::re_managed_object::get_field<::sdk::renderer::Texture*>(this, "DepthStencilTex");
+    const auto tex = this->get_reflection_property<::sdk::renderer::Texture*>("DepthStencilTex");
 
     if (tex == nullptr) {
         return nullptr;

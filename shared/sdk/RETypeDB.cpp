@@ -32,7 +32,7 @@ reframework::InvokeRet invoke_object_func(void* obj, sdk::RETypeDefinition* t, s
 }
 
 reframework::InvokeRet invoke_object_func(::REManagedObject* obj, std::string_view name, const std::vector<void*>& args) {
-    const auto t = utility::re_managed_object::get_type_definition(obj);
+    const auto t = obj->get_type_definition();
 
     if (t == nullptr) {
         return reframework::InvokeRet{};
@@ -103,7 +103,7 @@ sdk::RETypeDefinition* RETypeDB::find_type_by_fqn(uint32_t fqn) const {
 }
 
 sdk::REMethodDefinition* get_object_method(::REManagedObject* object, std::string_view name) {
-    auto t = utility::re_managed_object::get_type_definition(object);
+    auto t = object->get_type_definition();
 
     if (t == nullptr) {
         return nullptr;
@@ -702,8 +702,8 @@ void sdk::REMethodDefinition::invoke(void* object, const std::span<void*>& args,
 
                 const auto exception_managed_object = (::REManagedObject*)context->unkPtr->unkPtr;
 
-                if (utility::re_managed_object::is_managed_object(exception_managed_object)) {
-                    const auto exception_tdb_type = utility::re_managed_object::get_type_definition(exception_managed_object);
+                if (REManagedObject::is_managed_object(exception_managed_object)) {
+                    const auto exception_tdb_type = exception_managed_object->get_type_definition();
 
                     if (exception_tdb_type != nullptr) {
                         const auto exception_name = exception_tdb_type->get_full_name();

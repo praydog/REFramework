@@ -206,7 +206,7 @@ void ChainViewer::on_frame() {
 
     m_delta_time.update();
 
-    static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
+    static auto transform_def = first_transform->get_type_definition();
     static auto folder_def = sdk::find_type_definition("via.Folder");
     static auto gameobject_def = sdk::find_type_definition("via.GameObject");
     static auto next_transform_method = transform_def->get_method("get_Next");

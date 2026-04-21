@@ -4,26 +4,26 @@
 
 namespace utility::re_component {
     static auto get_game_object(::REComponent* comp) {
-        //return utility::re_managed_object::get_field<::REGameObject*>(comp, "GameObject");
+        //return comp->get_reflection_property<::REGameObject*>("GameObject");
         return comp->get_game_object();
     }
 
     static auto get_valid(::REComponent* comp) {
-        return utility::re_managed_object::get_field<bool>(comp, "Valid");
+        return comp->get_reflection_property<bool>("Valid");
     }
 
     static auto get_chain(::REComponent* comp) {
-        return utility::re_managed_object::get_field<::REComponent*>(comp, "Chain");
+        return comp->get_reflection_property<::REComponent*>("Chain");
     }
 
     static auto get_delta_time(::REComponent* comp) {
-        return utility::re_managed_object::get_field<float>(comp, "DeltaTime");
+        return comp->get_reflection_property<float>("DeltaTime");
     }
 
     template<typename T = ::REComponent>
     static T* find(::REComponent* comp, std::string_view name) {
         for (auto child = comp->get_child_component(); child != nullptr && child != comp; child = child->get_child_component()) {
-            if (utility::re_managed_object::is_a(child, name)) {
+            if (child->is_a(name)) {
                 return (T*)child;
             }
         }
@@ -34,7 +34,7 @@ namespace utility::re_component {
     template<typename T = ::REComponent>
     static T* find(::REComponent* comp, REType* t) {
         for (auto child = comp->get_child_component(); child != nullptr && child != comp; child = child->get_child_component()) {
-            if (utility::re_managed_object::is_a(child, t)) {
+            if (child->is_a(t)) {
                 return (T*)child;
             }
         }
@@ -45,7 +45,7 @@ namespace utility::re_component {
     template<typename T = ::REComponent>
     static T** find_replaceable(::REComponent* comp, REType* t) {
         for (auto* child = &comp->child_component_ref(); *child != nullptr && *child != comp; child = &(*child)->child_component_ref()) {
-            if (utility::re_managed_object::is_a(*child, t)) {
+            if ((*child)->is_a(t)) {
                 return (T**)child;
             }
         }
@@ -69,7 +69,7 @@ namespace utility::re_component {
 
         arg.info = t->classInfo;
 
-        auto ret = utility::re_managed_object::call_method(comp->ownerGameObject, "getComponent", &arg);
+        auto ret = REManagedObject::call_method(comp->ownerGameObject, "getComponent", &arg);
 
         return (T *)ret->params.out_data;
     }*/

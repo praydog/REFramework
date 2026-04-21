@@ -201,7 +201,7 @@ void Camera::set_vignette_brightness(float value) noexcept {
         set_vignetting_brightness_method->call<void*>(sdk::get_thread_context(), m_tone_map, value);
     } else {
         // Not a TDB method.
-        utility::re_managed_object::call_method((::REManagedObject*)m_tone_map, "setVignettingBrightness", (double)value);
+        REManagedObject::call_method((::REManagedObject*)m_tone_map, "setVignettingBrightness", (double)value);
     }
 }
 

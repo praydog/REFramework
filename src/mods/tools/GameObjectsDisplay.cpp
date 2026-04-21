@@ -189,7 +189,7 @@ void GameObjectsDisplay::on_frame() {
         return;
     }
 
-    static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
+    static auto transform_def = first_transform->get_type_definition();
     static auto next_transform_method = transform_def->get_method("get_Next");
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
     static auto get_position_method = transform_def->get_method("get_Position");

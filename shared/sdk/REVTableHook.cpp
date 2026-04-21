@@ -56,7 +56,7 @@ uint32_t REVTableHook::calculate_vtable_size(void** vtable) const {
 bool REVTableHook::hook() {
     spdlog::info("[REVTableHook] Attempting to hook {:x}", (uintptr_t)m_object);
 
-    if (m_object == nullptr || !utility::re_managed_object::is_managed_object(m_object)) {
+    if (m_object == nullptr || !REManagedObject::is_managed_object(m_object)) {
         spdlog::error("[REVTableHook] Cannot hook invalid object {:x}", (uintptr_t)m_object);
         return false;
     }

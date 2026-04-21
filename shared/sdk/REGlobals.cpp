@@ -310,7 +310,7 @@ void REGlobals::refresh_map() {
             continue;
         }
 
-        auto t = utility::re_managed_object::safe_get_type(obj);
+        auto t = obj->safe_get_type();
 
         if (t == nullptr || t->get_type_name() == nullptr) {
             continue;

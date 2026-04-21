@@ -2505,7 +2505,7 @@ T call_native_func_easy(void* obj, sdk::RETypeDefinition* t, std::string_view na
 
 template <typename T, typename... Args> 
 T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) {
-    auto def = utility::re_managed_object::get_type_definition(obj);
+    auto def = obj->get_type_definition();
 
     return call_native_func<T>((void*)obj, def, name, args...);
 }
@@ -2513,7 +2513,7 @@ T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) 
 template <typename T, typename... Args> 
 T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... args) {
     if constexpr (sizeof(T) > sizeof(void*)) {
-        auto def = utility::re_managed_object::get_type_definition(obj);
+        auto def = obj->get_type_definition();
 
         T out{};
         call_native_func<T*>((void*)obj, def, name, &out, sdk::get_thread_context(), obj, args...);
@@ -2521,7 +2521,7 @@ T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... a
         return out;
     }
 
-    auto def = utility::re_managed_object::get_type_definition(obj);
+    auto def = obj->get_type_definition();
     return call_native_func<T>((void*)obj, def, name, sdk::get_thread_context(), obj, args...);
 }
 
@@ -2539,7 +2539,7 @@ T* get_native_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, 
 
 template<typename T>
 T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value_type) {
-    auto def = utility::re_managed_object::get_type_definition(obj);
+    auto def = obj->get_type_definition();
 
     return get_native_field<T>((void*)obj, def, name, is_value_type);
 }

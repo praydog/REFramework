@@ -2500,7 +2500,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 // Go through the children until we hit a blur filter
                 // And then remove it
                 /*for (auto child = sdk::call_object_func<REComponent*>(view, "get_Child", sdk::get_thread_context(), view); child != nullptr; child = sdk::call_object_func<REComponent*>(child, "get_Child", sdk::get_thread_context(), child)) {
-                    if (utility::re_managed_object::is_a(child, "via.gui.BlurFilter")) {
+                    if (child->is_a("via.gui.BlurFilter")) {
                         // Call remove()
                         sdk::call_object_func<void*>(child, "remove", sdk::get_thread_context(), child);
                         break;
@@ -2561,7 +2561,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     return;
                                 }
 
-                                const auto t = utility::re_managed_object::get_type_definition(object);
+                                const auto t = object->get_type_definition();
 
                                 if (t == nullptr || !t->is_a(transform_object_type)) {
                                     return;
@@ -2968,8 +2968,8 @@ void VR::on_pre_begin_rendering(void* entry) {
         if (pad != nullptr) {
             // Move direction
             // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-            const auto axis_l = (Vector2f)*utility::re_managed_object::get_field<Vector3f*>(pad, "AxisL");
-            const auto axis_r = (Vector2f)*utility::re_managed_object::get_field<Vector3f*>(pad, "AxisR");
+            const auto axis_l = (Vector2f)*pad->get_reflection_property<Vector3f*>("AxisL");
+            const auto axis_r = (Vector2f)*pad->get_reflection_property<Vector3f*>("AxisR");
 
             // Lerp the standing origin back to HMD position
             // if the user is moving

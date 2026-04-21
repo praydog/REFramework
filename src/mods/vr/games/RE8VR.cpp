@@ -1489,7 +1489,7 @@ void RE8VR::update_heal_gesture() {
 
         bool is_medicine = false;
         if (gi.is_re8()) {
-            is_medicine = utility::re_managed_object::get_type_definition(item)->is_a(app_medicine_core);
+            is_medicine = item->get_type_definition()->is_a(app_medicine_core);
         } else {
             auto item_internal = *sdk::get_object_field<::REManagedObject*>(item, "Item");
 

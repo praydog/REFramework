@@ -292,7 +292,7 @@ void IntegrityCheckBypass::disable_update_timers(std::string_view name) const {
     }
 
     // Get the sdk::RETypeDefinition of the manager
-    auto t = utility::re_managed_object::get_type_definition(manager);
+    auto t = manager->get_type_definition();
 
     if (t == nullptr) {
         return;
