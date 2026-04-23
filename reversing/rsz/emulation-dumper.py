@@ -583,7 +583,7 @@ def hook_code(emu, address, size, frame):
                                     "align": 1,
                                     "string": False,
                                     "list": False,
-                                    "offset": previous_member_offset
+                                    "offset": previous_member_offset + probale_element_size
                                 })
 
                         frame["last_deserialize_cur"] = val
