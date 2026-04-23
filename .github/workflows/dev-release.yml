@@ -112,4 +112,3 @@ jobs:
           makeLatest: true
           bodyFile: ${{github.workspace}}/nightly-body.md
           allowUpdates: true
-

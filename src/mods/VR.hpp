@@ -16,11 +16,15 @@
 #include "sdk/Math.hpp"
 #include "sdk/helpers/NativeObject.hpp"
 #include "sdk/Renderer.hpp"
+#include "sdk/intrusive_ptr.hpp"
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
 #include "vr/OverlayComponent.hpp"
 #include "vr/runtimes/OpenXR.hpp"
 #include "vr/runtimes/OpenVR.hpp"
+#include "vr/CameraDuplicator.hpp"
+
+#include "HookManager.hpp"
 
 #include "Mod.hpp"
 
@@ -28,8 +32,16 @@ class REManagedObject;
 
 class VR : public Mod {
 public:
+    enum RenderingTechnique {
+        ALTERNATING, // AFR
+        SEQUENTIAL_FRAME, // Two frames, synchronized
+        MULTIPASS // Native stereo rendering, single frame
+    };
+
+public:
     static std::shared_ptr<VR>& get();
 
+public:
     std::string_view get_name() const override { return "VR"; }
 
     // Called when the mod is initialized
@@ -94,9 +106,20 @@ public:
 
     int32_t get_frame_count() const;
     int32_t get_game_frame_count() const;
+    int32_t get_render_frame_count() const {
+        return m_render_frame_count;
+    }
 
     bool is_using_afr() const {
-        return m_use_afr->value();
+        return m_rendering_technique->value() == RenderingTechnique::ALTERNATING;
+    }
+
+    bool is_using_multipass() const {
+        return m_rendering_technique->value() == RenderingTechnique::MULTIPASS;
+    }
+
+    RenderingTechnique get_rendering_technique() const {
+        return (RenderingTechnique)m_rendering_technique->value();
     }
 
     // Functions that generally use a mutex or have more complex logic
@@ -116,6 +139,8 @@ public:
 
     Matrix4x4f get_current_eye_transform(bool flip = false);
     Matrix4x4f get_current_projection_matrix(bool flip = false);
+    Matrix4x4f get_projection_matrix(uint32_t pass);
+    Matrix4x4f get_eye_transform(uint32_t pass);
 
     auto& get_controllers() const {
         return m_controllers;
@@ -199,6 +224,27 @@ public:
     void unhide_crosshair() {
         m_last_crosshair_hide = std::chrono::steady_clock::now();
     }
+    
+    void notify_camera_destroyed(RECamera* camera) {
+        for (auto& existing_camera : m_multipass_cameras) {
+            if (existing_camera == camera) {
+                existing_camera = nullptr;
+            }
+        }
+    }
+
+    void set_multipass_camera(RECamera* camera, uint32_t index) {
+        if (index >= 2) {
+            return;
+        }
+
+        m_multipass_cameras[index] = camera;
+    }
+
+    std::array<RECamera*, 2> get_cameras() const;
+    auto& get_camera_duplicator() {
+        return m_camera_duplicator;
+    }
 
 private:
     Vector4f get_position_unsafe(uint32_t index) const;
@@ -212,6 +258,9 @@ private:
     void on_camera_get_projection_matrix(REManagedObject* camera, Matrix4x4f* result) override;
     static Matrix4x4f* gui_camera_get_projection_matrix_hook(REManagedObject* camera, Matrix4x4f* result);
     void on_camera_get_view_matrix(REManagedObject* camera, Matrix4x4f* result) override;
+    
+    static HookManager::PreHookResult pre_set_hdr_mode(std::vector<uintptr_t>& args, std::vector<sdk::RETypeDefinition*>& arg_tys, uintptr_t ret_addr);
+    static void post_set_hdr_mode(uintptr_t& ret_val, sdk::RETypeDefinition* ret_ty, uintptr_t ret_addr) {}
 
     bool on_pre_overlay_layer_update(sdk::renderer::layer::Overlay* layer, void* render_context) override;
     bool on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* render_context) override;
@@ -225,23 +274,33 @@ private:
     bool on_pre_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
     void on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) override;
     bool on_pre_scene_layer_draw(sdk::renderer::layer::Scene* layer, void* render_context) override;
-    bool m_set_next_scene_layer_data{false};
+
+    void on_prepare_output_layer_draw(sdk::renderer::layer::PrepareOutput* layer, void* render_context) override;
 
     struct SceneLayerData {
         SceneLayerData() = default;
-        SceneLayerData(sdk::renderer::SceneInfo* info) 
-            : scene_info(info)
-        {
+        SceneLayerData(sdk::renderer::SceneInfo* info) {
+            setup(info);
+        }
+
+        void setup(sdk::renderer::SceneInfo* info) {
+            scene_info = info;
             if (scene_info != nullptr) {
                 this->view_projection_matrix = scene_info->view_projection_matrix;
             }
         }
 
+        void post_setup(int32_t index) {
+            scene_info->old_view_projection_matrix = previous_view_projection_matrices[(index - 1) % 2];
+            previous_view_projection_matrices[index % 2] = scene_info->view_projection_matrix;
+        }
+
         sdk::renderer::SceneInfo* scene_info{};
         Matrix4x4f view_projection_matrix{};
+        std::array<Matrix4x4f, 2> previous_view_projection_matrices{};
     };
 
-    std::array<SceneLayerData, 5> m_scene_layer_data {};
+    std::unordered_map<sdk::renderer::layer::Scene*, std::array<SceneLayerData, 5>> m_scene_layer_data {};
 
     static void wwise_listener_update_hook(void* listener);
 
@@ -331,6 +390,7 @@ private:
     
     mutable std::recursive_mutex m_openvr_mtx{};
     mutable std::recursive_mutex m_wwise_mtx{};
+    mutable std::recursive_mutex m_scene_update_mtx{};
     mutable std::shared_mutex m_gui_mtx{};
     mutable std::shared_mutex m_rotation_mtx{};
 
@@ -342,6 +402,8 @@ private:
 
     float m_nearz{ 0.1f };
     float m_farz{ 3000.0f };
+
+    std::array<RECamera*, 2> m_multipass_cameras{};
 
     std::shared_ptr<VRRuntime> m_runtime{std::make_shared<VRRuntime>()}; // will point to the real runtime if it exists
     std::shared_ptr<runtimes::OpenVR> m_openvr{std::make_shared<runtimes::OpenVR>()};
@@ -435,6 +497,18 @@ private:
     vrmod::D3D11Component m_d3d11{};
     vrmod::D3D12Component m_d3d12{};
     vrmod::OverlayComponent m_overlay_component{};
+    vrmod::CameraDuplicator m_camera_duplicator{};
+
+    template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
+
+    struct MultiPass {
+        std::array<d3d12::TextureContext, 2> eye_contexts{}; // For the SRV
+        std::array<ComPtr<ID3D12Resource>, 2> eye_textures{};
+        std::array<sdk::intrusive_ptr<sdk::renderer::Texture>, 2> native_res_copies{}; // used with TemporalUpscaler disabled
+        std::array<uint32_t, 2> allocated_size{};
+        uint32_t pass{0};
+    } m_multipass{};
+    
 
     Vector4f m_original_camera_position{ 0.0f, 0.0f, 0.0f, 0.0f };
     glm::quat m_original_camera_rotation{ glm::identity<glm::quat>() };
@@ -494,7 +568,20 @@ private:
     const ModKey::Ptr m_set_standing_key{ ModKey::create(generate_name("SetStandingOriginKey")) };
     const ModKey::Ptr m_recenter_view_key{ ModKey::create(generate_name("RecenterViewKey")) };
     const ModToggle::Ptr m_decoupled_pitch{ ModToggle::create(generate_name("DecoupledPitch"), false) };
-    const ModToggle::Ptr m_use_afr{ ModToggle::create(generate_name("AlternateFrameRendering"), false) };
+    const ModCombo::Ptr m_rendering_technique{ 
+        ModCombo::create(generate_name("RenderingTechnique_V2"),
+        {
+            "Alternating/AFR", 
+            "Two Frame Sequential", 
+            "Single Frame Multipass"
+        }, 
+#if TDB_VER < 69
+        1 // Previous rendering technique
+#else
+        2 // New rendering technique
+#endif
+        ) 
+    };
     const ModToggle::Ptr m_use_custom_view_distance{ ModToggle::create(generate_name("UseCustomViewDistance"), false) };
     const ModToggle::Ptr m_hmd_oriented_audio{ ModToggle::create(generate_name("HMDOrientedAudio"), true) };
     const ModSlider::Ptr m_view_distance{ ModSlider::create(generate_name("CustomViewDistance"), 10.0f, 3000.0f, 500.0f) };
@@ -506,7 +593,14 @@ private:
     const ModSlider::Ptr m_resolution_scale{ ModSlider::create(generate_name("OpenXRResolutionScale"), 0.1f, 5.0f, 1.0f) };
 
     const ModToggle::Ptr m_force_fps_settings{ ModToggle::create(generate_name("ForceFPS"), true) };
+
+#if TDB_VER < 69
     const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing"), true) };
+#else
+    // On new versions, since we're using the new rendering technique, we don't need to turn AA off
+    const ModToggle::Ptr m_force_aa_settings{ ModToggle::create(generate_name("ForceAntiAliasing_V2"), false) };
+#endif
+
     const ModToggle::Ptr m_force_motionblur_settings{ ModToggle::create(generate_name("ForceMotionBlur"), true) };
     const ModToggle::Ptr m_force_vsync_settings{ ModToggle::create(generate_name("ForceVSync"), true) };
     const ModToggle::Ptr m_force_lensdistortion_settings{ ModToggle::create(generate_name("ForceLensDistortion"), true) };
@@ -540,7 +634,7 @@ private:
         *m_set_standing_key,
         *m_recenter_view_key,
         *m_decoupled_pitch,
-        *m_use_afr,
+        *m_rendering_technique,
         *m_use_custom_view_distance,
         *m_hmd_oriented_audio,
         *m_view_distance,

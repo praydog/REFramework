@@ -45,6 +45,17 @@ struct OpenXR final : public VRRuntime {
     }
 
     VRRuntime::Error synchronize_frame() override;
+    VRRuntime::Error fix_frame() override {
+        // sync if necessary.
+        VRRuntime::fix_frame();
+
+        if (!this->frame_began) {
+            this->begin_frame();
+        }
+
+        return VRRuntime::Error::SUCCESS;
+    }
+
     VRRuntime::Error update_poses() override;
     VRRuntime::Error update_render_target_size() override;
     uint32_t get_width() const override;
@@ -108,7 +119,6 @@ public:
     double prediction_scale{0.0};
     bool session_ready{false};
     bool frame_began{false};
-    bool frame_synced{false};
     bool profile_calls{false};
 
     std::chrono::high_resolution_clock::time_point profiler_start_time{};

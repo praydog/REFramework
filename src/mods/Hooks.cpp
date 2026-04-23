@@ -4,6 +4,7 @@
 #include <utility/Module.hpp>
 #include <utility/String.hpp>
 #include <utility/Memory.hpp>
+#include <utility/Profiler.hpp>
 
 #include "sdk/GUIPrimitiveSystem.hpp"
 #include "sdk/Application.hpp"
@@ -57,92 +58,102 @@ void Hooks::on_draw_ui() {
         return;
     }
 
-    ImGui::Text("Application Entry Times");
+    if (ImGui::TreeNode("Functions")) {
+        const auto datas = utility::Profiler::get_all_data();
 
-    std::vector<const char*> sorted_times{};
-    std::scoped_lock _{m_profiler_mutex};
+        for (auto it : datas) {
+            if (ImGui::TreeNode(it.first.data())) {
+                const auto& data = it.second;
 
-    std::chrono::high_resolution_clock::duration total_reframework_time{};
-    std::chrono::high_resolution_clock::duration total_game_time{};
+                ImGui::Text("Total Time: %.2fms", data.total.count() / 1000000.0f);
+                ImGui::Text("Last Time: %.2fms", data.last.count() / 1000000.0f);
+                ImGui::Text("Min Time: %.2fms", data.min.count() / 1000000.0f);
+                ImGui::Text("Max Time: %.2fms", data.max.count() / 1000000.0f);
 
-    for (auto& entry : m_application_entry_times) {
-        sorted_times.emplace_back(entry.first);
-        total_reframework_time += entry.second.reframework_pre_time + entry.second.reframework_post_time;
-        total_game_time += entry.second.callback_time;
+                ImGui::TreePop();
+            }
+        }
+
+        ImGui::TreePop();
     }
 
-    std::sort(sorted_times.begin(), sorted_times.end(), [&](const char* a, const char* b) {
-        const auto& a_entry = m_application_entry_times[a];
-        const auto& b_entry = m_application_entry_times[b];
+    if (ImGui::TreeNode("Application Entry Times")) {
+        std::vector<const char*> sorted_times{};
+        std::scoped_lock _{m_profiler_mutex};
 
-        return a_entry.callback_time + a_entry.reframework_pre_time + a_entry.reframework_post_time 
-                > b_entry.callback_time + b_entry.reframework_pre_time + b_entry.reframework_post_time;
-    });
+        std::chrono::high_resolution_clock::duration total_reframework_time{};
+        std::chrono::high_resolution_clock::duration total_game_time{};
 
-    ImGui::Text("Total REFramework Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_reframework_time).count());
-    ImGui::Text("Total Game Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_game_time).count());
-
-    for (auto name : sorted_times) {
-        auto& entry = m_application_entry_times[name];
-        
-        ImGui::SetNextItemOpen(true);
-
-        if (ImGui::TreeNode(name)) {
-            ImGui::Text("Game Time: %s: %.2fms", name, entry.callback_time.count() / 1000000.0f);
-            ImGui::Text("REFramework Pre Time: %.2fms", entry.reframework_pre_time.count() / 1000000.0f);
-            ImGui::Text("REFramework Post Time: %.2fms", entry.reframework_post_time.count() / 1000000.0f);
-            ImGui::Text("Total Time: %.2fms", (entry.callback_time + entry.reframework_pre_time + entry.reframework_post_time).count() / 1000000.0f);
-            
-            ImGui::TreePop();
+        for (auto& entry : m_application_entry_times) {
+            sorted_times.emplace_back(entry.first);
+            total_reframework_time += entry.second.reframework_pre_time + entry.second.reframework_post_time;
+            total_game_time += entry.second.callback_time;
         }
+
+        std::sort(sorted_times.begin(), sorted_times.end(), [&](const char* a, const char* b) {
+            const auto& a_entry = m_application_entry_times[a];
+            const auto& b_entry = m_application_entry_times[b];
+
+            return a_entry.callback_time + a_entry.reframework_pre_time + a_entry.reframework_post_time 
+                    > b_entry.callback_time + b_entry.reframework_pre_time + b_entry.reframework_post_time;
+        });
+
+        ImGui::Text("Total REFramework Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_reframework_time).count());
+        ImGui::Text("Total Game Time: %.3fms", std::chrono::duration_cast<std::chrono::duration<float, std::milli>>(total_game_time).count());
+
+        for (auto name : sorted_times) {
+            auto& entry = m_application_entry_times[name];
+            
+            ImGui::SetNextItemOpen(true);
+
+            if (ImGui::TreeNode(name)) {
+                ImGui::Text("Game Time: %s: %.2fms", name, entry.callback_time.count() / 1000000.0f);
+                ImGui::Text("REFramework Pre Time: %.2fms", entry.reframework_pre_time.count() / 1000000.0f);
+                ImGui::Text("REFramework Post Time: %.2fms", entry.reframework_post_time.count() / 1000000.0f);
+                ImGui::Text("Total Time: %.2fms", (entry.callback_time + entry.reframework_pre_time + entry.reframework_post_time).count() / 1000000.0f);
+                
+                ImGui::TreePop();
+            }
+        }
+
+        ImGui::TreePop();
     }
 }
 
 #define LAYER_HOOK_BODY(x, x2, x3) \
-if (!g_framework->is_ready()) {\
-    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
-    original_func(layer, render_ctx); \
-    return; \
-} \
-bool any_false = false; \
-const auto& mods = g_framework->get_mods()->get_mods(); \
-for (auto& mod : mods) { \
-    const auto result = mod->on_pre_##x##_layer_##x3##(layer, render_ctx); \
-    if (!result) { \
-        any_false = true; \
+void Hooks::RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##(sdk::renderer::layer::##x2##* layer, void* render_ctx) {\
+    if (!g_framework->is_ready()) {\
+        auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+        original_func(layer, render_ctx); \
+        return; \
     } \
-} \
-if (!any_false) { \
-    auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
-    original_func(layer, render_ctx); \
-} \
-for (auto& mod : mods) { \
-    mod->on_##x##_layer_##x3##(layer, render_ctx); \
+    bool any_false = false; \
+    const auto& mods = g_framework->get_mods()->get_mods(); \
+    for (auto& mod : mods) { \
+        const auto result = mod->on_pre_##x##_layer_##x3##(layer, render_ctx); \
+        if (!result) { \
+            any_false = true; \
+        } \
+    } \
+    if (!any_false) { \
+        auto original_func = g_hook->m_layer_hooks.##x##.##x3##_hook->get_original<decltype(RenderLayerHook<sdk::renderer::layer::##x2##>::##x3##)>();\
+        original_func(layer, render_ctx); \
+    } \
+    for (auto& mod : mods) { \
+        mod->on_##x##_layer_##x3##(layer, render_ctx); \
+    }\
 }
 
-void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::update(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(scene, Scene, update);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Scene>::draw(sdk::renderer::layer::Scene* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(scene, Scene, draw);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::update(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(post_effect, PostEffect, update);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::PostEffect>::draw(sdk::renderer::layer::PostEffect* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(post_effect, PostEffect, draw);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::update(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(overlay, Overlay, update);
-}
-
-void Hooks::RenderLayerHook<sdk::renderer::layer::Overlay>::draw(sdk::renderer::layer::Overlay* layer, void* render_ctx) {
-    LAYER_HOOK_BODY(overlay, Overlay, draw);
-}
+LAYER_HOOK_BODY(scene, Scene, update);
+LAYER_HOOK_BODY(scene, Scene, draw);
+LAYER_HOOK_BODY(post_effect, PostEffect, update);
+LAYER_HOOK_BODY(post_effect, PostEffect, draw);
+LAYER_HOOK_BODY(overlay, Overlay, update);
+LAYER_HOOK_BODY(overlay, Overlay, draw);
+LAYER_HOOK_BODY(prepare_output, PrepareOutput, update);
+LAYER_HOOK_BODY(prepare_output, PrepareOutput, draw);
+LAYER_HOOK_BODY(output, Output, update);
+LAYER_HOOK_BODY(output, Output, draw);
 
 std::optional<std::string> Hooks::hook_update_transform() {
     auto game = g_framework->get_module().as<HMODULE>();

@@ -8,12 +8,17 @@ VRRuntime::Error OpenVR::synchronize_frame() {
         return VRRuntime::Error::SUCCESS;
     }
 
+    if (this->frame_synced) {
+        return VRRuntime::Error::SUCCESS;
+    }
+
     vr::VRCompositor()->SetTrackingSpace(vr::TrackingUniverseStanding);
     auto ret = vr::VRCompositor()->WaitGetPoses(this->real_render_poses.data(), vr::k_unMaxTrackedDeviceCount, this->real_game_poses.data(), vr::k_unMaxTrackedDeviceCount);
 
     if (ret == vr::VRCompositorError_None) {
         this->got_first_valid_poses = true;
         this->got_first_sync = true;
+        this->frame_synced = true;
     }
 
     return (VRRuntime::Error)ret;

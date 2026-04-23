@@ -238,6 +238,22 @@ public:
         }
     }
 
+    void config_load(const utility::Config& cfg) override {
+        ModValue<int32_t>::config_load(cfg);
+
+        if (m_value >= (int32_t)m_options.size()) {
+            if (!m_options.empty()) {
+                m_value = m_options.size() - 1;
+            } else {
+                m_value = 0;
+            }
+        }
+
+        if (m_value < 0) {
+            m_value = 0;
+        }
+    };
+    
     const auto& options() const {
         return m_options;
     }
@@ -428,6 +444,8 @@ protected:
     using ValueList = std::vector<std::reference_wrapper<IModValue>>;
 
 public:
+    using Component = Mod;
+
     virtual ~Mod() {};
     virtual std::string_view get_name() const { return "UnknownMod"; };
 
@@ -447,6 +465,7 @@ public:
     virtual void on_pre_imgui_frame() {};
     // Functionally equivalent, but on_frame will always get called, on_draw_ui can be disabled by REFramework
     virtual void on_frame() {}; // BeginRendering, can be used for imgui
+    virtual void on_early_present() {}; // same as on_present but slightly earlier for explicitly timed mods
     virtual void on_present() {}; // actual present frame, CANNOT be used for imgui
     virtual void on_post_frame() {}; // after imgui rendering is done
     virtual void on_post_present() {}; // actually after present gets called
@@ -485,4 +504,6 @@ public:
     MAKE_LAYER_CALLBACK(Scene, scene);
     MAKE_LAYER_CALLBACK(PostEffect, post_effect);
     MAKE_LAYER_CALLBACK(Overlay, overlay);
+    MAKE_LAYER_CALLBACK(PrepareOutput, prepare_output);
+    MAKE_LAYER_CALLBACK(Output, output);
 };
