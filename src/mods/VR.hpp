@@ -19,6 +19,7 @@
 #include "vr/D3D11Component.hpp"
 #include "vr/D3D12Component.hpp"
 #include "vr/OverlayComponent.hpp"
+#include "vr/runtimes/XrDriver.hpp"
 #include "vr/runtimes/OpenXR.hpp"
 #include "vr/runtimes/OpenVR.hpp"
 
@@ -253,6 +254,7 @@ private:
     std::optional<std::string> initialize_openxr();
     std::optional<std::string> initialize_openxr_input();
     std::optional<std::string> initialize_openxr_swapchains();
+    std::optional<std::string> initialize_xr_driver();
     std::optional<std::string> hijack_resolution();
     std::optional<std::string> hijack_input();
     std::optional<std::string> hijack_camera();
@@ -292,7 +294,7 @@ private:
         m_openxr.reset();
         m_runtime.reset();
         m_runtime = std::make_shared<VRRuntime>();
-        
+
         m_controllers.clear();
         m_controllers_set.clear();
 
@@ -346,6 +348,7 @@ private:
     std::shared_ptr<VRRuntime> m_runtime{std::make_shared<VRRuntime>()}; // will point to the real runtime if it exists
     std::shared_ptr<runtimes::OpenVR> m_openvr{std::make_shared<runtimes::OpenVR>()};
     std::shared_ptr<runtimes::OpenXR> m_openxr{std::make_shared<runtimes::OpenXR>()};
+    std::shared_ptr<runtimes::XrDriver> m_xr_driver{std::make_shared<runtimes::XrDriver>()};
 
     Vector4f m_standing_origin{ 0.0f, 1.5f, 0.0f, 0.0f };
     glm::quat m_rotation_offset{ glm::identity<glm::quat>() };

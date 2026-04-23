@@ -22,6 +22,7 @@ struct VRRuntime {
         NONE,
         OPENXR,
         OPENVR,
+        XR_DRIVER,
     };
 
     enum class Eye : uint8_t {
@@ -101,6 +102,8 @@ struct VRRuntime {
     bool is_openvr() const {
         return this->type() == Type::OPENVR;
     }
+
+    bool is_xr_driver() const { return this->type() == Type::XR_DRIVER; }
 
     bool loaded{false};
     bool wants_reinitialize{false};
