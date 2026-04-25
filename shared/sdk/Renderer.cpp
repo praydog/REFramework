@@ -887,7 +887,15 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     };
 #endif
 
-    if (sdk::GameIdentity::get().tdb_ver() < 82) {
+    const auto& gi = sdk::GameIdentity::get();
+
+    // SF6 currently reaches a crash in the legacy copy_texture path after the
+    // scanner resolves a CopyImage callsite. Force the modern path so we use the
+    // newer signature and resolver instead of the legacy single-src/dst ABI.
+    if (gi.is_sf6()) {
+        spdlog::info("[SF6] Forcing modern RenderContext::copy_texture path");
+        copy_modern();
+    } else if (gi.tdb_ver() < 82) {
         copy_legacy();
     } else {
         copy_modern();
