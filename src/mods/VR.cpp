@@ -152,11 +152,10 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         auto& window_height = is_gng ? *(uint32_t*)((uintptr_t)window + 0x4C) : sdk::via::window_height(window);
 
         if (is_hmd_active()) {
-            if (gi.tdb_ver() <= 49) {
-                if (!g_previous_size) {
-                    g_previous_size = regenny::via::Size{ (float)sdk::via::window_width(window), (float)sdk::via::window_height(window) };
-                }
+            if (!g_previous_size) {
+                g_previous_size = regenny::via::Size{ (float)sdk::via::window_width(window), (float)sdk::via::window_height(window) };
             }
+
             window_width = get_hmd_width();
             window_height = get_hmd_height();
 
@@ -192,24 +191,16 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         } else {
             m_backbuffer_inconsistency = false;
 
-            if (gi.tdb_ver() > 49) {
-                window_width = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x88) : (uint32_t)sdk::via::window_borderless_w(window);
-                window_height = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x8C) : (uint32_t)sdk::via::window_borderless_h(window);
-            } else {
-                if (g_previous_size) {
-                    sdk::via::window_width(window) = (uint32_t)g_previous_size->w;
-                    sdk::via::window_height(window) = (uint32_t)g_previous_size->h;
-
-                    g_previous_size = std::nullopt;
-                }
-            }
+            window_width = (uint32_t)g_previous_size->w;
+            window_height = (uint32_t)g_previous_size->h;
+            g_previous_size = std::nullopt;
         }
 
         wanted_width = (float)window_width;
         wanted_height = (float)window_height;
 
         // Might be usable in other games too
-        if (gi.is_sf6() || gi.tdb_ver() >= 73) {
+        if (gi.is_sf6() || gi.tdb_ver() >= 69) {
             if (!is_gng) {
                 sdk::via::window_borderless_w(window) = (float)window_width;
                 sdk::via::window_borderless_h(window) = (float)window_height;

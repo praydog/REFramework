@@ -63,9 +63,10 @@ namespace ns_dd2 {
 namespace sdk::via {
 
 // Convenience aliases for the namespaced Window types.
+// The re3 regenny layout is for TDB < 69 (old RE3 build, DMC5). Current RE3 TDB70 uses RE2 layout.
 namespace W {
     using re7    = ns_re7::regenny::via::Window;
-    using re3    = ns_re3::regenny::via::Window;
+    using re3_tdb67 = ns_re3::regenny::via::Window;
     using re2    = ns_re2::regenny::via::Window;
     using mhrise = ns_mhrise::regenny::via::Window;
     using re8    = ns_re8::regenny::via::Window;
@@ -77,7 +78,7 @@ namespace W {
 
 namespace SV {
     using re7    = ns_re7::regenny::via::SceneView;
-    using re3    = ns_re3::regenny::via::SceneView;
+    using re3_tdb67 = ns_re3::regenny::via::SceneView;
     using re2    = ns_re2::regenny::via::SceneView;
     using mhrise = ns_mhrise::regenny::via::SceneView;
     using re8    = ns_re8::regenny::via::SceneView;
@@ -94,9 +95,9 @@ namespace SV {
 #define VIA_WIN_FIELD(w, field) \
     switch (sdk::GameIdentity::get().game()) { \
     case sdk::GameID::RE7:                                      \
-    case sdk::GameID::RE2:     return ((W::re2*)(w))->field;    \
     case sdk::GameID::RE3:                                      \
-    case sdk::GameID::DMC5:    return ((W::re3*)(w))->field;    \
+    case sdk::GameID::RE2:     return ((W::re2*)(w))->field;    \
+    case sdk::GameID::DMC5:    return ((W::re3_tdb67*)(w))->field;    \
     case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->field; \
     case sdk::GameID::GGR:                                           \
     case sdk::GameID::RE8:     return ((W::re8*)(w))->field;    \
@@ -119,9 +120,9 @@ inline uint32_t& window_height(void* w) { VIA_WIN_FIELD(w, height); }
 #define VIA_WIN_BORDERLESS(w, sub) \
     switch (sdk::GameIdentity::get().game()) { \
     case sdk::GameID::RE7:                                                     \
-    case sdk::GameID::RE2:     return ((W::re2*)(w))->borderless_size.sub;     \
     case sdk::GameID::RE3:                                                     \
-    case sdk::GameID::DMC5:    return ((W::re3*)(w))->borderless_size.sub;     \
+    case sdk::GameID::RE2:     return ((W::re2*)(w))->borderless_size.sub;     \
+    case sdk::GameID::DMC5:    return ((W::re3_tdb67*)(w))->borderless_size.sub;     \
     case sdk::GameID::MHRISE:  return ((W::mhrise*)(w))->borderless_size.sub;  \
     case sdk::GameID::GGR:                                           \
     case sdk::GameID::RE8:     return ((W::re8*)(w))->borderless_size.sub;     \
@@ -148,9 +149,9 @@ inline float& window_borderless_h(void* w) { VIA_WIN_BORDERLESS(w, h); }
 inline void* sv_window(void* sv) {
     switch (sdk::GameIdentity::get().game()) {
     case sdk::GameID::RE7:
-    case sdk::GameID::RE2:     return ((SV::re2*)sv)->window;
     case sdk::GameID::RE3:
-    case sdk::GameID::DMC5:    return ((SV::re3*)sv)->window;
+    case sdk::GameID::RE2:     return ((SV::re2*)sv)->window;
+    case sdk::GameID::DMC5:    return ((SV::re3_tdb67*)sv)->window;
     case sdk::GameID::MHRISE:  return ((SV::mhrise*)sv)->window;
     case sdk::GameID::GGR:
     case sdk::GameID::RE8:     return ((SV::re8*)sv)->window;
@@ -171,9 +172,9 @@ inline void* sv_window(void* sv) {
 #define VIA_SV_SIZE(sv, sub) \
     switch (sdk::GameIdentity::get().game()) { \
     case sdk::GameID::RE7:                                           \
-    case sdk::GameID::RE2:     return ((SV::re2*)(sv))->size.sub;    \
     case sdk::GameID::RE3:                                           \
-    case sdk::GameID::DMC5:    return ((SV::re3*)(sv))->size.sub;    \
+    case sdk::GameID::RE2:     return ((SV::re2*)(sv))->size.sub;    \
+    case sdk::GameID::DMC5:    return ((SV::re3_tdb67*)(sv))->size.sub;    \
     case sdk::GameID::MHRISE:  return ((SV::mhrise*)(sv))->size.sub; \
     case sdk::GameID::GGR:                                           \
     case sdk::GameID::RE8:     return ((SV::re8*)(sv))->size.sub;    \
@@ -197,9 +198,9 @@ inline float& sv_size_h(void* sv) { VIA_SV_SIZE(sv, h); }
 inline int32_t& sv_display_type(void* sv) {
     switch (sdk::GameIdentity::get().game()) {
     case sdk::GameID::RE7:
-    case sdk::GameID::RE2:     return *(int32_t*)&((SV::re2*)sv)->display_type;
     case sdk::GameID::RE3:
-    case sdk::GameID::DMC5:    return *(int32_t*)&((SV::re3*)sv)->display_type;
+    case sdk::GameID::RE2:     return *(int32_t*)&((SV::re2*)sv)->display_type;
+    case sdk::GameID::DMC5:    return *(int32_t*)&((SV::re3_tdb67*)sv)->display_type;
     case sdk::GameID::MHRISE:  return *(int32_t*)&((SV::mhrise*)sv)->display_type;
     case sdk::GameID::GGR:
     case sdk::GameID::RE8:     return *(int32_t*)&((SV::re8*)sv)->display_type;
@@ -220,9 +221,9 @@ inline size_t sv_display_type_offset() {
     #define SV_DT_OFF(T) ((size_t)&((T*)nullptr)->display_type)
     switch (sdk::GameIdentity::get().game()) {
     case sdk::GameID::RE7:
-    case sdk::GameID::RE2:     return SV_DT_OFF(SV::re2);
     case sdk::GameID::RE3:
-    case sdk::GameID::DMC5:    return SV_DT_OFF(SV::re3);
+    case sdk::GameID::RE2:     return SV_DT_OFF(SV::re2);
+    case sdk::GameID::DMC5:    return SV_DT_OFF(SV::re3_tdb67);
     default:                   return SV_DT_OFF(SV::re9);
     }
     #undef SV_DT_OFF
