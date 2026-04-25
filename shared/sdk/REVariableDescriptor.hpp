@@ -30,7 +30,7 @@ static bool is_static(VariableDescriptor* v) {
 
 static sdk::PropertyFlags get_flags(VariableDescriptor* v) {
 #if TDB_VER > 49
-    return *(sdk::PropertyFlags*)&v->flags;
+    return *(sdk::PropertyFlags*)((uintptr_t)v + VariableDescriptor::offset_of_flags());
 #else
     auto result = *(sdk::PropertyFlags*)&v->typeKind;
 

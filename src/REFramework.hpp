@@ -12,6 +12,7 @@
 #include <../../directxtk12-src/Inc/GraphicsMemory.h>
 #include "mods/vr/d3d12/CommandContext.hpp"
 
+#include <sdk/GameIdentity.hpp>
 class Mods;
 class REGlobals;
 class RETypes;
@@ -109,35 +110,7 @@ public:
     auto get_last_window_size() const { return m_last_window_size; } // REFramework imgui window
 
     static const char* get_game_name() {
-    #if defined(RE2)
-        return "re2";
-    #elif defined(RE3)
-        return "re3";
-    #elif defined(RE4)
-        return "re4";
-    #elif defined(RE7)
-        return "re7";
-    #elif defined(RE8)
-        return "re8";
-    #elif defined(RE9)
-        return "re9";
-    #elif defined(DMC5)
-        return "dmc5";
-    #elif defined(MHRISE)
-        return "mhrise";
-    #elif defined(SF6)
-        return "sf6";
-    #elif defined(DD2)
-        return "dd2";
-    #elif defined(MHWILDS)
-        return "mhwilds";
-    #elif defined(MHSTORIES3)
-        return "mhstories3";
-    #elif defined(PRAGMATA)
-        return "pragmata";
-    #else
-        return "unknown";
-    #endif
+        return sdk::GameIdentity::get().game_name().data();
     }
 
     bool is_drawing_ui() const {

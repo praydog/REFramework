@@ -5,9 +5,6 @@ env:
 jobs:
   csharp-release:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target: [csharp-api]
     steps:
       - name: Set up Python
         uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c
@@ -16,13 +13,13 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
-        
+
       - name: Configure CMake
         run: cmake -S ${{github.workspace}}/csharp-api -B ${{github.workspace}}/csharp-api/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
       - name: Build
         run: cmake --build ${{github.workspace}}/csharp-api/build --config ${{env.BUILD_TYPE}} --target ALL_BUILD
-      
+
       - name: Prepare release
         working-directory: ${{github.workspace}}/csharp-api
         run: |
@@ -32,20 +29,17 @@ jobs:
       - name: Compress release
         working-directory: ${{github.workspace}}/csharp-api
         run: |
-          7z a ${{github.workspace}}/${{matrix.target}}.zip reframework
+          7z a ${{github.workspace}}/csharp-api.zip reframework
 
       - name: Upload artifacts
         uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3
         with:
-          name: ${{matrix.target}}
-          path: ${{github.workspace}}/${{matrix.target}}.zip
+          name: csharp-api
+          path: ${{github.workspace}}/csharp-api.zip
           if-no-files-found: error
 
   dev-release:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target: [RE2, RE2_TDB66, RE3, RE3_TDB67, RE4, RE7, RE7_TDB49, RE8, RE9, DMC5, MHRISE, SF6, DD2, MHWILDS, PRAGMATA, MHSTORIES3]
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -54,31 +48,46 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Audit direct struct field access
+        run: |
+          pip install libclang
+          python dev/audit_direct_access_clang.py
+
       - name: Configure CMake
         run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
       - name: Build
-        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target ${{matrix.target}}
+        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target REFramework
 
-      - name: Compress release
+      - name: Compress REFramework
         run: |
           echo ${{github.sha}} > ${{github.workspace}}/reframework_revision.txt
-          echo none > ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/reframework_revision.txt
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/bin/${{matrix.target}}/dinput8.dll
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
-          7z a ${{github.workspace}}/${{matrix.target}}.zip ${{github.workspace}}/scripts
-          7z rn ${{github.workspace}}/${{matrix.target}}.zip scripts reframework/autorun
+          7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/reframework_revision.txt
+          7z a ${{github.workspace}}/REFramework.zip ${{github.workspace}}/build/bin/REFramework/dinput8.dll
 
-      - name: Upload artifacts
+      - name: Compress VR prerequisites
+        run: |
+          echo none > ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
+          7z a ${{github.workspace}}/VR.zip ${{github.workspace}}/DELETE_OPENVR_API_DLL_IF_YOU_WANT_TO_USE_OPENXR
+          7z a ${{github.workspace}}/VR.zip ${{github.workspace}}/dependencies/openvr/bin/win64/openvr_api.dll
+          7z a ${{github.workspace}}/VR.zip ${{github.workspace}}/build/_deps/openxr-build/src/loader/${{env.BUILD_TYPE}}/openxr_loader.dll
+          7z a ${{github.workspace}}/VR.zip ${{github.workspace}}/scripts
+          7z rn ${{github.workspace}}/VR.zip scripts reframework/autorun
+
+      - name: Upload REFramework
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
         with:
-          name: ${{matrix.target}}
-          path: ${{github.workspace}}/${{matrix.target}}.zip
+          name: REFramework
+          path: ${{github.workspace}}/REFramework.zip
           if-no-files-found: error
-    
+
+      - name: Upload VR
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1
+        with:
+          name: VR
+          path: ${{github.workspace}}/VR.zip
+          if-no-files-found: error
+
   nightly-push:
     runs-on: windows-latest
     needs: [dev-release, csharp-release]

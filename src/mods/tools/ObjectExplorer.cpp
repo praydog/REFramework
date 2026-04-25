@@ -28,8 +28,11 @@
 #include <sdk/REGameObject.hpp>
 #include "REFramework.hpp"
 #include "ObjectExplorer.hpp"
+#include <sdk/GameIdentity.hpp>
+#include <sdk/RETypeDefDispatch.hpp>
 
 using json = nlohmann::json;
+using namespace utility::re_type_accessor;
 
 #ifdef TDB_DUMP_ALLOWED
 std::unordered_map<std::string, std::shared_ptr<detail::ParsedType>> g_stypedb{};
@@ -45,7 +48,6 @@ constexpr std::string_view TYPE_DEFINITION_NAME = "sdk::RETypeDefinition";
 
 std::unordered_set<std::string> g_class_set{};
 
-#if TDB_VER < 69
 // via.typeinfo.TypeCode doesn't exist in older games...
 std::array<const char*, 84> g_typecode_names{
     "Undefined",
@@ -133,7 +135,6 @@ std::array<const char*, 84> g_typecode_names{
     "F16",
     "End",
 };
-#endif
 
 static std::unordered_map<std::string, std::string> g_valuetype_typedefs {
     { "System.Void", "void" },
@@ -318,6 +319,24 @@ genny::Enum* enum_from_name(genny::Namespace* g, const std::string& enum_name) {
     return new_ns->enum_(namespaces.back());
 }
 
+std::string get_method_prototype_context_name(sdk::REMethodDefinition& m) {
+    auto method_name = m.get_name();
+    auto method_param_types = m.get_param_types();
+
+    std::stringstream ss_context{};
+    ss_context << method_name << "(";
+
+    for (auto i = 0; i < method_param_types.size(); i++) {
+        if (i > 0) {
+            ss_context << ", ";
+        }
+        ss_context << method_param_types[i]->get_full_name();
+    }
+
+    ss_context << ")";
+    return ss_context.str();
+}
+
 std::shared_ptr<ObjectExplorer>& ObjectExplorer::get() {
     static auto instance = std::make_shared<ObjectExplorer>();
 
@@ -417,33 +436,34 @@ void ObjectExplorer::on_draw_dev_ui() {
         auto singletons_unordered = reframework::get_globals()->get_objects();
         std::vector<REManagedObject*> singletons{ singletons_unordered.begin(), singletons_unordered.end() };
 
+        // REType::name at offset 0x20 is stable across all supported TDB versions.
         // first loop, sort
         std::sort(singletons.begin(), singletons.end(), [](REManagedObject* a, REManagedObject* b) {
-            auto a_type = utility::re_managed_object::safe_get_type(a);
-            auto b_type = utility::re_managed_object::safe_get_type(b);
+            auto a_type = a->safe_get_type();
+            auto b_type = b->safe_get_type();
 
-            if (a_type == nullptr || a_type->name == nullptr) {
+            if (a_type == nullptr || a_type->get_type_name() == nullptr) {
                 return true;
             }
 
-            if (b_type == nullptr || b_type->name == nullptr) {
+            if (b_type == nullptr || b_type->get_type_name() == nullptr) {
                 return false;
             }
 
-            return std::string_view{ a_type->name } < std::string_view{ b_type->name };
+            return std::string_view{ a_type->get_type_name() } < std::string_view{ b_type->get_type_name() };
         });
 
         // Display the nodes
         for (auto obj : singletons) {
-            auto t = utility::re_managed_object::safe_get_type(obj);
+            auto t = obj->safe_get_type();
 
-            if (t == nullptr || t->name == nullptr) {
+            if (t == nullptr || t->get_type_name() == nullptr) {
                 continue;
             }
 
             ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-            auto made_node = ImGui::TreeNode(t->name);
+            auto made_node = ImGui::TreeNode(t->get_type_name());
             context_menu(obj);
 
             if (made_node) {
@@ -512,11 +532,11 @@ void ObjectExplorer::on_draw_dev_ui() {
                 continue;
             }
             
-            if (t->size > fake_type.size()) {
-                fake_type.resize(t->size);
+            if (get_size(t) > fake_type.size()) {
+                fake_type.resize(get_size(t));
             }
 
-            memset(fake_type.data(), 0, t->size);
+            memset(fake_type.data(), 0, get_size(t));
             handle_type((REManagedObject*)fake_type.data(), t);
         }
     }
@@ -525,7 +545,7 @@ void ObjectExplorer::on_draw_dev_ui() {
         auto tdb = sdk::RETypeDB::get();
 
         for (auto i = 0; i < tdb->get_num_modules(); ++i) {
-            auto& module = tdb->modules[i];
+            auto& module = *tdb->get_module_at(i);
 
             std::string_view assembly_name{ module.get_assembly_name() != nullptr ? module.get_assembly_name() : "Unknown" };
             std::string_view module_name{ module.get_module_name() != nullptr ? module.get_module_name() : "Unknown" };
@@ -681,9 +701,13 @@ void ObjectExplorer::on_draw_dev_ui() {
                 const auto method_address = std::stoull(m_method_tdb_address, nullptr, 16);
                 const auto tdb = sdk::RETypeDB::get();
 
-                if (method_address >= (uintptr_t)tdb->methods && method_address < (uintptr_t)tdb->methods + (tdb->numMethods * sizeof(void*))) {
-                    // Make sure method address is aligned to sizeof(sdk::REMethodDefinition)
-                    if ((method_address % sizeof(sdk::REMethodDefinition)) == 0) {
+                const auto base = (uintptr_t)tdb->get_methods_ptr();
+                const auto stride = tdb->get_method_stride();
+                const auto total = base + static_cast<uintptr_t>(tdb->get_num_methods()) * stride;
+
+                if (method_address >= base && method_address < total) {
+                    // Make sure method address is aligned to the runtime method stride.
+                    if (((method_address - base) % stride) == 0) {
                         m_displayed_method = (sdk::REMethodDefinition*)method_address;
                     } else {
                         ImGui::Text("Invalid address");
@@ -724,11 +748,11 @@ void ObjectExplorer::on_draw_dev_ui() {
     std::vector<uint8_t> fake_type{ 0 };
 
     for (auto t : m_displayed_types) {
-        if (t->size > fake_type.size()) {
-            fake_type.resize(t->size);
+        if (get_size(t) > fake_type.size()) {
+            fake_type.resize(get_size(t));
         }
         
-        memset(fake_type.data(), 0, t->size);
+        memset(fake_type.data(), 0, get_size(t));
         handle_type((REManagedObject*)fake_type.data(), t);
     }
 
@@ -870,6 +894,30 @@ void ObjectExplorer::display_hooks() {
             }
 
             ImGui::EndCombo();
+        }
+
+        // Auto-unhook options
+        ImGui::Checkbox("Enable Auto Unhook", &m_hooks_context.enable_auto_unhook);
+
+        if (m_hooks_context.enable_auto_unhook) {
+            if (ImGui::BeginCombo("Auto Unhook When", HooksContext::s_auto_unhook_method_names[(uint8_t)m_hooks_context.auto_unhook_method])) {
+                for (int i = 0; i < HooksContext::s_auto_unhook_method_names.size(); i++) {
+                    const bool is_selected = (m_hooks_context.auto_unhook_method == (HooksContext::AutoUnhookMethod)i);
+
+                    if (ImGui::Selectable(HooksContext::s_auto_unhook_method_names[i], is_selected)) {
+                        m_hooks_context.auto_unhook_method = (HooksContext::AutoUnhookMethod)i;
+                    }
+
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+
+                ImGui::EndCombo();
+            }
+
+            // Always make it editable regardless of the auto unhook method, this is intentional
+            ImGui::InputScalar("Max Call Count", ImGuiDataType_U32, &m_hooks_context.auto_unhook_call_count_threshold);
         }
 
         ImGui::TreePop();
@@ -1057,17 +1105,21 @@ std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type(nlohmann::json& il
     auto desc = init_type_min(il2cpp_dump, tdb, i);
 
     g_itypedb[i] = desc;
-    g_fqntypedb[desc->t->get_fqn_hash()] = desc;
+    if (desc->t != nullptr) {
+        g_fqntypedb[desc->t->get_fqn_hash()] = desc;
+    }
 
     return desc;
 }
 
 std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
-    if (i == 0 || i >= tdb->numTypes) {
+    if (i == 0 || i >= tdb->get_num_types()) {
         return "";
     }
 
-    auto& raw_t = (*tdb->types)[i];
+    auto* raw_t_ptr = tdb->get_type(i);
+    if (raw_t_ptr == nullptr) return "";
+    auto& raw_t = *raw_t_ptr;
     auto full_name = raw_t.get_full_name();
 
     spdlog::info("{:s}", full_name);
@@ -1076,7 +1128,15 @@ std::string ObjectExplorer::generate_full_name(sdk::RETypeDB* tdb, uint32_t i) {
 }
 
 std::shared_ptr<detail::ParsedType> ObjectExplorer::init_type_min(json& il2cpp_dump, sdk::RETypeDB* tdb, uint32_t i) {
-    auto& t = *tdb->get_type(i);
+    auto* raw_t = tdb->get_type(i);
+    if (raw_t == nullptr) {
+        // Out-of-range or unresolvable type index. Return a sentinel desc so callers
+        // that cache by `i` don't repeatedly retry; they must null-check `desc->t`.
+        auto empty = std::make_shared<detail::ParsedType>();
+        empty->t = nullptr;
+        return empty;
+    }
+    auto& t = *raw_t;
     auto br = BitReader{&t};
 
     auto desc = std::make_shared<detail::ParsedType>();
@@ -1100,7 +1160,7 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
     // Export info about native deserializers for the python script
     if (!real_name) {
         auto tdef = utility::re_type::get_type_definition(t);
-        full_name = t->classInfo != nullptr ? generate_full_name(tdb, tdef->get_index()) : t->name;
+        full_name = get_classInfo(t) != nullptr ? generate_full_name(tdb, tdef->get_index()) : t->get_type_name();
     }
     else {
         full_name = *real_name;
@@ -1115,12 +1175,12 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
 
     std::deque<nlohmann::json> chain_raw{};
 
-    for (auto super = t; super != nullptr; super = (sdk::RETypeCLR*)super->super) {
-        if (super->fields == nullptr || super->fields->deserializer == nullptr) {
+    for (auto super = t; super != nullptr; super = (sdk::RETypeCLR*)get_super(super)) {
+        if (get_fields(super) == nullptr || get_fields(super)->get_deserializer() == nullptr) {
             continue;
         }
 
-        const auto deserializer = super->fields->deserializer;
+        const auto deserializer = get_fields(super)->get_deserializer();
         const auto deserializer_normalized = get_original_va(deserializer);
 
         json des_entry{};
@@ -1128,7 +1188,7 @@ void ObjectExplorer::export_deserializer_chain(nlohmann::json& il2cpp_dump, sdk:
         auto tdef = utility::re_type::get_type_definition(super);
         
         des_entry["address"] = (std::stringstream{} << "0x" << std::hex << deserializer_normalized).str();
-        des_entry["name"] = super->classInfo != nullptr ? generate_full_name(tdb, tdef->get_index()) : super->name;
+        des_entry["name"] = get_classInfo(super) != nullptr ? generate_full_name(tdb, tdef->get_index()) : super->get_type_name();
 
         // push in reverse order so it can be parsed easier (parent -> all the way back to this type)
         chain_raw.push_front(des_entry);
@@ -1177,13 +1237,14 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
 #ifdef TDB_DUMP_ALLOWED
     auto tdb = (sdk::RETypeDB*)reframework::get_types()->get_type_db();
+    const auto& gi = sdk::GameIdentity::get();
 
     // Types
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
         init_type(il2cpp_dump, tdb, i);
     }
 
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
         auto desc = init_type(il2cpp_dump, tdb, i);
 
         desc->full_name = generate_full_name(tdb, i);
@@ -1193,8 +1254,8 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_TYPES;
 
     // Finish off initialization of types
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numTypes;
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_types();
 
         auto desc = init_type(il2cpp_dump, tdb, i);
         auto& t = *desc->t;
@@ -1214,22 +1275,26 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             {"size", (std::stringstream{} << std::hex << t.get_size()).str()},
         };
 
-        if (tdef->declaring_typeid != 0) {
-            desc->owner = init_type(il2cpp_dump, tdb, tdef->declaring_typeid);
+        const auto declaring_tid = (uint32_t)TDEF_FIELD(tdef, declaring_typeid);
+        if (declaring_tid != 0) {
+            desc->owner = init_type(il2cpp_dump, tdb, declaring_tid);
         }
 
-        if (tdef->parent_typeid != 0) {
-            desc->super = init_type(il2cpp_dump, tdb, tdef->parent_typeid);
-            type_entry["parent"] = desc->super->full_name;
+        const auto parent_tid = (uint32_t)TDEF_FIELD(tdef, parent_typeid);
+        if (parent_tid != 0) {
+            desc->super = init_type(il2cpp_dump, tdb, parent_tid);
+            if (desc->super != nullptr && desc->super->t != nullptr) {
+                type_entry["parent"] = desc->super->full_name;
+            }
         }
 
-        if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", t.type_flags); !type_flags_str.empty()) {
+        if (auto type_flags_str = get_full_enum_value_name("via.clr.TypeFlag", TDEF_FIELD(tdef, type_flags)); !type_flags_str.empty()) {
             type_entry["flags"] = type_flags_str;
         }
 
-        if (type_info != nullptr && type_info->name != nullptr) {
-            if (type_info->name != desc->full_name) {
-                type_entry["native_typename"] = type_info->name;
+        if (type_info != nullptr && type_info->get_type_name() != nullptr) {
+            if (type_info->get_type_name() != desc->full_name) {
+                type_entry["native_typename"] = type_info->get_type_name();
             }
         }
 
@@ -1241,15 +1306,12 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             type_entry["declaring_type"] = declaring_type->get_full_name();
         }
 
-#if TDB_VER >= 71
-        if (tdef->element_typeid_TBD != 0) {
-            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid_TBD)->full_name;
+        {
+            const auto elem_tid = tdef->get_element_typeid();
+            if (elem_tid != 0) {
+                type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, elem_tid)->full_name;
+            }
         }
-#elif TDB_VER >= 69
-        if (tdef->element_typeid != 0) {
-            type_entry["element_type_name"] = init_type(il2cpp_dump, tdb, tdef->element_typeid)->full_name;
-        }
-#endif
 
         if (auto gtd = t.get_generic_type_definition(); gtd != nullptr) {
             type_entry["generic_type_definition"] = gtd->get_full_name();
@@ -1278,8 +1340,8 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
     // Initialize RSZ
     // Dont do it in init_type because it calls init_type
-    for (uint32_t i = 0; i < tdb->numTypes; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numTypes;
+    for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_types();
 
         auto pt = init_type(il2cpp_dump, tdb, i);
         auto& t = *pt->t;
@@ -1310,11 +1372,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             
 
             rsz_entry["type"] = generate_full_name(tdb, (sequence.get_native_type())->get_index());
-#if TDB_VER >= 69
-            rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
-#else
-            rsz_entry["code"] = g_typecode_names[code];
-#endif
+            if (gi.tdb_ver() >= 69) {
+                rsz_entry["code"] = get_enum_value_name("via.typeinfo.TypeCode", code);
+            } else {
+                rsz_entry["code"] = g_typecode_names[code];
+            }
             rsz_entry["code_id"] = code;
             rsz_entry["align"] = align;
             rsz_entry["size"] = (std::stringstream{} << "0x" << std::hex << (uint32_t)size).str();
@@ -1323,9 +1385,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             rsz_entry["static"] = is_static;
             rsz_entry["offset_from_fieldptr"] = (std::stringstream{} << "0x" << std::hex << sequence.offset).str();
 
-#if TDB_VER <= 49
-            rsz_entry["potential_name"] = sequence.prop->name;
-#endif
+            // TDB <= 49 (old RE7) not supported in universal build.
 
             il2cpp_dump[pt->full_name]["RSZ"].emplace_back(rsz_entry);
         }
@@ -1339,19 +1399,20 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_METHODS;
 
     // Methods
-    for (uint32_t i = 0; i < tdb->numMethods; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numMethods;
+    for (uint32_t i = 0; i < tdb->get_num_methods(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_methods();
 
         auto& m = *tdb->get_method(i);
 
-#if TDB_VER >= 69
-        auto type_id = (uint32_t)m.declaring_typeid;
-        auto impl_id = (uint32_t)m.impl_id;
-        auto param_list = (uint32_t)m.get_param_index();
-#else
-        const auto type_id = (uint32_t)m.declaring_typeid;
-        const auto param_list = m.params;
-#endif
+        auto type_id = (uint32_t)sdk::tdb_dispatch::tmeth_declaring_typeid(&m);
+        uint32_t impl_id = 0;
+        uint32_t param_list = 0;
+        if (gi.tdb_ver() >= 69) {
+            impl_id = (uint32_t)TMETH_FIELD(&m, impl_id);
+            param_list = (uint32_t)m.get_param_index();
+        } else {
+            param_list = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(&m)->params;
+        }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
             continue;
@@ -1361,13 +1422,24 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         desc->methods.push_back(&m);
 
-#if TDB_VER >= 69
-        auto& impl = (*tdb->methodsImpl)[impl_id];
-        desc->method_impls.push_back(&impl);
-        const auto name_offset = impl.name_offset;
-#else
-        const auto name_offset = m.name_offset;
-#endif
+        uint32_t name_offset = 0;
+        int32_t vtable_index = 0;
+        uint16_t impl_flags = 0;
+        uint16_t method_flags = 0;
+        if (gi.tdb_ver() >= 69) {
+            auto& impl = tdb->get_method_impl_at(impl_id);
+            desc->method_impls.push_back(&impl);
+            name_offset = RMETHIMPL_FIELD(&impl, name_offset);
+            vtable_index = RMETHIMPL_FIELD(&impl, vtable_index);
+            impl_flags = RMETHIMPL_FIELD(&impl, impl_flags);
+            method_flags = RMETHIMPL_FIELD(&impl, flags);
+        } else {
+            auto* m67 = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(&m);
+            name_offset = m67->name_offset;
+            vtable_index = m67->vtable_index;
+            impl_flags = m67->impl_flags;
+            method_flags = m67->flags;
+        }
 
         const auto name = tdb->get_string(name_offset);
 
@@ -1378,16 +1450,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pm->name = name;
         pm->owner = desc;
 
-#if TDB_VER >= 69
-        pm->m_impl = &impl;
-        const auto vtable_index = impl.vtable_index;
-        const auto impl_flags = impl.impl_flags;
-        const auto method_flags = impl.flags;
-#else
-        const auto vtable_index = m.vtable_index;
-        const auto impl_flags = m.impl_flags;
-        const auto method_flags = m.flags;
-#endif
+        if (gi.tdb_ver() >= 69) {
+            pm->m_impl = &tdb->get_method_impl_at(impl_id);
+        }
 
         g_imethoddb[i] = pm;
 
@@ -1412,41 +1477,42 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         }
 
         // Parameters
-#if TDB_VER >= 69
-        auto param_ids = Address{ tdb->bytePool }.get(param_list).as<sdk::ParamList*>();
-        const auto num_params = param_ids->numParams;
-        const auto invoke_id = param_ids->invokeID;
-#else
-#if TDB_VER >= 66
-        auto param_ids = tdb->get_data<sdk::REMethodParamDef>(param_list);
-#else
-        auto params_data = tdb->get_data<sdk::REMethodParamDef>(param_list);
-        auto param_ids = params_data->params;
-#endif
-        const auto num_params = (uint8_t)m.get_num_params();
-        const auto invoke_id = (uint16_t)m.invoke_id;
-#endif
+        sdk::ParamList* param_list_69 = nullptr;
+        sdk::tdb67::REMethodParamDef* param_ids_legacy = nullptr;
+        uint8_t num_params = 0;
+        uint16_t invoke_id = 0;
+        if (gi.tdb_ver() >= 69) {
+            param_list_69 = Address{ tdb->get_bytePool_ptr() }.get(param_list).as<sdk::ParamList*>();
+            num_params = param_list_69->numParams;
+            invoke_id = param_list_69->invokeID;
+        } else {
+            auto* m67 = reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(&m);
+            // All universal-supported games are TDB >= 66.
+            param_ids_legacy = tdb->get_data<sdk::tdb67::REMethodParamDef>(param_list);
+            num_params = (uint8_t)m67->num_params;
+            invoke_id = (uint16_t)m67->invoke_id;
+        }
 
         // Invoke wrapper for arbitrary amount of arguments, so we can just pass it on the VM stack/context as an array
         method_entry["invoke_id"] = invoke_id;
 
         auto parse_param = [&](uint32_t param_index, bool is_return = false) {
-#if TDB_VER >= 69
-            auto& p = (*tdb->params)[param_index];
-
-            const auto attributes_index = (uint16_t)p.attributes_id;
-            const auto init_data_index = (uint16_t)p.init_data_index;
-            const auto name_index = (uint32_t)p.name_offset;
-            const auto modifier = (uint8_t)p.modifier;
-            const auto param_type_id = (uint32_t)p.type_id;
-            const auto flags = (uint16_t)p.flags;
-#else
-            auto& p = param_ids[param_index];
-
-            const auto param_type_id = (uint32_t)p.param_typeid;
-            const auto name_index = p.name_offset;
-            const auto flags = p.flags;
-#endif
+            uint32_t param_type_id = 0;
+            uint32_t name_index = 0;
+            uint16_t flags = 0;
+            uint8_t modifier = 0;
+            if (gi.tdb_ver() >= 69) {
+                auto& p = tdb->get_param_at(param_index);
+                param_type_id = (uint32_t)TPARAM_FIELD(&p, type_id);
+                name_index = (uint32_t)TPARAM_FIELD(&p, name_offset);
+                modifier = (uint8_t)TPARAM_FIELD(&p, modifier);
+                flags = (uint16_t)TPARAM_FIELD(&p, flags);
+            } else {
+                auto& p = param_ids_legacy[param_index];
+                param_type_id = (uint32_t)p.param_typeid;
+                name_index = p.name_offset;
+                flags = p.flags;
+            }
 
             if (auto it = g_itypedb.find(param_type_id); it == g_itypedb.end()) {
                 return json{};
@@ -1457,7 +1523,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             auto pdesc = std::make_shared<detail::ParsedParams>();
             g_iparamdb[param_index] = pdesc;
 
-            auto param_name = Address{tdb->stringPool}.get(name_index).as<const char*>();
+            auto param_name = Address{tdb->get_stringPool_ptr()}.get(name_index).as<const char*>();
 
             pdesc->owner = pm;
             pdesc->type = param_type;
@@ -1479,11 +1545,11 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 param_entry["flags"] = param_flags;
             }
 
-#if TDB_VER >= 69
-            if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", modifier); !param_modifier.empty()) {
-                param_entry["modifier"] = param_modifier;
+            if (gi.tdb_ver() >= 69) {
+                if (auto param_modifier = get_full_enum_value_name("via.clr.ParamModifier", modifier); !param_modifier.empty()) {
+                    param_entry["modifier"] = param_modifier;
+                }
             }
-#endif
 
             return param_entry;
         };
@@ -1492,25 +1558,26 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         const auto return_type_name = return_type != nullptr ? return_type->get_full_name() : "";
 
         // Parse return type
-#if TDB_VER >= 69
-        method_entry["returns"] = parse_param(param_ids->returnType, true);
-#else
-        method_entry["returns"] = json{
-            {"type", return_type_name},
-            {"name", ""},
-        };
-#endif
+        if (gi.tdb_ver() >= 69) {
+            method_entry["returns"] = parse_param(param_list_69->returnType, true);
+        } else {
+            method_entry["returns"] = json{
+                {"type", return_type_name},
+                {"name", ""},
+            };
+        }
 
         // Parse all params
         for (auto f = 0; f < num_params; ++f) {
-#if TDB_VER >= 69
-            const auto param_index = param_ids->params[f];
-            if (param_index >= tdb->numParams) {
-                break;
+            uint32_t param_index = 0;
+            if (gi.tdb_ver() >= 69) {
+                param_index = param_list_69->params[f];
+                if (param_index >= tdb->get_num_params()) {
+                    break;
+                }
+            } else {
+                param_index = f;
             }
-#else
-            const auto param_index = f;
-#endif
 
             auto param_entry = parse_param(param_index);
 
@@ -1670,19 +1737,20 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     auto dummy_constant = g->class_("__DummyClass__")->constant("__DummyConstant__")->type("int32_t");
 
     // Fields
-    for (uint32_t i = 0; i < tdb->numFields; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numFields;
+    for (uint32_t i = 0; i < tdb->get_num_fields(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_fields();
 
-        auto& f = (*tdb->fields)[i];
+        auto& f = *tdb->get_field(i);
 
-#if TDB_VER >= 69
-        const auto type_id = (uint32_t)f.declaring_typeid;
-        const auto impl_id = (uint32_t)f.impl_id;
-        const auto offset = (uint32_t)f.get_offset_from_fieldptr();
-#else
-        const auto type_id = (uint32_t)f.declaring_typeid;
-        const auto offset = f.offset;
-#endif
+        const auto type_id = (uint32_t)sdk::tdb_dispatch::tfield_declaring_typeid(&f);
+        uint32_t field_impl_id = 0;
+        uint32_t offset = 0;
+        if (gi.tdb_ver() >= 69) {
+            field_impl_id = (uint32_t)TFIELD_FIELD(&f, impl_id);
+            offset = (uint32_t)f.get_offset_from_fieldptr();
+        } else {
+            offset = reinterpret_cast<const sdk::tdb67::REField*>(&f)->offset;
+        }
 
         if (g_itypedb.find(type_id) == g_itypedb.end()) {
             continue;
@@ -1692,43 +1760,49 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         desc->fields.push_back(&f);
 
-#if TDB_VER >= 69
-        auto& impl = (*tdb->fieldsImpl)[impl_id];
-        desc->field_impls.push_back(&impl);
+        uint32_t name_offset = 0;
+        uint32_t field_flags = 0;
+        uint32_t field_type = 0;
+        uint32_t init_data_index = 0;
+        const char* name = nullptr;
+        if (gi.tdb_ver() >= 69) {
+            auto& impl = tdb->get_field_impl_at(field_impl_id);
+            desc->field_impls.push_back(&impl);
 
+            auto br_impl = BitReader{&impl};
 
-        auto br_impl = BitReader{&impl};
+            /*const auto field_attr_id = (uint16_t)br_impl.read_short();
+            const auto field_flags = (uint16_t)br_impl.read_short();
+            const auto field_type = (uint32_t)br_impl.read(18);
+            const auto init_data_low = (uint16_t)br_impl.read(14);
+            const auto name_offset = (uint32_t)br_impl.read(30);
+            const auto init_data_high = (uint8_t)br_impl.read(2);
+            const auto name = Address{tdb->get_stringPool_ptr()}.get(name_offset).as<const char*>();
+            const auto init_data_index = init_data_low | (init_data_high << 14);*/
 
-        /*const auto field_attr_id = (uint16_t)br_impl.read_short();
-        const auto field_flags = (uint16_t)br_impl.read_short();
-        const auto field_type = (uint32_t)br_impl.read(18);
-        const auto init_data_low = (uint16_t)br_impl.read(14);
-        const auto name_offset = (uint32_t)br_impl.read(30);
-        const auto init_data_high = (uint8_t)br_impl.read(2);
-        const auto name = Address{tdb->stringPool}.get(name_offset).as<const char*>();
-        const auto init_data_index = init_data_low | (init_data_high << 14);*/
+            const auto field_attr_id = RFIELDIMPL_FIELD(&impl, attributes_id);
+            field_flags = RFIELDIMPL_FIELD(&impl, flags);
+            field_type = f.get_type() != nullptr ? f.get_type()->get_index() : 0;
+            name_offset = RFIELDIMPL_FIELD(&impl, name_offset);
+            init_data_index = f.get_init_data_index();
+            name = tdb->get_string(name_offset);
+        } else {
+            auto* f67 = reinterpret_cast<const sdk::tdb67::REField*>(&f);
+            name_offset = f67->name_offset;
+            name = Address{ tdb->get_stringPool_ptr() }.get(name_offset).as<const char*>();
+            field_type = (uint32_t)f67->field_typeid;
+            field_flags = f67->flags;
+            if (gi.tdb_ver() >= 66) {
+                init_data_index = f67->init_data_index;
+            }
+        }
 
-        const auto field_attr_id = impl.attributes_id;
-        const auto field_flags = impl.flags;
-        const auto field_type = f.get_type() != nullptr ? f.get_type()->get_index() : 0;
-        const auto name_offset = impl.name_offset;
-        const auto init_data_index = f.get_init_data_index();
-        const auto name = tdb->get_string(name_offset);
-#else
-        const auto name_offset = f.name_offset;
-        const auto name = Address{ tdb->stringPool }.get(name_offset).as<const char*>();
-        const auto field_type = (uint32_t)f.field_typeid;
-        const auto field_flags = f.flags;
-#if TDB_VER >= 66
-        const auto init_data_index = f.init_data_index;
-#endif
-#endif
-
-#if TDB_VER >= 66
-        const auto init_data_offset = init_data_index != 0 ? (*tdb->initData)[init_data_index] : 0;
-#else
-        const auto init_data_offset = f.init_data_offset;
-#endif
+        uint32_t init_data_offset = 0;
+        if (gi.tdb_ver() >= 66) {
+            init_data_offset = init_data_index != 0 ? tdb->get_init_data_at(init_data_index) : 0;
+        } else {
+            // TDB < 66 not supported in universal build.
+        }
 
         // Create an easier to deal with structure
         auto& pf = desc->parsed_fields.emplace_back(std::make_shared<detail::ParsedField>());
@@ -1740,9 +1814,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pf->offset_from_base = pf->offset_from_fieldptr;
         pf->type = g_itypedb[field_type];
 
-#if TDB_VER >= 69
-        pf->f_impl = &impl;
-#endif
+        if (gi.tdb_ver() >= 69) {
+            pf->f_impl = &tdb->get_field_impl_at(field_impl_id);
+        }
 
         // Resolve the offset to be from the base class
         pf->offset_from_base += pf->owner->t->get_fieldptr_offset();
@@ -1865,21 +1939,45 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             {"type", field_type_name},
             {"offset_from_base", (std::stringstream{} << "0x" << std::hex << pf->offset_from_base).str()},
             {"offset_from_fieldptr", (std::stringstream{} << "0x" << std::hex << pf->offset_from_fieldptr).str()},
-#if TDB_VER >= 66
-            {"init_data_index", init_data_index}
-#endif
         };
+        if (gi.tdb_ver() >= 66) {
+            field_entry["init_data_index"] = init_data_index;
+        }
 
         if (auto field_flags_str = get_full_enum_value_name("via.clr.FieldFlag", field_flags); !field_flags_str.empty()) {
             field_entry["flags"] = field_flags_str;
         }
 
         if (init_data_offset != 0) {
-            auto init_data = &(*tdb->bytePool)[init_data_offset];
+            // Bounds-check init_data_offset against the byte/string pool sizes.
+            // On DMC5 (TDB 67) and other TDB<69 games, init_data_index is a bitfield
+            // whose position differs from the V84 compiled layout; if that read
+            // yields a garbage index, init_data_offset lands past the end of the
+            // pool and later dereferences (strlen on a string, *(T*)init_data on a
+            // primitive) crash. Skip the field's default-value extraction if the
+            // offset is out of range.
+            const auto byte_pool_size = tdb->get_byte_pool_size();
+            const auto string_pool_size = tdb->get_string_pool_size();
+            uint8_t* init_data = nullptr;
 
-            // WACKY
-            if (init_data_offset < 0) {
-                init_data = &((uint8_t*)tdb->stringPool)[init_data_offset * -1];
+            // WACKY: the original code tested `init_data_offset < 0` on a uint32_t,
+            // which is always false. Preserve the (probably-intended) signed-offset
+            // semantics by interpreting the high bit as 'negative' — if the sign bit
+            // is set, treat as a string-pool-relative negative index.
+            const auto signed_offset = static_cast<int32_t>(init_data_offset);
+            if (signed_offset < 0) {
+                const auto neg_off = static_cast<uint32_t>(-signed_offset);
+                if (neg_off < string_pool_size) {
+                    init_data = &((uint8_t*)tdb->get_stringPool_ptr())[neg_off];
+                }
+            } else if (init_data_offset < byte_pool_size) {
+                init_data = &(*tdb->get_bytePool_ptr())[init_data_offset];
+            }
+
+            if (init_data == nullptr) {
+                // Offset out of range — likely a garbage read from a mis-dispatched
+                // bitfield. Skip the default-value extraction for this field.
+                continue;
             }
 
             auto init_data_type = pf->type;
@@ -1967,13 +2065,20 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_PROPERTIES;
 
     // properties
-    for (uint32_t i = 0; i < tdb->numProperties; ++i) {
-        m_sdk_dump_progress = static_cast<float>(i) / tdb->numProperties;
+    for (uint32_t i = 0; i < tdb->get_num_properties(); ++i) {
+        m_sdk_dump_progress = static_cast<float>(i) / tdb->get_num_properties();
 
-        auto& p = (*tdb->properties)[i];
+        auto& p = *tdb->get_property(i);
 
-        const auto getter_id = (uint32_t)p.getter;
-        const auto setter_id = (uint32_t)p.setter;
+        uint32_t getter_id, setter_id;
+        if (gi.tdb_ver() < 69) {
+            auto* p67 = reinterpret_cast<const sdk::tdb67::REProperty*>(&p);
+            getter_id = p67->getter;
+            setter_id = p67->setter;
+        } else {
+            getter_id = (uint32_t)RPROP_FIELD_69(&p, getter);
+            setter_id = (uint32_t)RPROP_FIELD_69(&p, setter);
+        }
 
         std::shared_ptr<detail::ParsedMethod> getter{};
         std::shared_ptr<detail::ParsedMethod> setter{};
@@ -1996,13 +2101,14 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto& desc = prop_method->owner;
 
-#if TDB_VER >= 69
-        const auto impl_id = (uint32_t)p.impl_id;
-        auto& impl = (*tdb->propertiesImpl)[impl_id];
-        auto name = Address{tdb->stringPool}.get(impl.name_offset).as<const char*>();
-#else
-        auto name = Address{ tdb->stringPool }.get(p.name_offset).as<const char*>();
-#endif
+        const char* name = nullptr;
+        if (gi.tdb_ver() >= 69) {
+            const auto impl_id = (uint32_t)RPROP_FIELD_69(&p, impl_id);
+            auto& impl = tdb->get_property_impl_at(impl_id);
+            name = Address{tdb->get_stringPool_ptr()}.get(RPROPIMPL_FIELD(&impl, name_offset)).as<const char*>();
+        } else {
+            name = Address{ tdb->get_stringPool_ptr() }.get(reinterpret_cast<const sdk::tdb67::REProperty*>(&p)->name_offset).as<const char*>();
+        }
 
         // ha ha
         auto& pp = desc->parsed_props.emplace_back(std::make_shared<detail::ParsedProperty>());
@@ -2013,9 +2119,10 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         pp->getter = getter;
         pp->setter = setter;
 
-#if TDB_VER >= 69
-        pp->p_impl = &impl;
-#endif
+        if (gi.tdb_ver() >= 69) {
+            const auto impl_id = (uint32_t)RPROP_FIELD_69(&p, impl_id);
+            pp->p_impl = &tdb->get_property_impl_at(impl_id);
+        }
 
         auto getter_name = pp->getter != nullptr ? pp->getter->name : "";
         auto setter_name = pp->setter != nullptr ? pp->setter->name : "";
@@ -2038,7 +2145,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
     // In RE7, the deserializer points to the reflection property,
     // so we can just grab the name from there instead of comparing field offsets.
     
-#if TDB_VER > 49
+    if (gi.tdb_ver() > 49) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_RSZ_2;
     k = 0;
     n_types = m_sorted_types.size();
@@ -2103,7 +2210,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             }
         }
     }
-#endif
+    }  // tdb_ver > 49
 #endif
     m_sdk_dump_stage = SdkDumpStage::DUMP_DESERIALIZER_CHAIN;
     k = 0;
@@ -2114,37 +2221,37 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto t = get_type(name);
 
-        if (t == nullptr || t->name == nullptr) {
+        if (t == nullptr || t->get_type_name() == nullptr) {
             continue;
         }
 
 #ifdef TDB_DUMP_ALLOWED
         export_deserializer_chain(il2cpp_dump, tdb, t);
 
-        auto& entry = il2cpp_dump[t->name];
+        auto& entry = il2cpp_dump[t->get_type_name()];
 
         if (!entry.contains("fqn")) {
-            entry["fqn"] = (std::stringstream{} << std::hex << t->classIndex).str();
+            entry["fqn"] = (std::stringstream{} << std::hex << t->get_classIndex()).str();
         }
         
         if (!entry.contains("crc")) {
-            entry["crc"] = (std::stringstream{} << std::hex << t->typeCRC).str();
+            entry["crc"] = (std::stringstream{} << std::hex << get_typeCRC(t)).str();
         }
 #endif
 
-        if (t->fields == nullptr) {
+        if (get_fields(t) == nullptr) {
             continue;
         }
 
         // template classes we dont want
-        if (std::string{ t->name }.find_first_of("`<>") != std::string::npos) {
+        if (std::string{ t->get_type_name() }.find_first_of("`<>") != std::string::npos) {
             continue;
         }
 
-        g_class_set.insert(t->name);
+        g_class_set.insert(t->get_type_name());
     }
 
-#if TDB_VER > 49
+    if (gi.tdb_ver() > 49) {
     m_sdk_dump_stage = SdkDumpStage::DUMP_NON_TDB_TYPES;
     k = 0;
     n_types = m_sorted_types.size();
@@ -2153,30 +2260,30 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 
         auto t = get_type(name);
 
-        if (t == nullptr || t->name == nullptr) {
+        if (t == nullptr || t->get_type_name() == nullptr) {
             continue;
         }
 
-        if (t->fields == nullptr) {
+        if (get_fields(t) == nullptr) {
             continue;
         }
 
         // template classes we dont want
-        if (std::string{ t->name }.find_first_of("`<>") != std::string::npos) {
+        if (std::string{ t->get_type_name() }.find_first_of("`<>") != std::string::npos) {
             continue;
         }
 
         const auto is_singleton = utility::re_type::is_singleton(t);
 
-        auto c = class_from_name(g, t->name);
-        c->size(t->size);
+        auto c = class_from_name(g, t->get_type_name());
+        c->size(get_size(t));
 
         // make get_type static function
         {
             auto m = c->static_function("get_type_info")->returns(g->type(TYPE_INFO_NAME)->ptr());
 
             std::stringstream os{};
-            os << "return reframework::get_types()->get(\"" << t->name << "\");";
+            os << "return reframework::get_types()->get(\"" << t->get_type_name() << "\");";
 
             m->procedure(os.str());
         }
@@ -2186,7 +2293,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
             auto m = c->static_function("get_type_definition")->returns(g->type(TYPE_DEFINITION_NAME)->ptr());
 
             std::stringstream os{};
-            os << "static auto t = sdk::find_type_definition(\"" << t->name << "\");\n";
+            os << "static auto t = sdk::find_type_definition(\"" << t->get_type_name() << "\");\n";
             os << "return t;";
 
             m->procedure(os.str());
@@ -2206,35 +2313,35 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         auto parent_c = c;
 
         // generate inheritance
-        for (auto super = t->super; super != nullptr; super = super->super) {
-            if (super == nullptr || super->name == nullptr) {
+        for (auto super = (REType*)get_super(t); super != nullptr; super = (REType*)get_super(super)) {
+            if (super == nullptr || super->get_type_name() == nullptr) {
                 continue;
             }
 
-            if (super->fields == nullptr) {
+            if (get_fields(super) == nullptr) {
                 continue;
             }
 
             // template classes we dont want
-            if (std::string{super->name}.find_first_of("`<>") != std::string::npos) {
+            if (std::string{super->get_type_name()}.find_first_of("`<>") != std::string::npos) {
                 continue;
             }
 
-            auto s = class_from_name(g, super->name);
-            s->size(super->size);
+            auto s = class_from_name(g, super->get_type_name());
+            s->size(get_size(super));
 
             parent_c->parent(s);
             parent_c = s;
         }
 
-        auto fields = t->fields;
-        auto num_methods = fields->num;
-        auto methods = fields->methods;
+        auto fields = get_fields(t);
+        auto num_methods = fields->get_num();
+        auto methods = fields->get_methods();
 
 // BORKED RIGHT NOW
-#if TDB_VER > 49
+        if (gi.tdb_ver() > 49) {
         // Generate Methods
-        if (fields->methods != nullptr) {
+        if (fields->get_methods() != nullptr) {
             for (auto i = 0; i < num_methods; ++i) try {
                 auto top = (*methods)[i];
 
@@ -2245,7 +2352,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 auto& holder = **top;
                 auto descriptor = holder.descriptor;
 
-                if (descriptor == nullptr || descriptor->name == nullptr || descriptor->functionPtr == nullptr) {
+                if (descriptor == nullptr || descriptor->get_name() == nullptr || descriptor->get_functionPtr() == nullptr) {
                     continue;
                 }
 
@@ -2254,16 +2361,16 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 // reflection methods are kind of shit so ignore them for now.
                 /*std::string ret{"void"};
 
-                auto m = c->function(descriptor->name);
+                auto m = c->function(descriptor->get_name());
 
                 std::ostringstream os{};
                 os << "// " << (descriptor->returnTypeName != nullptr ? descriptor->returnTypeName : "") << "\n";
 
                 if (!is_singleton) {
-                    os << "return utility::re_managed_object::call_method((REManagedObject*)this, \"" << descriptor->name << "\", *args);";
+                    os << "return REManagedObject::call_method((REManagedObject*)this, \"" << descriptor->get_name() << "\", *args);";
                 }
                 else {
-                    os << "return utility::re_managed_object::call_method((REManagedObject*)this, utility::re_type::get_method_desc(get_type_info(), \"" << descriptor->name << "\"), *args);";
+                    os << "return REManagedObject::call_method((REManagedObject*)this, utility::re_type::get_method_desc(get_type_info(), \"" << descriptor->get_name() << "\"), *args);";
                 }
 
                 m->param("args")->type(g->type("void**"));
@@ -2273,9 +2380,9 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
 // BORKED RIGHT NOW
                 json json_params{};
 
-                for (auto f = 0; f < descriptor->numParams; ++f) {
-                    auto& param_d = (*descriptor->params)[f];
-                    auto param_t = g_itypedb[(*descriptor->params)[f].typeIndex];
+                for (auto f = 0; f < descriptor->get_numParams(); ++f) {
+                    auto& param_d = (*descriptor->get_params())[f];
+                    auto param_t = g_itypedb[(*descriptor->get_params())[f].typeIndex];
                     auto param_typename = (param_t != nullptr && param_d.typeIndex) != 0 ? param_t->full_name : param_d.typeName;
 
                     json_params.push_back({
@@ -2285,27 +2392,27 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                     });
                 }
 
-                auto return_t = g_itypedb[descriptor->typeIndex];
-                auto return_name = (return_t != nullptr && descriptor->typeIndex != 0) ? return_t->full_name : descriptor->returnTypeName;
+                auto return_t = g_itypedb[descriptor->get_typeIndex()];
+                auto return_name = (return_t != nullptr && descriptor->get_typeIndex() != 0) ? return_t->full_name : descriptor->get_returnTypeName();
 
-                il2cpp_dump[t->name]["reflection_methods"][descriptor->name] = {
-                    {"function", (std::stringstream{} << "0x" << std::hex << get_original_va(descriptor->functionPtr)).str()},
+                il2cpp_dump[t->get_type_name()]["reflection_methods"][descriptor->get_name()] = {
+                    {"function", (std::stringstream{} << "0x" << std::hex << get_original_va(descriptor->get_functionPtr())).str()},
                     {"returns", return_name},
                     {"params", json_params},
-                    {"typeindex", descriptor->typeIndex}
+                    {"typeindex", descriptor->get_typeIndex()}
                 };
 #endif
             } catch(...) {
                 continue; // unexplained crash
             }
         }
-#endif
+        }  // tdb_ver > 49
 
         // Generate Properties
-        if (fields->variables != nullptr && fields->variables->data != nullptr) {
-            auto descriptors = fields->variables->data->descriptors;
+        if (fields->get_variables() != nullptr && fields->get_variables()->data != nullptr) {
+            auto descriptors = fields->get_variables()->data->descriptors;
             auto reflection_property_index = 0;
-            for (auto i = descriptors; i != descriptors + fields->variables->num; ++i) {
+            for (auto i = descriptors; i != descriptors + fields->get_variables()->num; ++i) {
                 auto variable = *i;
 
                 if (variable == nullptr) {
@@ -2315,25 +2422,25 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 /*genny::Function* m = nullptr;
 
                 std::ostringstream os{};
-                os << "// " << (variable->typeName != nullptr ? variable->typeName : "") << "\n";
+                os << "// " << (variable->get_typeName() != nullptr ? variable->get_typeName() : "") << "\n";
 
                 if (utility::reflection_property::is_static(variable)) {
-                    m = c->static_function(variable->name);
+                    m = c->static_function(variable->get_name());
 
-                    os << "auto tbl = sdk::VM::get()->get_static_tbl_for_type(*(uint32_t*)get_type_info()->classInfo & 0x3FFF);\n";
+                    os << "auto tbl = sdk::VM::get()->get_static_tbl_for_type(*(uint32_t*)get_classInfo(get_type_info()) & 0x3FFF);\n";
                     os << "if (tbl == nullptr) {\n return nullptr;\n}\n";
-                    os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)tbl, utility::re_type::get_field_desc(get_type_info(), \"" << variable->name << "\"));\n";
+                    os << "return (REManagedObject*)tbl->get_reflection_property<sdk::DummyData>(utility::re_type::get_field_desc(get_type_info(), \"" << variable->get_name() << "\"));\n";
 
                     m->procedure(os.str());
                 }
                 else {
-                    m = c->function(variable->name);
+                    m = c->function(variable->get_name());
 
                     if (!is_singleton) {
-                        os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)this, " << "\"" << variable->name << "\");";
+                        os << "return (REManagedObject*)this->get_reflection_property<sdk::DummyData>(" << "\"" << variable->get_name() << "\");";
                     }
                     else {
-                        os << "return utility::re_managed_object::get_field<sdk::DummyData>((REManagedObject*)this, utility::re_type::get_field_desc(get_type_info(), " << "\"" << variable->name << "\"));";
+                        os << "return (REManagedObject*)this->get_reflection_property<sdk::DummyData>(utility::re_type::get_field_desc(get_type_info(), " << "\"" << variable->get_name() << "\"));";
                     }
 
                     m->procedure(os.str());
@@ -2343,34 +2450,34 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
                 //m->returns(dummy_type);
 
 #ifdef TDB_DUMP_ALLOWED
-                auto field_t = g_fqntypedb[variable->typeFqn];
-                auto field_t_name = (field_t != nullptr && variable->typeFqn != 0) ? field_t->full_name : variable->typeName;
+                auto field_t = g_fqntypedb[variable->get_typeFqn()];
+                auto field_t_name = (field_t != nullptr && variable->get_typeFqn() != 0) ? field_t->full_name : variable->get_typeName();
 
-                auto& prop_entry = il2cpp_dump[t->name]["reflection_properties"][variable->name];
+                auto& prop_entry = il2cpp_dump[t->get_type_name()]["reflection_properties"][variable->get_name()];
 
                 prop_entry = {
-                    {"getter", (std::stringstream{} << "0x" << std::hex << get_original_va(variable->function)).str()},
+                    {"getter", (std::stringstream{} << "0x" << std::hex << get_original_va(variable->get_function())).str()},
                     {"type", field_t_name},
                     {"order", reflection_property_index++},
                 };
 #endif
             
-#if defined(RE8) || defined(MHRISE)
-                // Property attributes
-                if (variable->attributes != 0 && variable->attributes != -1) {
-                    for (auto attr = (REAttribute*)((uintptr_t)&variable->attributes + variable->attributes); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
-                        auto type_func = (REType* (*)())attr->info->getType;
+                if (gi.is_re8() || gi.is_mhrise()) {
+                    // Property attributes
+                    if (variable->get_attributes() != 0 && variable->get_attributes() != -1) {
+                        for (auto attr = (REAttribute*)((uintptr_t)variable + VariableDescriptor::offset_of_attributes() + variable->get_attributes()); attr != nullptr && !IsBadReadPtr(attr, sizeof(REAttribute)) && attr->info != nullptr; attr = attr->next) {
+                            auto type_func = (REType* (*)())attr->info->get_type_fn();
 
-                        prop_entry["attributes"].emplace_back(
-                            json{ {"name", type_func()->name } }
-                        );
+                            prop_entry["attributes"].emplace_back(
+                                json{ {"name", type_func()->get_type_name() } }
+                            );
+                        }
                     }
                 }
-#endif
             }
         }
     }
-#endif
+    }  // tdb_ver > 49
 
     // don't.
     /*for (auto& it : this->m_enums) {
@@ -2442,9 +2549,9 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
     }
 
     bool made_node = false;
-    const auto is_game_object = utility::re_managed_object::is_a(object, "via.GameObject");
-    const auto is_bhvt = utility::re_managed_object::is_a(object, "via.behaviortree.BehaviorTree");
-    const auto obj_typedef = utility::re_managed_object::get_type_definition(object);
+    const auto is_game_object = object->is_a("via.GameObject");
+    const auto is_bhvt = object->is_a("via.behaviortree.BehaviorTree");
+    const auto obj_typedef = object->get_type_definition();
 
     if (obj_typedef != nullptr) {
         m_current_path.emplace_back(obj_typedef->get_name());
@@ -2462,11 +2569,11 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         context_menu(real_address);
 
         if (is_game_object) {
-            additional_text = utility::re_game_object::get_name(address.as<REGameObject*>());
+            additional_text = address.as<REGameObject*>()->get_name();
         }
         else {
             // Change name based on VMType
-            switch (utility::re_managed_object::get_vm_type(object)) {
+            switch (object->get_vm_type()) {
             case via::clr::VMObjType::Array:
             {
                 auto arr = (REArrayBase*)object;
@@ -2486,15 +2593,15 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
             case via::clr::VMObjType::String: {
                 additional_text = "String";
 
-                auto t = utility::re_managed_object::get_type(object);
+                auto t = object->get_type();
 
                 if (t != nullptr) {
-                    auto type_name = std::string{t->name};
+                    auto type_name = std::string{t->get_type_name()};
                     auto ret = utility::hash(type_name);
 
                     switch (ret) {
                     case "System.String"_fnv: {
-                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - sizeof(REManagedObject));
+                        auto str = (SystemString*)((uintptr_t)object->get_field_ptr() - REManagedObject::runtime_size());
 
                         if (str->size > 0) {
                             additional_text2 = utility::narrow(str->data);
@@ -2518,17 +2625,17 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
                 additional_text = "ValType";
                 break;
             case via::clr::VMObjType::Object: {
-                auto t = utility::re_managed_object::get_type(object);
+                auto t = object->get_type();
 
                 if (t != nullptr) {
-                    additional_text = t->name;
+                    additional_text = t->get_type_name();
 
-                    auto type_name = std::string{t->name};
+                    auto type_name = std::string{t->get_type_name()};
                     auto ret = utility::hash(type_name);
 
                     switch (ret) {
                     case "System.String"_fnv: {
-                        auto str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(object) - sizeof(REManagedObject));
+                        auto str = (SystemString*)((uintptr_t)object->get_field_ptr() - REManagedObject::runtime_size());
 
                         if (str->size > 0) {
                             additional_text2 = utility::narrow(str->data);
@@ -2569,17 +2676,17 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
             handle_game_object(address.as<REGameObject*>());
         }
 
-        if (utility::re_managed_object::is_a(object, "via.Component")) {
+        if (object->is_a("via.Component")) {
             handle_component(address.as<REComponent*>());
         }
 
-        if (utility::re_managed_object::is_a(object, "via.render.RenderLayer")) {
+        if (object->is_a("via.render.RenderLayer")) {
             handle_render_layer(address.as<sdk::renderer::RenderLayer*>());
         }
 
-        handle_type(object, utility::re_managed_object::get_type(object));
+        handle_type(object, object->get_type());
 
-        if (utility::re_managed_object::get_vm_type(object) == via::clr::VMObjType::Array) {
+        if (object->get_vm_type() == via::clr::VMObjType::Array) {
             auto arr = (REArrayBase*)object;
 
             const auto made_array_entries = ImGui::TreeNode(real_address.get(sizeof(REArrayBase)), "Array Entries");
@@ -2603,12 +2710,12 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
                         std::vector<uint8_t> copied_obj{};
                         copied_obj.resize(real_size);
 
-                        memcpy(&copied_obj[0], &fake_obj, sizeof(REManagedObject));
-                        memcpy(&copied_obj[sizeof(REManagedObject)], elem, real_size - sizeof(REManagedObject));
-                        real_size = utility::re_managed_object::get_size((REManagedObject*)copied_obj.data());
+                        memcpy(&copied_obj[0], &fake_obj, REManagedObject::runtime_size());
+                        memcpy(&copied_obj[REManagedObject::runtime_size()], elem, real_size - REManagedObject::runtime_size());
+                        real_size = ((REManagedObject*)copied_obj.data())->get_size();
                         copied_obj.resize(real_size);
 
-                        memcpy(&copied_obj[sizeof(REManagedObject)], elem, real_size - sizeof(REManagedObject));
+                        memcpy(&copied_obj[REManagedObject::runtime_size()], elem, real_size - REManagedObject::runtime_size());
                         handle_address(copied_obj.data(), i, arr, elem);
                     }
                 }
@@ -2623,7 +2730,7 @@ void ObjectExplorer::handle_address(Address address, int32_t offset, Address par
         }
 
         if (ImGui::TreeNode(real_address.ptr(), "AutoGenerated Types")) {
-            auto size = utility::re_managed_object::get_size(object);
+            auto size = object->get_size();
 
             for (auto i = (uint32_t)sizeof(void*); i < size; i += sizeof(void*)) {
                 auto ptr = Address(object).get(i).to<REManagedObject*>();
@@ -2680,20 +2787,20 @@ void ObjectExplorer::handle_game_object(REGameObject* game_object) {
         m_add_component_name.reserve(256);
     }
 
-    auto game_object_name = utility::re_game_object::get_name(game_object);
+    auto game_object_name = game_object->get_name();
 
     ImGui::Text("Name: %s", game_object_name.c_str());
-    make_tree_offset(game_object, offsetof(REGameObject, transform), "Transform");
-    make_tree_offset(game_object, offsetof(REGameObject, folder), "Folder");
+    make_tree_offset(game_object, REGameObject::offset_of_transform(), "Transform");
+    make_tree_offset(game_object, REGameObject::offset_of_folder(), "Folder");
 
     ImGui::PopID();
 }
 
 void ObjectExplorer::handle_component(REComponent* component) {
     auto display_component_preview = [&](REComponent* comp) {
-        if (comp != nullptr && comp->ownerGameObject != nullptr) {
-            auto prev_name = utility::re_managed_object::get_type_name(comp);
-            auto prev_gameobject_name = utility::re_game_object::get_name(comp->ownerGameObject);
+        if (comp != nullptr && comp->get_game_object() != nullptr) {
+            auto prev_name = comp->get_type_name();
+            auto prev_gameobject_name = comp->get_game_object()->get_name();
 
             auto tree_hovered = ImGui::IsItemHovered();
 
@@ -2713,10 +2820,10 @@ void ObjectExplorer::handle_component(REComponent* component) {
         sdk::call_object_func<void*>(component, "destroy", sdk::get_thread_context(), component);
     }
 
-    make_tree_offset(component, offsetof(REComponent, ownerGameObject), "Owner", [&](){  display_component_preview(component); });
-    //make_tree_offset(component, offsetof(REComponent, childComponent), "ChildComponent");
+    make_tree_offset(component, REComponent::offset_of_game_object(), "Owner", [&](){  display_component_preview(component); });
+    //make_tree_offset(component, REComponent::offset_of_child_component(), "ChildComponent");
 
-    auto children_offset = offsetof(REComponent, childComponent);
+    auto children_offset = REComponent::offset_of_child_component();
     auto children_ptr = Address(component).get(children_offset).to<void*>();
 
     // Draw children
@@ -2728,13 +2835,13 @@ void ObjectExplorer::handle_component(REComponent* component) {
             int32_t count = 0;
 
             // Iterate the children
-            for (auto child = component->childComponent; child != nullptr && child != component; child = child->childComponent) {
+            for (auto child = component->get_child_component(); child != nullptr && child != component; child = child->get_child_component()) {
                 // uh oh
-                if (!utility::re_managed_object::is_managed_object(child)) {
+                if (!REManagedObject::is_managed_object(child)) {
                     continue;
                 }
 
-                auto child_name = utility::re_managed_object::get_type_name(child);
+                auto child_name = child->get_type_name();
 
                 made_node = widget_with_context(child, [&]() { return stretched_tree_node(child, "%i", count++); });
                 auto tree_hovered = ImGui::IsItemHovered();
@@ -2757,8 +2864,8 @@ void ObjectExplorer::handle_component(REComponent* component) {
         }
     }
 
-    make_tree_offset(component, offsetof(REComponent, prevComponent), "PrevComponent", [&](){ display_component_preview(component->prevComponent); });
-    make_tree_offset(component, offsetof(REComponent, nextComponent), "NextComponent", [&](){ display_component_preview(component->nextComponent); });
+    make_tree_offset(component, REComponent::offset_of_prev_component(), "PrevComponent", [&](){ display_component_preview(component->get_prev_component()); });
+    make_tree_offset(component, REComponent::offset_of_next_component(), "NextComponent", [&](){ display_component_preview(component->get_next_component()); });
 }
 
 void ObjectExplorer::handle_transform(RETransform* transform) {
@@ -2770,7 +2877,7 @@ void ObjectExplorer::handle_render_layer(sdk::renderer::RenderLayer* layer) {
         auto parent = layer->get_parent();
 
         if (parent != nullptr) {
-            parent->add_layer(utility::re_managed_object::get_type_definition(layer)->get_type(), layer->m_priority)->clone_layers(layer);
+            parent->add_layer(layer->get_type_definition()->get_type(), layer->m_priority)->clone_layers(layer);
         }
     }
 
@@ -2991,11 +3098,11 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
 
     auto count = 0;
     const bool is_singleton = utility::re_type::is_singleton(t);
-    const bool is_real_obj = utility::re_managed_object::is_managed_object(obj);
+    const bool is_real_obj = REManagedObject::is_managed_object(obj);
     bool is_top_type_open = false;
 
-    for (auto type_info = t; type_info != nullptr; type_info = type_info->super) {
-        auto name = type_info->name;
+    for (auto type_info = t; type_info != nullptr; type_info = (REType*)get_super(type_info)) {
+        auto name = type_info->get_type_name();
 
         if (name == nullptr) {
             continue;
@@ -3019,24 +3126,24 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
             is_top_type_open = true;
         }
 
-        const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+        const auto is_real_object = REManagedObject::is_managed_object(obj);
 
         // Topmost type
         if (type_info == t && is_real_object) {
-            ImGui::Text("Size: 0x%X", utility::re_managed_object::get_size(obj));
+            ImGui::Text("Size: 0x%X", obj->get_size());
         }
         // Super types
         else {
-            ImGui::Text("Size: 0x%X", type_info->size);
+            ImGui::Text("Size: 0x%X", get_size(type_info));
         }
 
         ++count;
 
         // Display type flags
-        if (type_info->classInfo != nullptr) {
+        if (get_classInfo(type_info) != nullptr) {
             if (stretched_tree_node("Type Information")) {
                 if (stretched_tree_node("TypeFlags")) {
-                    display_enum_value("via.clr.TypeFlag", (int64_t)((sdk::RETypeDefinition*)type_info->classInfo)->get_flags());
+                    display_enum_value("via.clr.TypeFlag", (int64_t)((sdk::RETypeDefinition*)get_classInfo(type_info))->get_flags());
                     ImGui::TreePop();
                 }
 
@@ -3072,7 +3179,7 @@ void ObjectExplorer::handle_type(REManagedObject* obj, REType* t) {
             auto singleton_obj = utility::re_type::get_singleton_instance(t);
 
             if (singleton_obj != nullptr && ImGui::TreeNode(singleton_obj, "AutoGenerated Types")) {
-                auto size = t->size;
+                auto size = get_size(t);
 
                 for (auto i = (uint32_t)sizeof(void*); i < size; i += sizeof(void*)) {
                     auto ptr = Address(singleton_obj).get(i).to<REManagedObject*>();
@@ -3124,17 +3231,17 @@ void ObjectExplorer::display_enum_value(std::string_view name, int64_t value) {
 }
 
 void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* type_info) {
-    if (type_info->fields == nullptr) {
+    if (get_fields(type_info) == nullptr) {
         return;
     }
 
-    volatile auto methods = type_info->fields->methods;
+    volatile auto methods = get_fields(type_info)->get_methods();
 
     if (methods == nullptr || *methods == nullptr) {
         return;
     }
 
-    auto num_methods = type_info->fields->num;
+    auto num_methods = get_fields(type_info)->get_num();
 
     if (ImGui::TreeNode(methods, "Reflection Methods: %i", num_methods)) {
         for (auto i = 0; i < num_methods; ++i) {
@@ -3147,29 +3254,29 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
             auto& holder = **top;
             auto descriptor = holder.descriptor;
 
-            if (descriptor == nullptr || descriptor->name == nullptr) {
+            if (descriptor == nullptr || descriptor->get_name() == nullptr) {
                 continue;
             }
 
-            auto ret = descriptor->returnTypeName != nullptr ? std::string{ descriptor->returnTypeName } : std::string{ "undefined" };
-            auto made_node = widget_with_context(descriptor, descriptor->name, [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
+            auto ret = descriptor->get_returnTypeName() != nullptr ? std::string{ descriptor->get_returnTypeName() } : std::string{ "undefined" };
+            auto made_node = widget_with_context(descriptor, descriptor->get_name(), [&]() { return stretched_tree_node(descriptor, "%s", ret.c_str()); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
             if (tree_hovered) {
-                make_same_line_text(descriptor->name, VARIABLE_COLOR_HIGHLIGHT);
+                make_same_line_text(descriptor->get_name(), VARIABLE_COLOR_HIGHLIGHT);
             }
             else {
-                make_same_line_text(descriptor->name, VARIABLE_COLOR);
+                make_same_line_text(descriptor->get_name(), VARIABLE_COLOR);
             }
 
             if (made_node) {
                 ImGui::Text("Address: 0x%p", descriptor);
-                ImGui::Text("Function: 0x%p", descriptor->functionPtr);
+                ImGui::Text("Function: 0x%p", descriptor->get_functionPtr());
 
-                if (descriptor->functionPtr != nullptr && ImGui::Button("Attempt to call")) {
+                if (descriptor->get_functionPtr() != nullptr && ImGui::Button("Attempt to call")) {
                     char poop[0x100]{ 0 };
-                    utility::re_managed_object::call_method(obj, descriptor->name, poop);
+                    obj->call_method(descriptor->get_name(), poop);
                 }
 
                 auto t2 = get_type(ret);
@@ -3178,7 +3285,7 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
                     ImGui::Text("Type: %s", ret.c_str());
                 }
                 else {
-                    std::vector<uint8_t> fake_object(t2->size, 0);
+                    std::vector<uint8_t> fake_object(get_size(t2), 0);
 
                     handle_type((REManagedObject*)fake_object.data(), t2);
                 }
@@ -3192,15 +3299,16 @@ void ObjectExplorer::display_reflection_methods(REManagedObject* obj, REType* ty
 }
 
 void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType* type_info) {
-    if (type_info->fields == nullptr || type_info->fields->variables == nullptr || type_info->fields->variables->data == nullptr) {
+    if (get_fields(type_info) == nullptr || get_fields(type_info)->get_variables() == nullptr || get_fields(type_info)->get_variables()->data == nullptr) {
         return;
     }
 
-    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
-    auto descriptors = type_info->fields->variables->data->descriptors;
+    const auto& gi = sdk::GameIdentity::get();
+    const auto is_real_object = REManagedObject::is_managed_object(obj);
+    auto descriptors = get_fields(type_info)->get_variables()->data->descriptors;
 
-    if (ImGui::TreeNode(type_info->fields, "Reflection Properties: %i", type_info->fields->variables->num)) {
-        for (auto i = descriptors; i != descriptors + type_info->fields->variables->num; ++i) {
+    if (ImGui::TreeNode(get_fields(type_info), "Reflection Properties: %i", get_fields(type_info)->get_variables()->num)) {
+        for (auto i = descriptors; i != descriptors + get_fields(type_info)->get_variables()->num; ++i) {
             auto variable = *i;
 
             if (variable == nullptr) {
@@ -3209,15 +3317,15 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
 
             auto local_obj = obj;
 
-            auto made_node = widget_with_context(variable->function, variable->name, [&]() { return stretched_tree_node(variable, "%s", variable->typeName); });
+            auto made_node = widget_with_context(variable->get_function(), variable->get_name(), [&]() { return stretched_tree_node(variable, "%s", variable->get_typeName()); });
             auto tree_hovered = ImGui::IsItemHovered();
 
             // Draw the variable name with a color
             if (tree_hovered) {
-                make_same_line_text(variable->name, VARIABLE_COLOR_HIGHLIGHT);
+                make_same_line_text(variable->get_name(), VARIABLE_COLOR_HIGHLIGHT);
             }
             else {
-                make_same_line_text(variable->name, VARIABLE_COLOR);
+                make_same_line_text(variable->get_name(), VARIABLE_COLOR);
             }
 
             // Display the field offset
@@ -3236,20 +3344,21 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
                 }
             }
 
-#if defined(RE8) || defined(MHRISE)
-            const auto allowed = is_real_object || utility::reflection_property::is_static(variable) || utility::re_type::is_singleton(type_info);
+            bool allowed = false;
+            if (gi.is_re8() || gi.is_mhrise()) {
+                allowed = is_real_object || utility::reflection_property::is_static(variable) || utility::re_type::is_singleton(type_info);
 
-            // Set the obj to the static table so we can get static variables
-            if (utility::reflection_property::is_static(variable)) {
-                const auto type_index = ((sdk::RETypeDefinition*)type_info->classInfo)->get_index();
+                // Set the obj to the static table so we can get static variables
+                if (utility::reflection_property::is_static(variable)) {
+                    const auto type_index = ((sdk::RETypeDefinition*)get_classInfo(type_info))->get_index();
 
-                local_obj = (REManagedObject*)sdk::VM::get()->get_static_tbl_for_type(type_index);
+                    local_obj = (REManagedObject*)sdk::VM::get()->get_static_tbl_for_type(type_index);
 
-                make_same_line_text("STATIC", ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f });
+                    make_same_line_text("STATIC", ImVec4{ 1.0f, 0.0f, 0.0f, 1.0f });
+                }
+            } else {
+                allowed = is_real_object || utility::re_type::is_singleton(type_info);
             }
-#else
-            const auto allowed = is_real_object || utility::re_type::is_singleton(type_info);
-#endif
 
             // Info about the field
             if (made_node) {
@@ -3259,17 +3368,17 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
 
                 if (ImGui::TreeNode(variable, "Additional Information")) {
                     ImGui::Text("Address: 0x%p", variable);
-                    ImGui::Text("Function: 0x%p", variable->function);
+                    ImGui::Text("Function: 0x%p", variable->get_function());
 
                     // Display type information
-                    if (variable->typeName != nullptr) {
-                        auto t2 = get_type(variable->typeName);
+                    if (variable->get_typeName() != nullptr) {
+                        auto t2 = get_type(variable->get_typeName());
 
                         if (t2 == nullptr || t2 == type_info) {
-                            ImGui::Text("Type: %s", variable->typeName);
+                            ImGui::Text("Type: %s", variable->get_typeName());
                         }
                         else {
-                            std::vector<uint8_t> fake_object(t2->size, 0);
+                            std::vector<uint8_t> fake_object(get_size(t2), 0);
 
                             handle_type((REManagedObject*)fake_object.data(), t2);
                         }
@@ -3283,10 +3392,10 @@ void ObjectExplorer::display_reflection_properties(REManagedObject* obj, REType*
                     
                     ImGui::Text("Size: %i", utility::reflection_property::get_size(variable));
                     ImGui::Text("ManagedStr: %i", prop_flags.managed_str);
-                    ImGui::Text("VarType: %i", variable->variableType);
+                    ImGui::Text("VarType: %i", variable->get_variableType());
 
-                    if (variable->staticVariableData != nullptr) {
-                        ImGui::Text("GlobalIndex: %i", variable->staticVariableData->variableIndex);
+                    if (variable->get_staticVariableData() != nullptr) {
+                        ImGui::Text("GlobalIndex: %i", variable->get_staticVariableData()->variableIndex);
                     }
 
                     ImGui::TreePop();
@@ -3306,7 +3415,7 @@ void ObjectExplorer::display_native_fields(REManagedObject* obj, sdk::RETypeDefi
         return;
     }
 
-    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    const auto is_real_object = REManagedObject::is_managed_object(obj);
     auto fields = tdef->get_fields();
 
     if (fields.size() == 0) {
@@ -3707,7 +3816,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
         return;
     }
 
-    const auto is_real_object = utility::re_managed_object::is_managed_object(obj);
+    const auto is_real_object = REManagedObject::is_managed_object(obj);
     auto methods = tdef->get_methods();
     auto tdb = reframework::get_types()->get_type_db();
 
@@ -3715,7 +3824,7 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
         return;
     }
     
-    if (ImGui::TreeNode(methods.begin(), "TDB Methods: %i", methods.size())) {
+    if (ImGui::TreeNode((void*)&methods, "TDB Methods: %i", methods.size())) {
         for (auto& m : methods) {
             if (!is_filtered_method(m)) {
                 continue;
@@ -3729,13 +3838,13 @@ void ObjectExplorer::display_native_methods(REManagedObject* obj, sdk::RETypeDef
 }
 
 void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {
-    if (desc->function == nullptr) {
+    if (desc->get_function() == nullptr) {
         return;
     }
 
-    auto type_name = std::string{ desc->typeName };
+    auto type_name = std::string{ desc->get_typeName() };
     auto ret = utility::hash(type_name);
-    auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
+    auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->get_function();
 
     char raw_data[0x100]{ 0 };
 
@@ -3772,11 +3881,11 @@ void ObjectExplorer::attempt_display_field(REManagedObject* obj, VariableDescrip
     // but there is a TDB getter and setter for it
     if (real_data == nullptr && obj != nullptr) {
         // Attempt to find a getter/setter for this field
-        const auto tdef = utility::re_managed_object::get_type_definition(obj);
+        const auto tdef = obj->get_type_definition();
 
         if (tdef != nullptr) {
-            getter = tdef->get_method(std::string{"get_"} + desc->name);
-            setter = tdef->get_method(std::string{"set_"} + desc->name);
+            getter = tdef->get_method(std::string{"get_"} + desc->get_name());
+            setter = tdef->get_method(std::string{"set_"} + desc->get_name());
 
             if (getter != nullptr && setter != nullptr) {
                 dummy_data = getter->invoke(obj, {});
@@ -4202,13 +4311,13 @@ void ObjectExplorer::display_data(void* data, void* real_data, std::string type_
 }
 
 int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescriptor* desc, REType* type_info) {
-    if (desc->typeName == nullptr || desc->function == nullptr || m_offset_map.find(desc) != m_offset_map.end()) {
+    if (desc->get_typeName() == nullptr || desc->get_function() == nullptr || m_offset_map.find(desc) != m_offset_map.end()) {
         return m_offset_map[desc];
     }
 
-    const auto parent_hash = utility::hash(std::string{ type_info->name });
-    const auto name_hash = utility::hash(std::string{ desc->name });
-    const auto ret_hash = utility::hash(std::string{ desc->typeName });
+    const auto parent_hash = utility::hash(std::string{ type_info->get_type_name() });
+    const auto name_hash = utility::hash(std::string{ desc->get_name() });
+    const auto ret_hash = utility::hash(std::string{ desc->get_typeName() });
 
     // These usually modify the object state, not what we want.
     if (ret_hash == "undefined"_fnv) {
@@ -4278,8 +4387,8 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
         uint8_t old;
     };
 
-    const auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->function;
-    const auto class_size = utility::re_managed_object::is_managed_object(obj) ? utility::re_managed_object::get_size(obj) : type_info->size;
+    const auto get_value_func = (void* (*)(VariableDescriptor*, REManagedObject*, void*))desc->get_function();
+    const auto class_size = REManagedObject::is_managed_object(obj) ? obj->get_size() : get_size(type_info);
     const auto size = 1;
 
     // Copy the object so we don't cause a crash by replacing
@@ -4289,10 +4398,10 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
 
     auto first_time = std::chrono::high_resolution_clock::now();
 
-    spdlog::info("{:d} {:s}", GetCurrentThreadId(), desc->name);
+    spdlog::info("{:d} {:s}", GetCurrentThreadId(), desc->get_name());
 
     // Compare data
-    for (int32_t i = sizeof(REManagedObject); i + size <= (int32_t)class_size; i += 1) {
+    for (int32_t i = REManagedObject::runtime_size(); i + size <= (int32_t)class_size; i += 1) {
         auto ptr = object_copy.data() + i;
         bool same = true;
 
@@ -4320,7 +4429,7 @@ int32_t ObjectExplorer::get_field_offset(REManagedObject* obj, VariableDescripto
 
             // Check it by dereferencing it now
             if (!same) {
-                const bool deref = desc->variableType == 0 && *(void**)data.data() != nullptr && !IsBadReadPtr(*(void**)data.data(), 1);
+                const bool deref = desc->get_variableType() == 0 && *(void**)data.data() != nullptr && !IsBadReadPtr(*(void**)data.data(), 1);
 
                 if (deref) {
                     same = tester.is_value_same(deref ? *(uint8_t**)data.data() : data.data());
@@ -4379,7 +4488,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
             ImGui::SetClipboardText(name->c_str());
         }
 
-        const auto is_managed_object = utility::re_managed_object::is_managed_object(address);
+        const auto is_managed_object = REManagedObject::is_managed_object(address);
 
         if (auto it = std::find_if(m_pinned_objects.begin(), m_pinned_objects.end(), [address](auto& pinned_obj) { return pinned_obj.address == address; }); it != m_pinned_objects.end()) {
             if (ImGui::Selectable("Unpin")) {
@@ -4389,7 +4498,7 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
             if (ImGui::Selectable("Pin")) {
                 auto& pinned = m_pinned_objects.emplace_back();
 
-                const auto type_definition = is_managed_object ? utility::re_managed_object::get_type_definition((REManagedObject*)address) : nullptr;
+                const auto type_definition = is_managed_object ? ((REManagedObject*)address)->get_type_definition() : nullptr;
 
                 pinned.address = address;
                 pinned.name = type_definition != nullptr ? type_definition->get_name() : std::to_string((uintptr_t)address);
@@ -4398,30 +4507,30 @@ void ObjectExplorer::context_menu(void* address, std::optional<std::string> name
         }
 
         // Log component hierarchy to disk
-        if (is_managed_object && utility::re_managed_object::is_a((REManagedObject*)address, "via.Component") && ImGui::Selectable("Log Hierarchy")) {
+        if (is_managed_object && ((REManagedObject*)address)->is_a("via.Component") && ImGui::Selectable("Log Hierarchy")) {
             auto comp = (REComponent*)address;
 
-            for (auto obj = comp; obj; obj = obj->childComponent) {
-                auto t = utility::re_managed_object::safe_get_type(obj);
+            for (auto obj = comp; obj; obj = obj->get_child_component()) {
+                auto t = obj->safe_get_type();
 
                 if (t != nullptr) {
-                    if (obj->ownerGameObject == nullptr) {
-                        spdlog::info("{:s} ({:x})", t->name, (uintptr_t)obj);
+                    if (obj->get_game_object() == nullptr) {
+                        spdlog::info("{:s} ({:x})", t->get_type_name(), (uintptr_t)obj);
                     }
                     else {
-                        auto owner = obj->ownerGameObject;
-                        spdlog::info("[{:s}] {:s} ({:x})", utility::re_game_object::get_name(owner), t->name, (uintptr_t)obj);
+                        auto owner = obj->get_game_object();
+                        spdlog::info("[{:s}] {:s} ({:x})", owner->get_name(), t->get_type_name(), (uintptr_t)obj);
                     }
                 }
 
-                if (obj->childComponent == comp) {
+                if (obj->get_child_component() == comp) {
                     break;
                 }
             }
         }
 
         if (is_managed_object && ImGui::Selectable("Hook All Methods")) {
-            const auto t = utility::re_managed_object::get_type_definition((REManagedObject*)address);
+            const auto t = ((REManagedObject*)address)->get_type_definition();
 
             if (t != nullptr) {
                 hook_all_methods(t);
@@ -4449,7 +4558,7 @@ void ObjectExplorer::hook_method(sdk::REMethodDefinition* method, std::optional<
     if (name) {
         hooked.name = method->get_declaring_type()->get_full_name() + "." + *name;
     } else {
-        hooked.name = method->get_declaring_type()->get_full_name() + "." + method->get_name();
+        hooked.name = method->get_declaring_type()->get_full_name() + "." +  get_method_prototype_context_name(*method);
     }
 
     using namespace asmjit;
@@ -4522,6 +4631,23 @@ void ObjectExplorer::hook_all_methods(sdk::RETypeDefinition* t) {
     }
 }
 
+void ObjectExplorer::unhook_all_methods(sdk::RETypeDefinition* t) {
+    if (t == nullptr) {
+        return;
+    }
+
+    const auto methods = t->get_methods();
+
+    for (auto& m : methods) {
+        auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [&m](auto& hook) { return hook.method == &m; });
+
+        if (it != m_hooked_methods.end()) {
+            g_hookman.remove(it->method, it->hook_id);
+            m_hooked_methods.erase(it);
+        }
+    }
+}
+
 void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name, ::REManagedObject* obj) {
     auto additional_ctx = [&]() {
         auto it = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& hook) { return hook.method == method; });
@@ -4553,6 +4679,18 @@ void ObjectExplorer::method_context_menu(sdk::REMethodDefinition* method, std::o
 
                 m_frame_jobs.push_back([this, declaring_type]() {
                     hook_all_methods(declaring_type);
+                });
+            }
+        }
+
+        if (ImGui::Selectable("Unhook All Methods")) {
+            const auto declaring_type = method->get_declaring_type();
+
+            if (declaring_type != nullptr) {
+                std::scoped_lock _{m_job_mutex};
+
+                m_frame_jobs.push_back([this, declaring_type]() {
+                    unhook_all_methods(declaring_type);
                 });
             }
         }
@@ -4601,9 +4739,11 @@ void ObjectExplorer::make_tree_offset(REManagedObject* object, uint32_t offset, 
 }
 
 bool ObjectExplorer::is_managed_object(Address address) const {
-    return utility::re_managed_object::is_managed_object(address);
+    return REManagedObject::is_managed_object(address);
 }
 
+// NOTE: REType::name at offset 0x20 is accessed directly throughout this function.
+// This offset is stable across all supported TDB versions (67-84).
 void ObjectExplorer::populate_classes() {
     auto type_list = reframework::get_types()->get_raw_types();
     spdlog::info("TypeList: {:x}", (uintptr_t)type_list);
@@ -4615,11 +4755,11 @@ void ObjectExplorer::populate_classes() {
         for (auto i = 0; i < type_list->numAllocated; ++i) {
             auto t = (*type_list->data)[i];
 
-            if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
+            if (t == nullptr || IsBadReadPtr(t, REType::runtime_size())) {
                 continue;
             }
 
-            if (t->name == nullptr) {
+            if (t->get_type_name() == nullptr) {
                 continue;
             }
 
@@ -4627,7 +4767,7 @@ void ObjectExplorer::populate_classes() {
                 continue;
             }
 
-            auto name = std::string{ t->name };
+            auto name = std::string{ t->get_type_name() };
 
             if (name.empty()) {
                 continue;
@@ -4666,7 +4806,7 @@ void ObjectExplorer::populate_classes() {
                 continue;
             }
 
-            const auto name = re_type->name;
+            const auto name = re_type->get_type_name();
 
             if (name == nullptr) {
                 continue;
@@ -4685,8 +4825,9 @@ void ObjectExplorer::populate_classes() {
 
 void ObjectExplorer::populate_enums() {
     bool has_enums = false;
+    const auto& gi = sdk::GameIdentity::get();
 
-#if TDB_VER > 49
+    if (gi.tdb_ver() > 49) {
     try {
         auto ref = utility::scan(g_framework->get_module().as<HMODULE>(), "66 C7 40 18 01 01 48 89 05 ? ? ? ?");
 
@@ -4736,7 +4877,7 @@ void ObjectExplorer::populate_enums() {
         m_enums.clear();
         spdlog::error("Unknown exception caught while populating enums, falling back to other method.");
     }
-#endif
+    }
 
     if (!has_enums) {
         std::ofstream out_file(REFramework::get_persistent_dir("Enums_Internal.hpp"));
@@ -4747,7 +4888,7 @@ void ObjectExplorer::populate_enums() {
         const auto flags_attribute = tdb->find_type("System.FlagsAttribute");
         const auto flags_attribute_runtime_type = flags_attribute != nullptr ? flags_attribute->get_runtime_type() : nullptr;
 
-        for (uint32_t i = 0; i < tdb->numTypes; ++i) {
+        for (uint32_t i = 0; i < tdb->get_num_types(); ++i) {
             auto t = tdb->get_type(i);
             auto parent_t = t->get_parent_type();
 
@@ -5565,6 +5706,20 @@ void ObjectExplorer::post_hooked_method_internal(uintptr_t& ret_val, sdk::REType
     const auto delta = now - hooked_method.stats.last_call_times[tid];
     hooked_method.stats.last_call_delta = delta;
     hooked_method.stats.total_call_time += delta;
+    
+    // Auto-unhook check
+    if (m_hooks_context.enable_auto_unhook && m_hooks_context.auto_unhook_method == HooksContext::AutoUnhookMethod::EXCEED_CALL_COUNT) {
+        if (hooked_method.stats.call_count >= m_hooks_context.auto_unhook_call_count_threshold) {
+            std::scoped_lock job_lock{m_job_mutex};
+            m_frame_jobs.push_back([this, method]() {
+                auto it2 = std::find_if(m_hooked_methods.begin(), m_hooked_methods.end(), [method](auto& a) { return a.method == method; });
+                if (it2 != m_hooked_methods.end()) {
+                    g_hookman.remove(it2->method, it2->hook_id);
+                    m_hooked_methods.erase(it2);
+                }
+            });
+        }
+    }
 }
 
 void ObjectExplorer::post_hooked_method(uintptr_t& ret_val, sdk::RETypeDefinition*& ret_ty, uintptr_t ret_addr, sdk::REMethodDefinition* method) {

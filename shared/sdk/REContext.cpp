@@ -14,6 +14,7 @@
 #include "RETypeDB.hpp"
 #include "REDelegate.hpp"
 #include "REContext.hpp"
+#include "GameIdentity.hpp"
 
 namespace sdk {
     VM** VM::s_global_context{ nullptr };
@@ -205,8 +206,8 @@ namespace sdk {
         // Needed on TDB73/AJ. The 0x30 offset we have is not correct, so we need to find the correct one
         // And the "correct" one is the first one that doesn't look like a BS pointer (crude, i know)
         // so... TODO: find a better way to do this
-#if TDB_VER >= 71
-        if (s_global_context != nullptr && *s_global_context != nullptr) {
+        const bool should_fixup_static_tbl = sdk::GameIdentity::get().tdb_ver() >= 71;
+        if (should_fixup_static_tbl && s_global_context != nullptr && *s_global_context != nullptr) {
             auto static_tbl = (REStaticTbl**)((uintptr_t)*s_global_context + s_static_tbl_offset);
             bool found_static_tbl_offset = false;
             const auto before_static_tbl_size = *(uint32_t*)((uintptr_t)static_tbl + sizeof(void*));
@@ -259,7 +260,6 @@ namespace sdk {
                 return;
             }
         }
-#endif
 
         // Get invoke_tbl
         // this SEEMS to work on RE2 and onwards, but not on RE7
@@ -636,8 +636,8 @@ namespace sdk {
 
                 const auto exception_managed_object = (::REManagedObject*)context->unkPtr->unkPtr;
 
-                if (utility::re_managed_object::is_managed_object(exception_managed_object)) {
-                    const auto exception_tdb_type = utility::re_managed_object::get_type_definition(exception_managed_object);
+                if (REManagedObject::is_managed_object(exception_managed_object)) {
+                    const auto exception_tdb_type = exception_managed_object->get_type_definition();
 
                     if (exception_tdb_type != nullptr) {
                         const auto exception_name = exception_tdb_type->get_full_name();
@@ -713,11 +713,11 @@ namespace sdk {
         static std::vector<uint8_t> huge_string_data{};
 
         if (huge_string_data.empty()) {
-            huge_string_data.resize(sizeof(REManagedObject) + 4 + 2048);
+            huge_string_data.resize(REManagedObject::runtime_size() + 4 + 2048);
             memset(&huge_string_data[0], 0, huge_string_data.size());
 
             auto huge_string = (SystemString*)&huge_string_data[0];
-            memcpy(huge_string, empty_string, sizeof(REManagedObject));
+            memcpy(huge_string, empty_string, REManagedObject::runtime_size());
         }
 
         const auto str_len = str.length();
@@ -842,9 +842,8 @@ namespace sdk {
             return nullptr;
         }
 
-        ::REObjectInfo fake_object_info {
-            .classInfo = (::REClassInfo*)t,
-        };
+        ::REObjectInfo fake_object_info{};
+        *(::REClassInfo**)&fake_object_info = (::REClassInfo*)t;
 
         sdk::Delegate fake_delegate_non_empty {
             .num_methods = 1,

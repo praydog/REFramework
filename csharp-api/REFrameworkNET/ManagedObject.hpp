@@ -63,8 +63,8 @@ internal:
                 return nullptr;
             }
 
-            // Do not cache local objects, it's just a burden on the cache
-            if (*(int32_t*)(addr + 0x8) < 0) {
+            // Use the plugin ABI getter; hardcoded offset 0x8 varies across TDB versions.
+            if (((reframework::API::ManagedObject*)addr)->get_ref_count() < 0) {
                 return gcnew T((::REFrameworkManagedObjectHandle)addr, false); // Local object, false for not cached
             }
 
@@ -285,8 +285,9 @@ public:
             return 0;
         }
 
-        // TODO: Make this less hacky/pull from the C++ API?
-        return *(int32_t*)((uintptr_t)m_object + 0x8);
+        // Use the plugin ABI getter instead of a hardcoded offset,
+        // which varies across TDB versions (e.g. TDB70 in RE2/RE3).
+        return m_object->get_ref_count();
     }
 
     bool IsLocalVariable() {

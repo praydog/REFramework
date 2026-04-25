@@ -3,6 +3,7 @@
 #include <chrono>
 #include <unordered_map>
 
+#include <sdk/GameIdentity.hpp>
 #include <sdk/intrusive_ptr.hpp>
 #include <sdk/ManagedObject.hpp>
 #include <sdk/renderer/PipelineState.hpp>
@@ -41,7 +42,7 @@ public:
         return m_ultrawide_fix->value();
     }
 
-#ifdef MHWILDS
+#if defined(REFRAMEWORK_UNIVERSAL) || defined(MHWILDS)
     uint32_t get_mhwilds_ultrawide_correction_value() const {
         return (uint32_t)m_ultrawide_ui_correction->value();
     }
@@ -59,7 +60,7 @@ private:
     void do_ultrawide_fov_restore(bool force = false);
     void set_ultrawide_fov(bool enable);
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
     void setup_path_trace_hook();
     void setup_shader_interception_hook();
     void setup_rt_component();
@@ -183,7 +184,7 @@ private:
     } m_re4;
     
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
-#ifdef MHWILDS
+#if defined(REFRAMEWORK_UNIVERSAL) || defined(MHWILDS)
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), true) };
     const ModSlider::Ptr m_ultrawide_ui_correction{ ModSlider::create(generate_name("UltrawideUICorrection"), 0.0f, 100.0f, 100.0f) };
 #else
@@ -192,10 +193,14 @@ private:
 
     // There is a trend with newer games where there actually is Ultrawide support, so we don't want to actually touch the FOV by default
     // And sometimes messing with the FOV causes permanent issues with the UI, so don't touch it by default
+#ifdef REFRAMEWORK_UNIVERSAL
+    const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), sdk::GameIdentity::get().tdb_ver() >= 73)};
+#else
 #if TDB_VER >= 73
     const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), true)};
 #else
     const ModToggle::Ptr m_ultrawide_custom_fov{ModToggle::create(generate_name("UltrawideCustomFOV"), false)};
+#endif
 #endif
 
     const ModToggle::Ptr m_ultrawide_constrain_ui{ModToggle::create(generate_name("UltrawideConstrainUI"), false)};
@@ -205,7 +210,7 @@ private:
     const ModToggle::Ptr m_force_render_res_to_window{ ModToggle::create(generate_name("ForceRenderResToWindow"), false) };
     const ModKey::Ptr m_disable_gui_key{ ModKey::create(generate_name("DisableGUIKey")) };
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
     const ModToggle::Ptr m_shader_playground { ModToggle::create(generate_name("ShaderPlayground"), false) };
     const ModToggle::Ptr m_ray_tracing_tweaks { ModToggle::create(generate_name("RayTracingTweaks"), false) };
 
@@ -291,7 +296,7 @@ private:
     const ModCombo::Ptr m_samples_per_pixel{ ModCombo::create(generate_name("SamplesPerPixel"), s_samples_per_pixel, 1) };
 #endif
 
-#ifdef RE4
+#if defined(REFRAMEWORK_UNIVERSAL) || defined(RE4)
     const ModToggle::Ptr m_scope_tweaks{ ModToggle::create(generate_name("ScopeTweaks"), false) };
     const ModToggle::Ptr m_scope_interlaced_rendering{ ModToggle::create(generate_name("ScopeInterlacedRendering"), false) };
     const ModSlider::Ptr m_scope_image_quality{ ModSlider::create(generate_name("ScopeImageQuality"), 0.01f, 2.0f, 1.0f) };
@@ -305,7 +310,7 @@ private:
         *m_ultrawide_custom_fov,
         *m_ultrawide_constrain_ui,
         *m_ultrawide_constrain_child_ui,
-#ifdef MHWILDS
+#if defined(REFRAMEWORK_UNIVERSAL) || defined(MHWILDS)
         *m_ultrawide_ui_correction,
 #endif
 
@@ -315,7 +320,7 @@ private:
         *m_force_render_res_to_window,
         *m_disable_gui_key,
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
         *m_shader_playground,
         *m_ray_tracing_tweaks,
         *m_ray_trace_type,
@@ -328,7 +333,7 @@ private:
         *m_samples_per_pixel,
 #endif
 
-#ifdef RE4
+#if defined(REFRAMEWORK_UNIVERSAL) || defined(RE4)
         *m_scope_tweaks,
         *m_scope_interlaced_rendering,
         *m_scope_image_quality,

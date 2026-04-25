@@ -766,7 +766,7 @@ void ScriptState::add_delegate_callback(sdk::DelegateInvocation& invo, sol::prot
         static auto system_object_t = sdk::find_type_definition("System.Object");
 
         invo.object = (::REManagedObject*)system_object_t->create_instance_full();
-        utility::re_managed_object::add_ref(invo.object);
+        invo.object->add_ref();
 
         invo.func = &ScriptState::delegate_callback;
         s_delegates[invo.object] = std::move(storage);

@@ -1,6 +1,7 @@
 #include <utility/Module.hpp>
 #include <utility/Scan.hpp>
 
+#include <sdk/GameIdentity.hpp>
 #include <sdk/SceneManager.hpp>
 #include <sdk/MurmurHash.hpp>
 #include <sdk/Renderer.hpp>
@@ -10,6 +11,11 @@
 #include "VR.hpp"
 #include "Graphics.hpp"
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "sdk/regenny/re9/via/Window.hpp"
+#include "sdk/regenny/re9/via/SceneView.hpp"
+#include <sdk/ViaDispatch.hpp>
+#else
 #if TDB_VER >= 83
 #include "sdk/regenny/re9/via/Window.hpp"
 #include "sdk/regenny/re9/via/SceneView.hpp"
@@ -40,6 +46,7 @@
 #include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
 #endif
 #endif
+#endif
 
 std::shared_ptr<Graphics>& Graphics::get() {
     static auto mod = std::make_shared<Graphics>();
@@ -47,71 +54,71 @@ std::shared_ptr<Graphics>& Graphics::get() {
 }
 
 std::optional<std::string> Graphics::on_initialize() {
-#if TDB_VER >= 69
-    const auto raytracing_enum = sdk::find_type_definition("via.render.ExperimentalRayTrace.Raytracing");
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        const auto raytracing_enum = sdk::find_type_definition("via.render.ExperimentalRayTrace.Raytracing");
 
-    if (raytracing_enum == nullptr) {
-        return Mod::on_initialize(); // OK
-    }
-
-    s_ray_trace_type.clear();
-    s_ray_trace_type.push_back("Disabled");
-
-    s_ray_trace_type.resize(raytracing_enum->get_fields().size() + 1);
-
-    int32_t actual_size = 1;
-
-    for (auto f : raytracing_enum->get_fields()) {
-        const auto field_flags = f->get_flags();
-
-        if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0 && (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
-            auto raw_data = f->get_data_raw(nullptr, true);
-            int64_t enum_data = 0;
-
-            switch(raytracing_enum->get_valuetype_size()) {
-                case 1:
-                    enum_data = (int64_t)*(int8_t*)raw_data;
-                    break;
-                case 2:
-                    enum_data = (int64_t)*(int16_t*)raw_data;
-                    break;
-                case 4:
-                    enum_data = (int64_t)*(int32_t*)raw_data;
-                    break;
-                case 8:
-                    enum_data = *(int64_t*)raw_data;
-                    break;
-                default:
-                    spdlog::error("Unknown enum size: {}", raytracing_enum->get_valuetype_size());
-                    break;
-            }
-
-            if (enum_data < 0 || enum_data + 1 >= s_ray_trace_type.size()) {
-                spdlog::error("Invalid enum data: {} {}", f->get_name(), enum_data);
-                continue;
-            }
-
-            auto unfriendly_name = std::string{f->get_name()};
-
-            // Format into a friendly name (Spacing between words)
-            for (size_t i = 1; i < unfriendly_name.size(); ++i) {
-                if (unfriendly_name[i] >= 'A' && unfriendly_name[i] <= 'Z') {
-                    unfriendly_name.insert(i, " ");
-                    i++;
-                }
-            }
-
-            s_ray_trace_type[enum_data + 1] = unfriendly_name;
-            ++actual_size;
+        if (raytracing_enum == nullptr) {
+            return Mod::on_initialize(); // OK
         }
-    }
 
-    s_ray_trace_type.resize(actual_size);
-    m_ray_trace_type->recreate_options(s_ray_trace_type);
-    m_ray_trace_clone_type_pre->recreate_options(s_ray_trace_type);
-    m_ray_trace_clone_type_post->recreate_options(s_ray_trace_type);
-    m_ray_trace_clone_type_true->recreate_options(s_ray_trace_type);
-#endif
+        s_ray_trace_type.clear();
+        s_ray_trace_type.push_back("Disabled");
+
+        s_ray_trace_type.resize(raytracing_enum->get_fields().size() + 1);
+
+        int32_t actual_size = 1;
+
+        for (auto f : raytracing_enum->get_fields()) {
+            const auto field_flags = f->get_flags();
+
+            if ((field_flags & (uint16_t)via::clr::FieldFlag::Static) != 0 && (field_flags & (uint16_t)via::clr::FieldFlag::Literal) != 0) {
+                auto raw_data = f->get_data_raw(nullptr, true);
+                int64_t enum_data = 0;
+
+                switch(raytracing_enum->get_valuetype_size()) {
+                    case 1:
+                        enum_data = (int64_t)*(int8_t*)raw_data;
+                        break;
+                    case 2:
+                        enum_data = (int64_t)*(int16_t*)raw_data;
+                        break;
+                    case 4:
+                        enum_data = (int64_t)*(int32_t*)raw_data;
+                        break;
+                    case 8:
+                        enum_data = *(int64_t*)raw_data;
+                        break;
+                    default:
+                        spdlog::error("Unknown enum size: {}", raytracing_enum->get_valuetype_size());
+                        break;
+                }
+
+                if (enum_data < 0 || enum_data + 1 >= s_ray_trace_type.size()) {
+                    spdlog::error("Invalid enum data: {} {}", f->get_name(), enum_data);
+                    continue;
+                }
+
+                auto unfriendly_name = std::string{f->get_name()};
+
+                // Format into a friendly name (Spacing between words)
+                for (size_t i = 1; i < unfriendly_name.size(); ++i) {
+                    if (unfriendly_name[i] >= 'A' && unfriendly_name[i] <= 'Z') {
+                        unfriendly_name.insert(i, " ");
+                        i++;
+                    }
+                }
+
+                s_ray_trace_type[enum_data + 1] = unfriendly_name;
+                ++actual_size;
+            }
+        }
+
+        s_ray_trace_type.resize(actual_size);
+        m_ray_trace_type->recreate_options(s_ray_trace_type);
+        m_ray_trace_clone_type_pre->recreate_options(s_ray_trace_type);
+        m_ray_trace_clone_type_post->recreate_options(s_ray_trace_type);
+        m_ray_trace_clone_type_true->recreate_options(s_ray_trace_type);
+    }
 
     return Mod::on_initialize(); // OK
 }
@@ -119,15 +126,12 @@ std::optional<std::string> Graphics::on_initialize() {
 void Graphics::on_lua_state_created(sol::state& lua) {
     lua.new_usertype<Graphics>("REFGraphics",
         "get", []() -> Graphics* { return Graphics::get().get(); },
-        "is_ultrawide_fix_enabled", &Graphics::is_ultrawide_fix_enabled
-#ifdef MHWILDS
-        ,
+        "is_ultrawide_fix_enabled", &Graphics::is_ultrawide_fix_enabled,
         "get_mhwilds_ultrawide_correction_value", &Graphics::get_mhwilds_ultrawide_correction_value,
         "set_mhwilds_ultrawide_correction_value", &Graphics::set_mhwilds_ultrawide_correction_value
-#endif
     );
 
-#ifdef MHWILDS
+if (sdk::GameIdentity::get().is_mhwilds()) {
 try {
     lua.do_string(R"--delimiter--(local Statics = {}
 
@@ -215,7 +219,7 @@ try {
 } catch(...) {
     spdlog::error("Error while trying to hook app.savedata.cOptionParam.getOptionValue(app.Option.ID): unknown error");
 }
-#endif
+} // is_mhwilds()
 }
 
 void Graphics::on_config_load(const utility::Config& cfg) {
@@ -235,16 +239,16 @@ void Graphics::on_frame() {
         m_disable_gui->toggle();
     }
 
-#if TDB_VER >= 69
-    if (m_ray_tracing_tweaks->value()) {
-        setup_path_trace_hook();
-        apply_ray_tracing_tweaks();
-    }
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        if (m_ray_tracing_tweaks->value()) {
+            setup_path_trace_hook();
+            apply_ray_tracing_tweaks();
+        }
 
-    if (m_shader_playground->value()) {
-        setup_shader_interception_hook();
+        if (m_shader_playground->value()) {
+            setup_shader_interception_hook();
+        }
     }
-#endif
 }
 
 void Graphics::on_draw_ui() {
@@ -253,7 +257,7 @@ void Graphics::on_draw_ui() {
         return;
     }
 
-#ifdef RE4
+    if (sdk::GameIdentity::get().is_re4()) {
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
     if (ImGui::TreeNode("RE4 Scope Tweaks")) {
         m_scope_tweaks->draw("Enable Scope Tweaks");
@@ -265,7 +269,7 @@ void Graphics::on_draw_ui() {
 
         ImGui::TreePop();
     }
-#endif
+    }
 
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
     if (ImGui::TreeNode("Ultrawide/FOV Options")) {
@@ -274,14 +278,14 @@ void Graphics::on_draw_ui() {
         }
 
         if (m_ultrawide_fix->value()) {
-#ifndef MHWILDS
-            m_ultrawide_constrain_ui->draw("Ultrawide: Constrain UI to 16:9");
-            if (m_ultrawide_constrain_ui->value()) {
-                m_ultrawide_constrain_child_ui->draw("Ultrawide: Constrain Child UI to 16:9");
+            if (!sdk::GameIdentity::get().is_mhwilds()) {
+                m_ultrawide_constrain_ui->draw("Ultrawide: Constrain UI to 16:9");
+                if (m_ultrawide_constrain_ui->value()) {
+                    m_ultrawide_constrain_child_ui->draw("Ultrawide: Constrain Child UI to 16:9");
+                }
+            } else {
+                m_ultrawide_ui_correction->draw("Ultrawide: UI Correction");
             }
-#else
-            m_ultrawide_ui_correction->draw("Ultrawide: UI Correction");
-#endif
             m_ultrawide_vertical_fov->draw("Ultrawide: Enable Vertical FOV");
             m_ultrawide_custom_fov->draw("Ultrawide: Override FOV");
             m_ultrawide_fov_multiplier->draw("Ultrawide: FOV Multiplier");
@@ -299,110 +303,110 @@ void Graphics::on_draw_ui() {
         ImGui::TreePop();
     }
 
-#if TDB_VER >= 69
-    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
-    if (ImGui::TreeNode("Ray Tracing Tweaks")) {
-        m_ray_tracing_tweaks->draw("Enable Ray Tracing Tweaks");
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+        if (ImGui::TreeNode("Ray Tracing Tweaks")) {
+            m_ray_tracing_tweaks->draw("Enable Ray Tracing Tweaks");
 
-        if (m_ray_tracing_tweaks->value()) {
-            m_ray_trace_disable_raster_shadows->draw("Disable Raster Shadows (with PT)");
-            m_ray_trace_always_recreate_rt_component->draw("Always Recreate RT Component");
-            // Description of the above option
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Recreates the RT component. Useful if Ray Tracing Tweaks is not working.");
-            }
-            m_ray_trace_type->draw("Ray Trace Type");
+            if (m_ray_tracing_tweaks->value()) {
+                m_ray_trace_disable_raster_shadows->draw("Disable Raster Shadows (with PT)");
+                m_ray_trace_always_recreate_rt_component->draw("Always Recreate RT Component");
+                // Description of the above option
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Recreates the RT component. Useful if Ray Tracing Tweaks is not working.");
+                }
+                m_ray_trace_type->draw("Ray Trace Type");
 
-            const auto clone_tooltip = 
-                    "Can draw another RT pass over the main RT pass. Useful for hybrid rendering.\n"
-                    "Example: Set Ray Trace Type to Pure and Ray Trace Clone Type to ASVGF. This adds RTGI to the path traced image.\n"
-                    "Path Space Filter is also another good alternative for RTGI but it costs more performance.\n";
+                const auto clone_tooltip = 
+                        "Can draw another RT pass over the main RT pass. Useful for hybrid rendering.\n"
+                        "Example: Set Ray Trace Type to Pure and Ray Trace Clone Type to ASVGF. This adds RTGI to the path traced image.\n"
+                        "Path Space Filter is also another good alternative for RTGI but it costs more performance.\n";
 
-            m_ray_trace_clone_type_pre->draw("Ray Trace Clone Type Pre");
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip(clone_tooltip);
-            }
-
-            m_ray_trace_clone_type_post->draw("Ray Trace Clone Type Post");
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip(clone_tooltip);
-            }
-            
-            m_ray_trace_clone_type_true->draw("Ray Trace Clone Type True");
-            if (ImGui::IsItemHovered()) {
-                const auto true_tooltip =
-                    "Uses a completely separate RT component instead of re-using the main RT component.\n"
-                    "Might crash or have other issues. Use with caution.\n";
-                ImGui::SetTooltip(true_tooltip);
-            }
-
-            // Hybrid/pure
-            if (is_pt_type(m_ray_trace_type->value()) || is_pt_type(m_ray_trace_clone_type_true->value())) {
-                m_bounce_count->draw("Bounce Count");
-                m_samples_per_pixel->draw("Samples Per Pixel");
-            }
-        }
-
-        ImGui::TreePop();
-    }
-
-    ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
-    if (ImGui::TreeNode("Shader Playground")) {
-        m_shader_playground->draw("Enable Shader Playground");
-
-        if (m_shader_playground->value()) {  
-            //for (size_t i = 0; i < m_replacement_shaders.size(); ++i) {
-            uint32_t j = 0;
-            for (auto& intercepted : m_intercepted_shaders) {
-                uint32_t i = 0;
-                ImGui::PushID(std::format("Interception Shader {}", j++).c_str());
-
-                const auto interception_node_open = ImGui::TreeNode("");
-                ImGui::SameLine();
-                if (ImGui::InputText("Interception Shader", intercepted.name.data(), intercepted.name.size())) {
-                    intercepted.hash = sdk::murmur_hash::calc32_as_utf8(intercepted.name.data());
+                m_ray_trace_clone_type_pre->draw("Ray Trace Clone Type Pre");
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip(clone_tooltip);
                 }
 
-                if (interception_node_open) {
-                    if (ImGui::InputText(std::format("Replace Shader", i).c_str(), intercepted.replace_with_name.data(), intercepted.replace_with_name.size())) {
-                        intercepted.replace_with_hash = sdk::murmur_hash::calc32_as_utf8(intercepted.replace_with_name.data());
-                    }
-
-                    for (auto& replacement : intercepted.replacement_shaders) {
-                        i++;
-                        ImGui::PushID(std::format("Shader {}", i).c_str());
-                        const auto node_open = ImGui::TreeNodeEx("");
-                        ImGui::SameLine();
-                        if (ImGui::InputText(std::format("Custom Shader {}", i).c_str(), replacement.shader.data(), replacement.shader.size())) {
-                            replacement.hash = sdk::murmur_hash::calc32_as_utf8(replacement.shader.data());
-                        }
-
-                        if (node_open) {
-                            ImGui::Combo("Dispatch Mode", (int*)&replacement.dispatch_mode, s_shader_dispatch_modes.data(), s_shader_dispatch_modes.size());
-
-                            ImGui::InputInt("Thread Group X", (int32_t*)&replacement.thread_group_x);
-                            ImGui::InputInt("Thread Group Y", (int32_t*)&replacement.thread_group_y);
-                            ImGui::InputInt("Thread Group Z", (int32_t*)&replacement.thread_group_z);
-                            ImGui::InputInt("Constant", (int32_t*)&replacement.constant);
-
-                            ImGui::Checkbox("Valid hash", &replacement.valid_hash);
-
-                            ImGui::TreePop();
-                        }
-
-                        ImGui::PopID();
-                    }
-
-                    ImGui::TreePop();
+                m_ray_trace_clone_type_post->draw("Ray Trace Clone Type Post");
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip(clone_tooltip);
+                }
+                
+                m_ray_trace_clone_type_true->draw("Ray Trace Clone Type True");
+                if (ImGui::IsItemHovered()) {
+                    const auto true_tooltip =
+                        "Uses a completely separate RT component instead of re-using the main RT component.\n"
+                        "Might crash or have other issues. Use with caution.\n";
+                    ImGui::SetTooltip(true_tooltip);
                 }
 
-                ImGui::PopID();
+                // Hybrid/pure
+                if (is_pt_type(m_ray_trace_type->value()) || is_pt_type(m_ray_trace_clone_type_true->value())) {
+                    m_bounce_count->draw("Bounce Count");
+                    m_samples_per_pixel->draw("Samples Per Pixel");
+                }
             }
+
+            ImGui::TreePop();
         }
 
-        ImGui::TreePop();
+        ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
+        if (ImGui::TreeNode("Shader Playground")) {
+            m_shader_playground->draw("Enable Shader Playground");
+
+            if (m_shader_playground->value()) {  
+                //for (size_t i = 0; i < m_replacement_shaders.size(); ++i) {
+                uint32_t j = 0;
+                for (auto& intercepted : m_intercepted_shaders) {
+                    uint32_t i = 0;
+                    ImGui::PushID(std::format("Interception Shader {}", j++).c_str());
+
+                    const auto interception_node_open = ImGui::TreeNode("");
+                    ImGui::SameLine();
+                    if (ImGui::InputText("Interception Shader", intercepted.name.data(), intercepted.name.size())) {
+                        intercepted.hash = sdk::murmur_hash::calc32_as_utf8(intercepted.name.data());
+                    }
+
+                    if (interception_node_open) {
+                        if (ImGui::InputText(std::format("Replace Shader", i).c_str(), intercepted.replace_with_name.data(), intercepted.replace_with_name.size())) {
+                            intercepted.replace_with_hash = sdk::murmur_hash::calc32_as_utf8(intercepted.replace_with_name.data());
+                        }
+
+                        for (auto& replacement : intercepted.replacement_shaders) {
+                            i++;
+                            ImGui::PushID(std::format("Shader {}", i).c_str());
+                            const auto node_open = ImGui::TreeNodeEx("");
+                            ImGui::SameLine();
+                            if (ImGui::InputText(std::format("Custom Shader {}", i).c_str(), replacement.shader.data(), replacement.shader.size())) {
+                                replacement.hash = sdk::murmur_hash::calc32_as_utf8(replacement.shader.data());
+                            }
+
+                            if (node_open) {
+                                ImGui::Combo("Dispatch Mode", (int*)&replacement.dispatch_mode, s_shader_dispatch_modes.data(), s_shader_dispatch_modes.size());
+
+                                ImGui::InputInt("Thread Group X", (int32_t*)&replacement.thread_group_x);
+                                ImGui::InputInt("Thread Group Y", (int32_t*)&replacement.thread_group_y);
+                                ImGui::InputInt("Thread Group Z", (int32_t*)&replacement.thread_group_z);
+                                ImGui::InputInt("Constant", (int32_t*)&replacement.constant);
+
+                                ImGui::Checkbox("Valid hash", &replacement.valid_hash);
+
+                                ImGui::TreePop();
+                            }
+
+                            ImGui::PopID();
+                        }
+
+                        ImGui::TreePop();
+                    }
+
+                    ImGui::PopID();
+                }
+            }
+
+            ImGui::TreePop();
+        }
     }
-#endif
 }
 
 void Graphics::on_present() {
@@ -462,9 +466,9 @@ void Graphics::on_pre_application_entry(void* entry, const char* name, size_t ha
     if (hash == "UpdateBehavior"_fnv) {
         // SF6 has some weird behavior where it doesn't restore the FOV correctly
         // corrupting the value
-#ifndef SF6
-        do_ultrawide_fix();
-#endif
+        if (!sdk::GameIdentity::get().is_sf6()) {
+            do_ultrawide_fix();
+        }
     }
 
     if (hash == "UnlockScene"_fnv) {
@@ -474,9 +478,9 @@ void Graphics::on_pre_application_entry(void* entry, const char* name, size_t ha
 
 void Graphics::on_application_entry(void* entry, const char* name, size_t hash) {
     if (hash == "UpdateBehavior"_fnv) {
-#ifndef SF6
-        do_ultrawide_fov_restore();
-#endif
+        if (!sdk::GameIdentity::get().is_sf6()) {
+            do_ultrawide_fov_restore();
+        }
     }
 
     // To actually fix the rendering.
@@ -490,19 +494,19 @@ void Graphics::fix_ui_element(REComponent* gui_element) {
         return;
     }
 
-    auto game_object = utility::re_component::get_game_object(gui_element);
+    auto game_object = gui_element->get_game_object();
 
-    if (game_object == nullptr || game_object->transform == nullptr) {
+    if (game_object == nullptr || game_object->get_transform() == nullptr) {
         return;
     }
 
-    const auto go_name = utility::re_string::get_view(game_object->name);
+    const auto go_name = game_object->get_name();
 
-    if (go_name == L"BlackFade") {
+    if (go_name == "BlackFade") {
         return; // Don't do anything with the black fade, it should be taking over the whole screen
     }
 
-    const auto gui_component = utility::re_component::find<REComponent*>(game_object->transform, "via.gui.GUI");
+    const auto gui_component = game_object->get_transform()->find<REComponent*>("via.gui.GUI");
 
     if (gui_component == nullptr) {
         return;
@@ -568,83 +572,91 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
     }
 
     // TODO: Check how this interacts with the other games, could be useful for them too.
-#if defined(SF6)
-    fix_ui_element(gui_element);
-#else
-#ifndef MHWILDS
-    if (m_ultrawide_constrain_ui->value()) {
+    if (sdk::GameIdentity::get().is_sf6()) {
         fix_ui_element(gui_element);
+    } else if (!sdk::GameIdentity::get().is_mhwilds()) {
+        if (m_ultrawide_constrain_ui->value()) {
+            fix_ui_element(gui_element);
+        }
     }
-#endif
-#endif
 
-    auto game_object = utility::re_component::get_game_object(gui_element);
+    auto game_object = gui_element->get_game_object();
     static auto letter_box_behavior_t = sdk::find_type_definition("app.LetterBoxBehavior");
     static auto letter_box_behavior_retype = letter_box_behavior_t != nullptr ? letter_box_behavior_t->get_type() : nullptr;
     static auto csmaskui_t = sdk::find_type_definition("app.solid.gui.CSMaskUI");
     static auto csmaskui_retype = csmaskui_t != nullptr ? csmaskui_t->get_type() : nullptr;
 
-    if (game_object != nullptr && game_object->transform != nullptr) {
+    if (game_object != nullptr && game_object->get_transform() != nullptr) {
         // Ultrawide for Dead Rising Deluxe Remaster
         if (csmaskui_retype != nullptr) {
-            auto csmaskui = utility::re_component::find<REComponent*>(game_object->transform, csmaskui_retype);
+            auto csmaskui = game_object->get_transform()->find<REComponent*>(csmaskui_retype);
 
             if (csmaskui != nullptr) {
-                game_object->shouldDraw = false;
+                game_object->set_shouldDraw(false);
                 return false;
             }
         }
 
-        const auto name = utility::re_game_object::get_name(game_object);
+        const auto name = game_object->get_name();
         const auto name_hash = utility::hash(name);
 
         switch(name_hash) {
         // RE2/3?
         case "GUI_PillarBox"_fnv:
         case "GUIEventPillar"_fnv:
-            game_object->shouldDraw = false;
+            game_object->set_shouldDraw(false);
             return false;
         
         case "Gui_ui0211"_fnv: // Kunitsu-Gami
             if (letter_box_behavior_t != nullptr) {
-                auto letter_box_behavior = utility::re_component::find<REComponent*>(game_object->transform, letter_box_behavior_retype);
+                auto letter_box_behavior = game_object->get_transform()->find<REComponent*>(letter_box_behavior_retype);
 
                 if (letter_box_behavior != nullptr) {
-                    game_object->shouldDraw = false;
+                    game_object->set_shouldDraw(false);
                     return false;
                 }
             }
 
             break;
 
-#if defined(DD2)
         case "ui012203"_fnv:
-            game_object->shouldDraw = false;
-            return false;
-#endif
+            if (sdk::GameIdentity::get().is_dd2()) {
+                game_object->set_shouldDraw(false);
+                return false;
+            }
+            break;
 
-#if defined(RE4)
         case "Gui_ui2510"_fnv: // Black bars in cutscenes
-            game_object->shouldDraw = false;
-            return false;
+            if (sdk::GameIdentity::get().is_re4()) {
+                game_object->set_shouldDraw(false);
+                return false;
+            }
+            break;
 
         case "AcBackGround"_fnv: // Various screens that show the game background
         case "Gui_ArmouryTab"_fnv: // Typewriter storage
         case "Gui_ui3030"_fnv: // in inventory
         case "Gui_ui3040"_fnv: // just picked up an item
-            if (game_object->shouldDraw && game_object->shouldUpdate) {
-                std::unique_lock _{m_re4.time_mtx};
-                m_re4.last_inventory_open = std::chrono::steady_clock::now();
+            if (sdk::GameIdentity::get().is_re4()) {
+                if (game_object->get_shouldDraw() && game_object->get_shouldUpdate()) {
+                    std::unique_lock _{m_re4.time_mtx};
+                    m_re4.last_inventory_open = std::chrono::steady_clock::now();
+                }
             }
             break;
-#endif
 
-#if defined(RE9)
         case "Gui_ui0440"_fnv: // Black bars in cutscenes
-            game_object->shouldDraw = false;
-            return false;
-#endif
+            if (sdk::GameIdentity::get().is_re9()) {
+                game_object->set_shouldDraw(false);
+                return false;
+            }
+            break;
 
+        case "ui0420Gui"_fnv: // Black bars in cutscenes
+            if (sdk::GameIdentity::get().is_pragmata()) {
+                game_object->set_shouldDraw(false);
+                return false;
+            }
         default:
             break;
         }
@@ -654,35 +666,33 @@ bool Graphics::on_pre_gui_draw_element(REComponent* gui_element, void* primitive
 }
 
 void Graphics::on_view_get_size(REManagedObject* scene_view, float* result) {
-#if defined(SF6) || defined(DMC5) || TDB_VER >= 73
-    if (m_ultrawide_fix->value()) {
-        auto regenny_view = (regenny::via::SceneView*)scene_view;
-        auto window = regenny_view->window;
+    if ((sdk::GameIdentity::get().is_sf6() || sdk::GameIdentity::get().is_dmc5() || sdk::GameIdentity::get().tdb_ver() >= 73) && m_ultrawide_fix->value()) {
+        auto window = sdk::via::sv_window(scene_view);
 
         if (window != nullptr) {
-            window->borderless_size.w = (float)window->width;
-            window->borderless_size.h = (float)window->height;
+            sdk::via::window_borderless_w(window) = (float)sdk::via::window_width(window);
+            sdk::via::window_borderless_h(window) = (float)sdk::via::window_height(window);
         }
     }
-#endif
 
     if (!m_force_render_res_to_window->value() || !m_backbuffer_size.has_value()) {
         return;
     }
 
-#if TDB_VER < 73
-    result[0] = (float)(*m_backbuffer_size)[0];
-    result[1] = (float)(*m_backbuffer_size)[1];
-#else
-    auto regenny_view = (regenny::via::SceneView*)scene_view;
-
-    regenny_view->size.w = (float)(*m_backbuffer_size)[0];
-    regenny_view->size.h = (float)(*m_backbuffer_size)[1];
-#endif
+    if (sdk::GameIdentity::get().tdb_ver() < 73) {
+        result[0] = (float)(*m_backbuffer_size)[0];
+        result[1] = (float)(*m_backbuffer_size)[1];
+    } else {
+        sdk::via::sv_size_w(scene_view) = (float)(*m_backbuffer_size)[0];
+        sdk::via::sv_size_h(scene_view) = (float)(*m_backbuffer_size)[1];
+    }
 }
 
 void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
-#ifdef RE4
+    if (!sdk::GameIdentity::get().is_re4()) {
+        return;
+    }
+
     if (!m_scope_tweaks->value()) {
         return;
     }
@@ -692,22 +702,22 @@ void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
         return;
     }
 
-    const auto camera_gameobject = utility::re_component::get_game_object(camera);
+    const auto camera_gameobject = camera->get_game_object();
 
-    if (camera_gameobject == nullptr || camera_gameobject->name == nullptr) {
+    const auto name = camera_gameobject->get_name();
+
+    if (name.empty()) {
         return;
     }
 
-    const auto name = utility::re_string::get_view(camera_gameobject->name);
-
-    if (name != L"ScopeCamera") {
+    if (name != "ScopeCamera") {
         return;
     }
 
     static auto render_output_t = sdk::find_type_definition("via.render.RenderOutput");
     static auto render_output_tt = render_output_t->get_type();
 
-    auto render_output = utility::re_component::find(camera, render_output_tt);
+    auto render_output = camera->find(render_output_tt);
 
     if (render_output == nullptr) {
         return;
@@ -723,13 +733,12 @@ void Graphics::do_scope_tweaks(sdk::renderer::layer::Scene* layer) {
     if (set_interleave_method != nullptr) {
         set_interleave_method->call(sdk::get_thread_context(), render_output, m_scope_interlaced_rendering->value());
     }
-#endif
 }
 
 void Graphics::on_scene_layer_update(sdk::renderer::layer::Scene* layer, void* render_context) {
-#ifdef RE4
-    do_scope_tweaks(layer);
-#endif
+    if (sdk::GameIdentity::get().is_re4()) {
+        do_scope_tweaks(layer);
+    }
 }
 
 void Graphics::do_ultrawide_fix() {
@@ -744,8 +753,7 @@ void Graphics::do_ultrawide_fix() {
 
     set_ultrawide_fov(m_ultrawide_vertical_fov->value());
 
-#if defined(RE4)
-    {
+    if (sdk::GameIdentity::get().is_re4()) {
         std::shared_lock _{m_re4.time_mtx};
 
         const auto now = std::chrono::steady_clock::now();
@@ -753,7 +761,6 @@ void Graphics::do_ultrawide_fix() {
             return;
         }
     }
-#endif
 
     static auto via_scene_view = sdk::find_type_definition("via.SceneView");
     static auto set_display_type_method = via_scene_view->get_method("set_DisplayType");
@@ -810,12 +817,12 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
         return;
     }
 
-#if defined(RE4) // Don't restore the FOV if we've just opened the inventory
-    const auto now = std::chrono::steady_clock::now();
-    if (now - m_re4.last_inventory_open < std::chrono::milliseconds(100)) {
-        return;
+    if (sdk::GameIdentity::get().is_re4()) { // Don't restore the FOV if we've just opened the inventory
+        const auto now = std::chrono::steady_clock::now();
+        if (now - m_re4.last_inventory_open < std::chrono::milliseconds(100)) {
+            return;
+        }
     }
-#endif
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
     static auto set_fov_method = via_camera->get_method("set_FOV");
@@ -827,7 +834,7 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
         for (auto it : m_fov_map) {
             auto camera = it.first;
             set_fov_method->call(sdk::get_thread_context(), camera, m_fov_map[camera]);
-            utility::re_managed_object::release(camera);
+            camera->release();
         }
         m_fov_map.clear();
     }
@@ -836,7 +843,7 @@ void Graphics::do_ultrawide_fov_restore(bool force) {
         for (auto it : m_vertical_fov_map) {
             auto camera = it.first;
             set_vertical_enable_method->call(sdk::get_thread_context(), camera, m_vertical_fov_map[camera]);
-            utility::re_managed_object::release(camera);
+            camera->release();
         }
         m_vertical_fov_map.clear();
     }
@@ -857,18 +864,18 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
     }
 
     bool allow_changing_fov = true;
-#if defined(RE4)
-    // Never scale the FOV if the inventory just opened, otherwise it could make the inventory appear much smaller than it should.
-    // Unfortunately it doesn't scale right at 21:9 even in the unpatched game.
-    const auto now = std::chrono::steady_clock::now();
-    if (now - m_re4.last_inventory_open < std::chrono::milliseconds(100)) {
-        allow_changing_fov = false;
-        use_vertical_fov = false;
-        // Clear the cached FOV values as they wouldn't be up to date anymore
-        std::scoped_lock _{m_fov_mutex};
-        m_fov_map.clear();
+    if (sdk::GameIdentity::get().is_re4()) {
+        // Never scale the FOV if the inventory just opened, otherwise it could make the inventory appear much smaller than it should.
+        // Unfortunately it doesn't scale right at 21:9 even in the unpatched game.
+        const auto now = std::chrono::steady_clock::now();
+        if (now - m_re4.last_inventory_open < std::chrono::milliseconds(100)) {
+            allow_changing_fov = false;
+            use_vertical_fov = false;
+            // Clear the cached FOV values as they wouldn't be up to date anymore
+            std::scoped_lock _{m_fov_mutex};
+            m_fov_map.clear();
+        }
     }
-#endif
 
     static auto via_camera = sdk::find_type_definition("via.Camera");
     static auto get_vertical_enable_method = via_camera->get_method("get_VerticalEnable");
@@ -888,7 +895,7 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
 
             if (!m_vertical_fov_map.contains(camera)) {
                 m_vertical_fov_map[camera] = was_vertical_fov_enabled;
-                utility::re_managed_object::add_ref(camera);
+                camera->add_ref();
             } else {
                 m_vertical_fov_map[camera] = was_vertical_fov_enabled;
             }
@@ -912,7 +919,7 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
             
         if (!m_fov_map.contains(camera)) {
             m_fov_map[camera] = fov;
-            utility::re_managed_object::add_ref(camera);
+            camera->add_ref();
         } else {
             m_fov_map[camera] = fov;
         }
@@ -930,14 +937,14 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
         // The threshold for letter boxing
         constexpr float min_supported_aspect_ratio = default_aspect_ratio;
         // The threshold for pillar boxing (or shifting to Ver- FOV)
-#if defined(RE8)
-        constexpr float max_supported_aspect_ratio = 32.f / 9.f;
-#elif defined(RE2) || defined(RE3) || defined(RE4)
-        // Even if most 21:9 resolutions actually have a higher aspect ratio than 2.333, that's actually what some games wrongfully use
-        constexpr float max_supported_aspect_ratio = 21.f / 9.f;
-#else
-        constexpr float max_supported_aspect_ratio = default_aspect_ratio;
-#endif
+        const auto& gi = sdk::GameIdentity::get();
+        float max_supported_aspect_ratio = default_aspect_ratio;
+        if (gi.is_re8()) {
+            max_supported_aspect_ratio = 32.f / 9.f;
+        } else if (gi.is_re2() || gi.is_re3() || gi.is_re4()) {
+            // Even if most 21:9 resolutions actually have a higher aspect ratio than 2.333, that's actually what some games wrongfully use
+            max_supported_aspect_ratio = 21.f / 9.f;
+        }
 
         float current_aspect_ratio = default_aspect_ratio;
         float target_aspect_ratio = default_aspect_ratio;
@@ -973,7 +980,7 @@ void Graphics::set_ultrawide_fov(bool use_vertical_fov) {
     }
 }
 
-#if TDB_VER >= 69
+#if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 69
 void Graphics::setup_shader_interception_hook() {
     if (m_attempted_shader_interception_hook) {
         return;
@@ -1134,19 +1141,19 @@ void Graphics::setup_rt_component() {
         return;
     }
 
-    const auto game_object = utility::re_component::get_game_object(camera);
+    const auto game_object = camera->get_game_object();
 
-    if (game_object == nullptr || game_object->transform == nullptr) {
+    if (game_object == nullptr || game_object->get_transform() == nullptr) {
         return;
     }
 
-    const auto go_name = utility::re_string::get_view(game_object->name);
+    const auto go_name = game_object->get_name();
 
-    if ((!go_name.starts_with(L"Main") && !go_name.starts_with(L"main")) && !go_name.contains(L"DefaultCamera")) {
+    if ((!go_name.starts_with("Main") && !go_name.starts_with("main")) && !go_name.contains("DefaultCamera")) {
         return;
     }
 
-    auto rt_component = utility::re_component::find<REComponent>(game_object->transform, rt_t->get_type());
+    auto rt_component = game_object->get_transform()->find<REComponent>(rt_t->get_type());
     
     // Attempt to create the component if it doesn't exist
     if (rt_component == nullptr || (m_ray_trace_always_recreate_rt_component->value() && m_rt_recreated_component.get() != (sdk::ManagedObject*)rt_component)) {
@@ -1276,9 +1283,9 @@ void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void
         static std::recursive_mutex mtx{};
         std::scoped_lock _{mtx};
 
-        auto go = utility::re_component::get_game_object(rt);
+        auto go = rt->get_game_object();
 
-        if (go == nullptr || go->transform == nullptr) {
+        if (go == nullptr || go->get_transform() == nullptr) {
             return og(rt, draw_context, r8, r9);
         }
 
@@ -1288,7 +1295,7 @@ void* Graphics::rt_draw_hook(REComponent* rt, void* draw_context, void* r8, void
             return og(rt, draw_context, r8, r9);
         }
 
-        auto replaceable_rt = utility::re_component::find_replaceable<REComponent>(go->transform, rt_t->get_type());
+        auto replaceable_rt = go->get_transform()->find_replaceable<REComponent>(rt_t->get_type());
 
         // The cursed part of the code
         if (replaceable_rt != nullptr) {

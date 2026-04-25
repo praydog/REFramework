@@ -52,7 +52,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     
     // we shouldn't really do this very much
     // so it shouldn't be too terrible on performance
-    if (!utility::re_managed_object::is_managed_object(obj)) {
+    if (!REManagedObject::is_managed_object(obj)) {
         throw sol::error{(std::stringstream{} << "sol_lua_push: " << (uintptr_t)obj << " is not a managed object").str()};
     }
 
@@ -61,11 +61,11 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     // addendum: maybe figured it out
 
     // only add a reference if it's a "local" object, indicated by a negative reference count
-    //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
+    //if ((int32_t)obj->get_ref_count() < 0 || (current_ref_count && *current_ref_count > 0)) {
     // addendum: only do it when reference count is > 0, local objects seem buggy...
-    if (force || (int32_t)obj->referenceCount > 0) {
+    if (force || (int32_t)obj->get_ref_count() > 0) {
         if (!force) {
-            utility::re_managed_object::add_ref(obj);
+            obj->add_ref();
         }
 
         // the reference counting is not necessary, but it will let us
@@ -87,7 +87,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
             // only add the ref once when the user requests it
             // so they don't screw something up
             if (force) {
-                utility::re_managed_object::add_ref(obj);
+                obj->add_ref();
             }
 
             ref_counts[(uintptr_t)obj] = 1;
@@ -129,11 +129,11 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
 }
 
 ::REManagedObject* add_ref_permanent(sol::this_state s, ::REManagedObject* obj) {
-    if (!utility::re_managed_object::is_managed_object(obj)) {
+    if (!REManagedObject::is_managed_object(obj)) {
         throw sol::error{(std::stringstream{} << "add_ref_permanent: " << (uintptr_t)obj << " is not a managed object").str()};
     } 
 
-    utility::re_managed_object::add_ref(obj);
+    obj->add_ref();
 
     return obj;
 }
@@ -149,8 +149,8 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
     if (std::optional<int> ref_count = ref_counts[(uintptr_t)obj]; ref_count && *ref_count > 0) {
         // because of our internal refcount keeping, we shouldn't need to double check
         // whether it's an actual object or not. hopefully?
-        //if (utility::re_managed_object::is_managed_object(obj)) {
-            utility::re_managed_object::release(obj);
+        //if (REManagedObject::is_managed_object(obj)) {
+            obj->release();
         //}
 
         int new_ref_count = *ref_count - 1;
@@ -167,8 +167,8 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
 
         //ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
     } else if (std::optional<int> ephemeral_count = ephemeral_counts[(uintptr_t)obj]; ephemeral_count && *ephemeral_count > 0) {
-        if (force && utility::re_managed_object::is_managed_object(obj)) {
-            utility::re_managed_object::release(obj);
+        if (force && REManagedObject::is_managed_object(obj)) {
+            obj->release();
         }
 
         // ephemeral counts don't actually release the object, they just decrement the count.
@@ -182,8 +182,8 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
         }
     } else {
         if (force) {
-            if (utility::re_managed_object::is_managed_object(obj)) {
-                utility::re_managed_object::release(obj);
+            if (REManagedObject::is_managed_object(obj)) {
+                obj->release();
             }
         } else {
             spdlog::warn("REManagedObject:release attempted to release an object that was not managed by our Lua state");
@@ -219,7 +219,7 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
 
             if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
                 uint32_t typename_hash = 0;
-                const auto td = utility::re_managed_object::get_type_definition(obj);
+                const auto td = obj->get_type_definition();
 
                 if (td != nullptr) {
                     if (auto it = api::sdk::s_fnv_cache.find(td); it != api::sdk::s_fnv_cache.end()) {
@@ -759,17 +759,17 @@ sol::object create_resource(sol::this_state s, std::string type_name, std::strin
 }
 
 sol::object create_global_object(sol::this_state &s, ::REManagedObject *obj) {
-    bool is_currently_local = static_cast<std::int32_t>(obj->referenceCount) <= 0;
+    bool is_currently_local = static_cast<std::int32_t>(obj->get_ref_count()) <= 0;
 
     // Mark object as global so that lua knows
     if (is_currently_local) {
-        utility::re_managed_object::add_ref(obj);
+        obj->add_ref();
     }
 
     auto obj_safe = sol::make_object(s, obj);
 
     if (is_currently_local) {
-        utility::re_managed_object::release(obj);
+        obj->release();
     }
 
     return obj_safe;
@@ -950,7 +950,7 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
         switch (full_name_hash) {
         case "System.String"_fnv: {
             const auto managed_ret_val = *(::REManagedObject**)data;
-            const auto managed_str = (SystemString*)((uintptr_t)utility::re_managed_object::get_field_ptr(managed_ret_val) - sizeof(::REManagedObject));
+            const auto managed_str = (SystemString*)((uintptr_t)managed_ret_val->get_field_ptr() - REManagedObject::runtime_size());
             const auto str = utility::narrow(managed_str->data);
 
             return sol::make_object(l, str);
@@ -1048,7 +1048,7 @@ sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_t
                 case via::clr::VMObjType::Array:
                     return sol::make_object(l, *(::sdk::SystemArray**)data);
                 default: {
-                    const auto td = utility::re_managed_object::get_type_definition(*(::REManagedObject**)data);
+                    const auto td = (*(::REManagedObject**)data)->get_type_definition();
 
                     // another fallback incase the method returns an object which is an array
                     if (td != nullptr && td->get_vm_obj_type() == via::clr::VMObjType::Array) {
@@ -1181,7 +1181,7 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                 REManagedObject** field = (REManagedObject**) data;
                 if (field != nullptr && *field != new_data) {
                     if (new_data != nullptr) {
-                        utility::re_managed_object::add_ref(new_data);
+                        new_data->add_ref();
                     }
 
                     // Use a thread-safe atomic exchange. This is what Capcom does for all field assignments.
@@ -1191,7 +1191,7 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                     }
 
                     if (old != nullptr) {
-                        utility::re_managed_object::release(old);
+                        old->release();
                     }
                 }
 
@@ -1371,7 +1371,7 @@ auto call_object_func(sol::object obj, const char* name, sol::variadic_args va) 
         return sol::make_object(obj.lua_state(), sol::nil);
     }
 
-    auto def = utility::re_managed_object::get_type_definition((::REManagedObject*)real_obj);
+    auto def = ((::REManagedObject*)real_obj)->get_type_definition();
 
     if (def == nullptr) {
         return sol::make_object(obj.lua_state(), sol::nil);
@@ -1391,7 +1391,7 @@ bool is_managed_object(sol::object obj) {
         return false;
     }
 
-    return utility::re_managed_object::is_managed_object(real_obj);
+    return REManagedObject::is_managed_object(real_obj);
 }
 
 void hook(sol::this_state s, ::sdk::REMethodDefinition* fn, sol::protected_function pre_cb, sol::protected_function post_cb, sol::object ignore_jmp_object) {
@@ -1420,7 +1420,7 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
     }
     auto index = args[0];
 
-    auto type_def = utility::re_managed_object::get_type_definition(obj);
+    auto type_def = obj->get_type_definition();
     std::string name;
     if (index.is<const char*>()) {
         name = index.as<const char*>();
@@ -1473,7 +1473,7 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
     auto index = args[0];
     auto assign = args[1];
 
-    auto type_def = utility::re_managed_object::get_type_definition(obj);
+    auto type_def = obj->get_type_definition();
     std::string name;
     if (index.is<const char*>()) {
         name = index.as<const char*>();
@@ -1510,11 +1510,11 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
 }
 
 bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
-    if (obj == nullptr || !::utility::re_managed_object::is_managed_object(obj)) {
+    if (obj == nullptr || !REManagedObject::is_managed_object(obj)) {
         return false;
     }
 
-    const auto typedefinition = ::utility::re_managed_object::get_type_definition(obj);
+    const auto typedefinition = obj->get_type_definition();
 
     if (typedefinition == nullptr) {
         return false;
@@ -1523,7 +1523,7 @@ bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
     auto size = typedefinition->get_size();
 
     if (typedefinition->is_array()) {
-        size = utility::re_managed_object::get_size(obj);
+        size = obj->get_size();
     }
 
     // trying to limit the impact of this function.
@@ -1565,7 +1565,7 @@ void bindings::open_sdk(ScriptState* s) {
     )");
 
     auto sdk = lua.create_table();
-    sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->version; };
+    sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->get_version(); };
     sdk["game_namespace"] = game_namespace;
     sdk["get_thread_context"] = api::sdk::get_thread_context;
     sdk["get_native_singleton"] = api::sdk::get_native_singleton;
@@ -1648,7 +1648,7 @@ void bindings::open_sdk(ScriptState* s) {
         }
 
         auto data = data_obj.as<std::vector<uint8_t>>();
-        auto result = ::utility::re_managed_object::deserialize(data.data(), data.size(), false);
+        auto result = REManagedObject::deserialize(data.data(), data.size(), false);
 
         // Explicitly create a lua table so we know for certain we are
         // pushing the REManagedObjects to the stack, adding a reference to them.
@@ -1804,7 +1804,7 @@ void bindings::open_sdk(ScriptState* s) {
                     return sol::make_object(l, sol::nil);
                 }
 
-                auto ty = utility::re_managed_object::get_type_definition(managed_obj);
+                auto ty = managed_obj->get_type_definition();
 
                 if (ty == nullptr) {
                     return sol::make_object(l, sol::nil);
@@ -1853,25 +1853,25 @@ void bindings::open_sdk(ScriptState* s) {
                 }
             }
 
-            return ::utility::re_managed_object::deserialize_native(obj, data.data(), data.size(), objects);
+            return obj->deserialize_native(data.data(), data.size(), objects);
         },
-        "get_reference_count", [] (::REManagedObject* obj) { return obj->referenceCount; },
+        "get_reference_count", [] (::REManagedObject* obj) { return obj->get_ref_count(); },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
-        "get_type_definition", &utility::re_managed_object::get_type_definition,
+        "get_type_definition", [](::REManagedObject* obj) { return obj->get_type_definition(); },
         "get_field", [s](REManagedObject* obj, const char* name) {
             if (obj == nullptr) {
                 return sol::make_object(s->lua(), sol::nil);
             }
 
-            return api::sdk::get_native_field(sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name); 
+            return api::sdk::get_native_field(sol::make_object(s->lua(), obj), obj->get_type_definition(), name); 
         },
-        "get_object_size", &utility::re_managed_object::get_size,
+        "get_object_size", [](::REManagedObject* obj) { return obj->get_size(); },
         "set_field", [s](REManagedObject* obj, const char* name, sol::object value) {
             if (obj == nullptr) {
                 return;
             }
 
-            return api::sdk::set_native_field(sol::this_state{s->lua()}, sol::make_object(s->lua(), obj), utility::re_managed_object::get_type_definition(obj), name, value); 
+            return api::sdk::set_native_field(sol::this_state{s->lua()}, sol::make_object(s->lua(), obj), obj->get_type_definition(), name, value); 
         },
         "call", [s](REManagedObject* obj, const char* name, sol::variadic_args args) {
             if (obj == nullptr) {
@@ -2195,20 +2195,16 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::sdk::behaviortree::TreeNodeData>("BehaviorTreeNodeData",
         "as_memoryview", [](::sdk::behaviortree::TreeNodeData* data) {
-            return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeNodeData));
+            return api::sdk::MemoryView((uint8_t*)data, sdk::behaviortree::tree_node_data_stride());
         },
-        "to_valuetype", [](::sdk::behaviortree::TreeNodeData* data) {
-            return *data;
-        },
-        "id", &::sdk::behaviortree::TreeNodeData::id,
-        "parent", &::sdk::behaviortree::TreeNodeData::parent,
-        "is_branch", &::sdk::behaviortree::TreeNodeData::is_branch,
-        "is_end", &::sdk::behaviortree::TreeNodeData::is_end,
-        "has_selector", &::sdk::behaviortree::TreeNodeData::has_selector,
-        //"selector_id", &::sdk::behaviortree::TreeNodeData::selector_id,
-        "attr", &::sdk::behaviortree::TreeNodeData::attr,
-        "parent", &::sdk::behaviortree::TreeNodeData::parent,
-        "parent_2", &::sdk::behaviortree::TreeNodeData::parent_2,
+        "id", sol::property(&::sdk::behaviortree::TreeNodeData::get_id),
+        "parent", sol::property(&::sdk::behaviortree::TreeNodeData::get_parent),
+        "is_branch", sol::property(&::sdk::behaviortree::TreeNodeData::get_is_branch),
+        "is_end", sol::property(&::sdk::behaviortree::TreeNodeData::get_is_end),
+        "has_selector", sol::property(&::sdk::behaviortree::TreeNodeData::get_has_selector),
+        //"selector_id", ...,
+        "attr", sol::property(&::sdk::behaviortree::TreeNodeData::get_attr),
+        "parent_2", sol::property(&::sdk::behaviortree::TreeNodeData::get_parent_2),
         "get_children", &::sdk::behaviortree::TreeNodeData::get_children,
         "get_actions", &::sdk::behaviortree::TreeNodeData::get_actions,
         "get_states", &::sdk::behaviortree::TreeNodeData::get_states,
@@ -2227,12 +2223,9 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::sdk::behaviortree::TreeNode>("BehaviorTreeNode",
         "as_memoryview", [](::sdk::behaviortree::TreeNode* node) {
-            return api::sdk::MemoryView((uint8_t*)node, sizeof(::sdk::behaviortree::TreeNode));
+            return api::sdk::MemoryView((uint8_t*)node, sdk::behaviortree::tree_node_stride());
         },
-        "to_valuetype", [](::sdk::behaviortree::TreeNode* node) {
-            return *node;
-        },
-        "id", &::sdk::behaviortree::TreeNode::id,
+        "id", sol::property(&::sdk::behaviortree::TreeNode::get_id),
         "get_id", &::sdk::behaviortree::TreeNode::get_id,
         "get_data", &::sdk::behaviortree::TreeNode::get_data,
         "get_owner", &::sdk::behaviortree::TreeNode::get_owner,
@@ -2256,13 +2249,42 @@ void bindings::open_sdk(ScriptState* s) {
         }
     );
 
-    DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNode, "DynamicArrayNoCapacityTreeNode");
-    DYNAMIC_ARRAY_NOCAP_TYPE_REF(::sdk::behaviortree::TreeNodeData, "DynamicArrayNoCapacityTreeNodeData");
+    // TreeNode and TreeNodeData are opaque; provide minimal array bindings without copy semantics.
+    lua.new_usertype<sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>>("DynamicArrayNoCapacityTreeNode",
+        "as_memoryview", [](sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>& data) {
+            return api::sdk::MemoryView((uint8_t*)&data, sizeof(sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>));
+        },
+        "size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::size,
+        "get_size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::size,
+        "empty", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::empty,
+        sol::meta_function::index, [](sol::this_state s, sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>& arr, uint32_t i) -> sol::object {
+            if (i >= arr.size()) {
+                return sol::make_object(s, sol::nil);
+            }
+            return sol::make_object(s, sdk::behaviortree::tree_node_at(arr.elements, i));
+        },
+        sol::meta_function::length, &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNode>::size
+    );
+    lua.new_usertype<sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>>("DynamicArrayNoCapacityTreeNodeData",
+        "as_memoryview", [](sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>& data) {
+            return api::sdk::MemoryView((uint8_t*)&data, sizeof(sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>));
+        },
+        "size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::size,
+        "get_size", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::size,
+        "empty", &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::empty,
+        sol::meta_function::index, [](sol::this_state s, sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>& arr, uint32_t i) -> sol::object {
+            if (i >= arr.size()) {
+                return sol::make_object(s, sol::nil);
+            }
+            return sol::make_object(s, sdk::behaviortree::tree_node_data_at(arr.elements, i));
+        },
+        sol::meta_function::length, &sdk::NativeArrayNoCapacity<::sdk::behaviortree::TreeNodeData>::size
+    );
     DYNAMIC_ARRAY_CAP_TYPE_PTR(::REManagedObject*, "DynamicArrayManagedObject");
 
     lua.new_usertype<::sdk::behaviortree::TreeObjectData>("BehaviorTreeObjectData",
         "as_memoryview", [](::sdk::behaviortree::TreeObjectData* data) {
-            return api::sdk::MemoryView((uint8_t*)data, sizeof(::sdk::behaviortree::TreeObjectData));
+            return api::sdk::MemoryView((uint8_t*)data, 0x300);
         },
         "get_nodes", &::sdk::behaviortree::TreeObjectData::get_nodes,
         "get_static_actions", &::sdk::behaviortree::TreeObjectData::get_static_actions,
@@ -2275,7 +2297,7 @@ void bindings::open_sdk(ScriptState* s) {
 
     lua.new_usertype<::sdk::behaviortree::TreeObject>("BehaviorTreeObject",
         "as_memoryview", [](::sdk::behaviortree::TreeObject* obj) {
-            return api::sdk::MemoryView((uint8_t*)obj, sizeof(::sdk::behaviortree::TreeObject));
+            return api::sdk::MemoryView((uint8_t*)obj, 0xD8);
         },
         "get_data", &::sdk::behaviortree::TreeObject::get_data,
         "get_node_by_id", &::sdk::behaviortree::TreeObject::get_node_by_id,

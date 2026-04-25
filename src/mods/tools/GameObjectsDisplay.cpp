@@ -162,7 +162,15 @@ void GameObjectsDisplay::on_present() {
 }
 
 void GameObjectsDisplay::on_frame() {
-    if (!m_enabled->value() || m_needs_d3d_init || !m_d3d12.initialized) {
+    if (!m_enabled->value() || m_needs_d3d_init) {
+        return;
+    }
+
+    // The D3D12 3D-text rendering path needs m_d3d12.initialized. The ImGui
+    // world-to-screen fallback (legacy mode or D3D11) does not — it draws via
+    // ImGui::GetBackgroundDrawList() and only needs world_to_screen to work.
+    const bool is_d3d12_frame = g_framework->is_dx12();
+    if (is_d3d12_frame && !m_legacy_mode && !m_d3d12.initialized) {
         return;
     }
 
@@ -181,7 +189,7 @@ void GameObjectsDisplay::on_frame() {
         return;
     }
 
-    static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
+    static auto transform_def = first_transform->get_type_definition();
     static auto next_transform_method = transform_def->get_method("get_Next");
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
     static auto get_position_method = transform_def->get_method("get_Position");
@@ -204,7 +212,7 @@ void GameObjectsDisplay::on_frame() {
     }
 
     auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
-    auto camera_transform = camera_gameobject->transform;
+    auto camera_transform = camera_gameobject->get_transform();
 
     Vector4f camera_origin{};
     get_position_method->call<void*>(&camera_origin, context, camera_transform);
@@ -280,7 +288,7 @@ void GameObjectsDisplay::on_frame() {
             continue;
         }
 
-        auto owner_name = utility::re_game_object::get_name(owner);
+        auto owner_name = owner->get_name();
 
         if (owner_name.empty()) {
             continue;
@@ -376,7 +384,7 @@ void GameObjectsDisplay::on_frame() {
                 m_d3d12.effect->Apply(data.command_list);
                 m_d3d12.quad->Draw(data.command_list);
             });
-        } else {
+        } else if (world_to_screen != nullptr) {
             world_to_screen->call<void*>(&screen_pos, context, &pos, &view, &proj, &screen_size);
             draw_list->AddText(ImVec2(screen_pos.x, screen_pos.y), ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)), owner_name.c_str());
         }

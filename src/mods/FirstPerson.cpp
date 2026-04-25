@@ -9,10 +9,12 @@
 #include "sdk/MurmurHash.hpp"
 #include "sdk/Application.hpp"
 
+#include <sdk/REGameObject.hpp>
+#include <sdk/GameIdentity.hpp>
+#include <sdk/CameraSystemDispatch.hpp>
 #include "VR.hpp"
 #include "FirstPerson.hpp"
 
-#if defined(RE2) || defined(RE3)
 
 FirstPerson* g_first_person = nullptr;
 
@@ -22,33 +24,37 @@ std::shared_ptr<FirstPerson>& FirstPerson::get() {
 }
 
 FirstPerson::FirstPerson() {
+    const auto& gi = sdk::GameIdentity::get();
+    if (!gi.is_re2() && !gi.is_re3()) {
+        return;
+    }
     // thanks imgui
     g_first_person = this;
     m_attach_bone_imgui.reserve(256);
 
-#ifdef RE3
-    // Carlos
-    m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.667f, 1.1f, 0.0f };
-    // Jill (it looks better with 0?)
-    m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.5f, 0.776f, 0.0f };
-    //m_attach_offsets["pl2000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
-#else
-    // Specific player model configs
-    // Leon
-    m_attach_offsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
-    // Claire
-    m_attach_offsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
-    // Sherry
-    m_attach_offsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
-    // Hunk
-    m_attach_offsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
-    // Kendo
-    m_attach_offsets["pl5000"] = Vector4f{ -0.24f, 0.4f, 1.0f, 0.0f };
-    // Forgotten Soldier
-    m_attach_offsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
-    // Elizabeth
-    m_attach_offsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
-#endif
+    if (gi.is_re3()) {
+        // Carlos
+        m_attach_offsets["pl0000"] = Vector4f{ 0.0f, 0.667f, 1.1f, 0.0f };
+        // Jill (it looks better with 0?)
+        m_attach_offsets["pl2000"] = Vector4f{ 0.0f, 0.5f, 0.776f, 0.0f };
+        //m_attach_offsets["pl2000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
+    } else {
+        // Specific player model configs
+        // Leon
+        m_attach_offsets["pl0000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
+        // Claire
+        m_attach_offsets["pl1000"] = Vector4f{ -0.23f, 0.4f, 1.0f, 0.0f };
+        // Sherry
+        m_attach_offsets["pl3000"] = Vector4f{ -0.278f, 0.435f, 0.945f, 0.0f };
+        // Hunk
+        m_attach_offsets["pl4000"] = Vector4f{ -0.26f, 0.435f, 1.0f, 0.0f };
+        // Kendo
+        m_attach_offsets["pl5000"] = Vector4f{ -0.24f, 0.4f, 1.0f, 0.0f };
+        // Forgotten Soldier
+        m_attach_offsets["pl5600"] = Vector4f{ -0.316, 0.556f, 1.02f, 0.0f };
+        // Elizabeth
+        m_attach_offsets["pl6400"] = Vector4f{ -0.316, 0.466f, 0.79f, 0.0f };
+    }
 }
 
 void FirstPerson::toggle() {
@@ -58,6 +64,11 @@ void FirstPerson::toggle() {
 }
 
 std::optional<std::string> FirstPerson::on_initialize() {
+    const auto& gi = sdk::GameIdentity::get();
+    if (!gi.is_re2() && !gi.is_re3()) {
+        return Mod::on_initialize();
+    }
+
     /*auto vignetteCode = utility::scan(g_framework->getModule().as<HMODULE>(), "8B 87 3C 01 00 00 89 83 DC 00 00 00");
 
     if (!vignetteCode) {
@@ -98,8 +109,8 @@ void FirstPerson::on_draw_ui() {
     ImGui::SameLine();
 
     // Revert the updateCamera value to normal
-    if (m_show_in_cutscenes->draw("Show In Cutscenes") && m_camera_system != nullptr && m_camera_system->mainCameraController != nullptr) {
-        m_camera_system->mainCameraController->updateCamera = true;
+    if (m_show_in_cutscenes->draw("Show In Cutscenes") && m_camera_system != nullptr && CAMSYS(m_camera_system, mainCameraController) != nullptr) {
+        CAMSYS(m_camera_system, mainCameraController)->updateCamera = true;
     }
 
     ImGui::Separator();
@@ -198,15 +209,15 @@ void FirstPerson::on_draw_ui() {
 
     if (m_camera_system != nullptr) {
         if (m_fov_offset->draw("FOVOffset")) {
-            update_fov(m_camera_system->cameraController);
+            update_fov(CAMSYS(m_camera_system, cameraController));
         }
 
         if (m_fov_mult->draw("FOVMultiplier")) {
-            update_fov(m_camera_system->cameraController);
+            update_fov(CAMSYS(m_camera_system, cameraController));
             m_last_fov_mult = m_fov_mult->value();
         }
 
-        m_current_fov->value() = m_camera_system->cameraController->activeCamera->fov;
+        m_current_fov->value() = CAMSYS(m_camera_system, cameraController)->activeCamera->fov;
         m_current_fov->draw("CurrentFOV");
     }
 
@@ -242,30 +253,30 @@ void FirstPerson::on_lua_state_created(sol::state& state) {
     // when using VR controllers
     // one of the main reasons for this is to allow
     // compatibility with Lua's sdk.hook which supports multiple hook callbacks under one hook
-#ifdef RE2
-    try {
-        state.do_string(R"(
-            -- re3 doesnt have handheld flashlights
-            if reframework:get_game_name() ~= "re2" then return end
+    if (sdk::GameIdentity::get().is_re2()) {
+        try {
+            state.do_string(R"(
+                -- re3 doesnt have handheld flashlights
+                if reframework:get_game_name() ~= "re2" then return end
 
-            local function on_pre_apply_transform(args)
-                local flashlight = sdk.to_managed_object(args[2])
+                local function on_pre_apply_transform(args)
+                    local flashlight = sdk.to_managed_object(args[2])
 
-                if not firstpersonmod:on_pre_flashlight_apply_transform(flashlight) then
-                    return sdk.PreHookResult.SKIP_ORIGINAL
+                    if not firstpersonmod:on_pre_flashlight_apply_transform(flashlight) then
+                        return sdk.PreHookResult.SKIP_ORIGINAL
+                    end
                 end
-            end
 
-            local function on_post_apply_transform(retval)
-                return retval
-            end
+                local function on_post_apply_transform(retval)
+                    return retval
+                end
 
-            sdk.hook(sdk.find_type_definition(sdk.game_namespace("FlashLight")):get_method("applyTransform"), on_pre_apply_transform, on_post_apply_transform)
-        )");
-    } catch (const std::exception& e) {
-        spdlog::info("Error while trying to hook FlashLight.applyTransform: {}", e.what());
+                sdk.hook(sdk.find_type_definition(sdk.game_namespace("FlashLight")):get_method("applyTransform"), on_pre_apply_transform, on_post_apply_transform)
+            )");
+        } catch (const std::exception& e) {
+            spdlog::info("Error while trying to hook FlashLight.applyTransform: {}", e.what());
+        }
     }
-#endif
 }
 
 void FirstPerson::on_config_load(const utility::Config& cfg) {
@@ -299,11 +310,11 @@ thread_local bool g_first_time = true;
 thread_local glm::quat g_old_rotation{};
 
 void FirstPerson::on_pre_update_transform(RETransform* transform) {
-    if (!m_enabled->value() || m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
+    if (!m_enabled->value() || m_camera == nullptr || m_camera->get_game_object() == nullptr) {
         return;
     }
 
-    if (m_player_camera_controller == nullptr || m_player_transform == nullptr || m_camera_system == nullptr || m_camera_system->cameraController == nullptr) {
+    if (m_player_camera_controller == nullptr || m_player_transform == nullptr || m_camera_system == nullptr || CAMSYS(m_camera_system, cameraController) == nullptr) {
         return;
     }
 
@@ -323,7 +334,7 @@ void FirstPerson::on_pre_update_transform(RETransform* transform) {
         const auto is_paused = gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::PAUSE || gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::INVENTORY;
 
         m_last_pause_state = is_paused;
-        m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
+        m_last_camera_type = m_camera_system->get_reflection_property<app::ropeway::camera::CameraControlType>("BusyCameraType");
 
         m_cached_bone_matrix = nullptr;
 
@@ -353,8 +364,8 @@ void FirstPerson::on_update_transform(RETransform* transform) {
         // By also updating this in here, it fixes the out of sync issue sometimes seen for one frame
         // where the player body appears slightly ahead of the camera
         // This should especially help with frametime fluctuations
-        if (m_camera_system != nullptr && m_camera_system->mainCamera != nullptr && m_camera_system->mainCamera->ownerGameObject != nullptr) {
-            update_camera_transform(m_camera_system->mainCamera->ownerGameObject->transform);
+        if (m_camera_system != nullptr && CAMSYS(m_camera_system, mainCamera) != nullptr && CAMSYS(m_camera_system, mainCamera)->get_game_object() != nullptr) {
+            update_camera_transform(CAMSYS(m_camera_system, mainCamera)->get_game_object()->get_transform());
         }
 
         update_joint_names();
@@ -366,7 +377,7 @@ void FirstPerson::on_update_transform(RETransform* transform) {
         m_matrix_mutex.unlock();
     }
 
-    if (m_disable_vignette->value() && m_post_effect_controller != nullptr && transform == m_post_effect_controller->ownerGameObject->transform) {
+    if (m_disable_vignette->value() && m_post_effect_controller != nullptr && transform == m_post_effect_controller->get_game_object()->get_transform()) {
         set_vignette(via::render::ToneMapping::Vignetting::Disable);
     }
 
@@ -378,30 +389,30 @@ void FirstPerson::on_update_transform(RETransform* transform) {
         return;
     }
 
-    if (m_camera == nullptr || m_camera->ownerGameObject == nullptr) {
+    if (m_camera == nullptr || m_camera->get_game_object() == nullptr) {
         return;
     }
 
-    if (m_player_camera_controller == nullptr || m_player_transform == nullptr || m_camera_system == nullptr || m_camera_system->cameraController == nullptr) {
+    if (m_player_camera_controller == nullptr || m_player_transform == nullptr || m_camera_system == nullptr || CAMSYS(m_camera_system, cameraController) == nullptr) {
         return;
     }
 
     // Remove the camera light if specified
-    if (transform == m_sweet_light_manager->ownerGameObject->transform) {
+    if (transform == m_sweet_light_manager->get_game_object()->get_transform()) {
         // SweetLight
         update_sweet_light_context(utility::ropeway_sweetlight_manager::get_context(m_sweet_light_manager, 0));
         // EnvironmentSweetLight
         update_sweet_light_context(utility::ropeway_sweetlight_manager::get_context(m_sweet_light_manager, 1));
     }
 
-    if (transform == m_camera_system->mainCamera->ownerGameObject->transform) {
+    if (transform == CAMSYS(m_camera_system, mainCamera)->get_game_object()->get_transform()) {
         update_camera_transform(transform);
-        update_fov(m_camera_system->cameraController);
+        update_fov(CAMSYS(m_camera_system, cameraController));
     }
 }
 
 void FirstPerson::on_update_camera_controller(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value() || m_player_transform == nullptr || controller != m_camera_system->cameraController) {
+    if (!m_enabled->value() || m_player_transform == nullptr || controller != CAMSYS(m_camera_system, cameraController)) {
         return;
     }
 
@@ -417,18 +428,18 @@ void FirstPerson::on_update_camera_controller(RopewayPlayerCameraController* con
     //m_last_controller_pos = controller->worldPosition;
     m_last_controller_rotation = *(glm::quat*)&controller->worldRotation;
 
-    update_camera_transform(m_camera->ownerGameObject->transform);
+    update_camera_transform(m_camera->get_game_object()->get_transform());
 
     if (!will_be_used() && !m_last_pause_state) {
         return;
     }
 
-    //m_camera->ownerGameObject->transform->worldTransform = nudged_mtx;
-    //m_camera->ownerGameObject->transform->angles = *(Vector4f*)&controller->worldRotation;
+    //m_camera->get_game_object()->get_transform()->worldTransform = nudged_mtx;
+    //m_camera->get_game_object()->get_transform()->angles = *(Vector4f*)&controller->worldRotation;
 }
 
 void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* controller) {
-    if (!m_enabled->value() || m_player_transform == nullptr || controller != m_camera_system->cameraController) {
+    if (!m_enabled->value() || m_player_transform == nullptr || controller != CAMSYS(m_camera_system, cameraController)) {
         return;
     }
 
@@ -437,7 +448,7 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
     const auto allowed = is_first_person_allowed();
 
     if (!allowed && !m_ignore_next_player_angles) {
-        m_last_controller_angles = Vector3f{ controller->pitch, controller->yaw, 0.0f };
+        m_last_controller_angles = Vector3f{ CAMCTRL(controller, pitch), CAMCTRL(controller, yaw), 0.0f };
         m_last_controller_pos = controller->worldPosition;
         m_last_controller_rotation = *(glm::quat*) & controller->worldRotation;
         return;
@@ -448,8 +459,8 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
         update_fov(controller);
     }
 
-    if (m_camera_system->cameraController == m_player_camera_controller) {
-        m_ignore_next_player_angles = m_ignore_next_player_angles || utility::re_managed_object::get_field<bool>(m_camera_system->mainCameraController, "SwitchingCamera");
+    if (CAMSYS(m_camera_system, cameraController) == m_player_camera_controller) {
+        m_ignore_next_player_angles = m_ignore_next_player_angles || ((::REManagedObject*)CAMSYS(m_camera_system, mainCameraController))->get_reflection_property<bool>("SwitchingCamera");
 
         if (m_ignore_next_player_angles) {
             // keep ignoring player input until no longer switching cameras
@@ -458,14 +469,14 @@ void FirstPerson::on_update_camera_controller2(RopewayPlayerCameraController* co
             }
 
             *(glm::quat*)&controller->worldRotation = m_last_controller_rotation;
-            controller->pitch = m_last_controller_angles.x;
-            controller->yaw = m_last_controller_angles.y;
+            CAMCTRL(controller, pitch) = m_last_controller_angles.x;
+            CAMCTRL(controller, yaw) = m_last_controller_angles.y;
         }
         else {
             m_ignore_next_player_angles = false;
         }
 
-        m_last_controller_angles = Vector3f{ controller->pitch, controller->yaw, 0.0f };
+        m_last_controller_angles = Vector3f{ CAMCTRL(controller, pitch), CAMCTRL(controller, yaw), 0.0f };
     }
 
     m_last_controller_pos = controller->worldPosition;
@@ -538,8 +549,8 @@ void FirstPerson::on_post_update_motion(void* entry, bool true_motion) {
     }
 
     if (m_player_transform != nullptr) {
-        if (m_camera_system != nullptr && m_camera_system->mainCamera != nullptr && m_camera_system->mainCamera->ownerGameObject != nullptr) {
-            auto player_object = m_player_transform->ownerGameObject;
+        if (m_camera_system != nullptr && CAMSYS(m_camera_system, mainCamera) != nullptr && CAMSYS(m_camera_system, mainCamera)->get_game_object() != nullptr) {
+            auto player_object = m_player_transform->get_game_object();
 
             if (player_object != nullptr) {
                 update_player_vr(m_player_transform, true_motion);
@@ -566,17 +577,17 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
     static auto via_render_mesh = sdk::find_type_definition("via.render.Mesh");
     static auto via_render_mesh_enabled = via_render_mesh->get_method("get_Enabled");
 
-    auto flashlight_go = ((::REComponent*)flashlight_component)->ownerGameObject;
+    auto flashlight_go = ((::REComponent*)flashlight_component)->get_game_object();
     if (flashlight_go == nullptr) {
         return true;
     }
 
-    auto flashlight_transform = flashlight_go->transform;
+    auto flashlight_transform = flashlight_go->get_transform();
     if (flashlight_transform == nullptr) {
         return true;
     }
 
-    auto flashlight_mesh = utility::re_component::find(flashlight_transform, via_render_mesh->get_type());
+    auto flashlight_mesh = flashlight_transform->find(via_render_mesh->get_type());
     if (flashlight_mesh == nullptr) {
         return true;
     }
@@ -594,12 +605,12 @@ bool FirstPerson::on_pre_flashlight_apply_transform(::REManagedObject* flashligh
         return true;
     }
 
-    auto ies_light_go = ies_light->ownerGameObject;
+    auto ies_light_go = ies_light->get_game_object();
     if (ies_light_go == nullptr) {
         return true;
     }
 
-    auto ies_light_transform = ies_light_go->transform;
+    auto ies_light_transform = ies_light_go->get_transform();
     if (ies_light_transform == nullptr) {
         return true;
     }
@@ -647,7 +658,7 @@ void FirstPerson::reset() {
 void FirstPerson::set_vignette(via::render::ToneMapping::Vignetting value) {
     // Assign tone mapping controller
     if (m_tone_mapping_controller == nullptr && m_post_effect_controller != nullptr) {
-        m_tone_mapping_controller = utility::re_component::find<RopewayPostEffectControllerBase>(m_post_effect_controller, game_namespace("posteffect.ToneMapController"));
+        m_tone_mapping_controller = m_post_effect_controller->find<RopewayPostEffectControllerBase>(game_namespace("posteffect.ToneMapController"));
     }
 
     if (m_tone_mapping_controller == nullptr) {
@@ -675,8 +686,8 @@ void FirstPerson::set_vignette(via::render::ToneMapping::Vignetting value) {
 
 bool FirstPerson::update_pointers() {
     // Update our global pointers
-    if (m_post_effect_controller == nullptr || m_post_effect_controller->ownerGameObject == nullptr || 
-        m_camera_system == nullptr || m_camera_system->ownerGameObject == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->ownerGameObject == nullptr
+    if (m_post_effect_controller == nullptr || m_post_effect_controller->get_game_object() == nullptr || 
+        m_camera_system == nullptr || m_camera_system->get_game_object() == nullptr || m_sweet_light_manager == nullptr || m_sweet_light_manager->get_game_object() == nullptr
         || m_gui_master == nullptr) 
     {
         auto& globals = *reframework::get_globals();
@@ -689,7 +700,7 @@ bool FirstPerson::update_pointers() {
         return false;
     }
 
-    if (m_camera_system != nullptr && m_camera_system->ownerGameObject != nullptr) {
+    if (m_camera_system != nullptr && m_camera_system->get_game_object() != nullptr) {
         if (!update_pointers_from_camera_system(m_camera_system)) {
             reset();
             return false;
@@ -707,12 +718,12 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
         return false;
     }
 
-    if (m_camera = camera_system->mainCamera; m_camera == nullptr) {
+    if (m_camera = CAMSYS(camera_system, mainCamera); m_camera == nullptr) {
         m_player_transform = nullptr;
         return false;
     }
 
-    auto joint = camera_system->playerJoint;
+    auto joint = CAMSYS(camera_system, playerJoint);
     
     if (joint == nullptr) {
         m_player_transform = nullptr;
@@ -723,11 +734,11 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
     if (m_player_transform != joint->parentTransform && joint->parentTransform != nullptr) {
         auto owner = sdk::get_joint_owner(joint);
 
-        if (owner == nullptr || owner->ownerGameObject == nullptr) {
+        if (owner == nullptr || owner->get_game_object() == nullptr) {
             return false;
         }
 
-        m_player_name = utility::re_string::get_string(owner->ownerGameObject->name);
+        m_player_name = owner->get_game_object()->get_name();
 
         if (m_player_name.empty()) {
             return false;
@@ -743,13 +754,13 @@ bool FirstPerson::update_pointers_from_camera_system(RopewayCameraSystem* camera
 
     // Update PlayerCameraController camera pointer
     if (m_player_camera_controller == nullptr) {
-        auto controller = camera_system->cameraController;
+        auto controller = CAMSYS(camera_system, cameraController);
 
-        if (controller == nullptr || controller->ownerGameObject == nullptr || controller->activeCamera == nullptr || controller->activeCamera->ownerGameObject == nullptr) {
+        if (controller == nullptr || controller->get_game_object() == nullptr || CAMCTRL(controller, activeCamera) == nullptr || CAMCTRL(controller, activeCamera)->get_game_object() == nullptr) {
             return false;
         }
 
-        if (utility::re_string::equals(controller->activeCamera->ownerGameObject->name, L"PlayerCameraController")) {
+        if (CAMCTRL(controller, activeCamera)->get_game_object()->get_name() == "PlayerCameraController") {
             m_player_camera_controller = controller;
             spdlog::info("Found PlayerCameraController {:p}", (void*)m_player_camera_controller);
         }
@@ -801,7 +812,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     static auto r_arm_wrist_hash = sdk::murmur_hash::calc32(L"r_arm_wrist");
 
     static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
-    const auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
+    const auto via_motion = transform->find<REComponent>(via_motion_def->get_type());
 
     glm::quat original_left_rot_relative{glm::identity<glm::quat>()};
     Vector4f original_left_pos_relative{};
@@ -902,7 +913,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
     const auto is_holding_left_grip = vr->is_action_active(vr->get_action_grip(), vr->get_left_joystick());
 
     static auto player_condition_def = sdk::find_type_definition(game_namespace("survivor.SurvivorCondition"));
-    const auto player_condition = utility::re_component::find<REComponent>(transform, player_condition_def->get_type());
+    const auto player_condition = transform->find<REComponent>(player_condition_def->get_type());
     const bool is_reloading = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsReload") : false;
     const bool is_aiming = player_condition != nullptr ? sdk::call_object_func_easy<bool>(player_condition, "get_IsHold") : false;
     
@@ -948,7 +959,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
 
         // Get Arm IK component
         static auto arm_fit_t = sdk::find_type_definition(game_namespace("IkArmFit"));
-        auto arm_fit = utility::re_component::find<REComponent>(transform, arm_fit_t->get_type());
+        auto arm_fit = transform->find<REComponent>(arm_fit_t->get_type());
 
         // We will use the game's IK system instead of building our own because it's a pain in the ass
         // The arm fit component by default will only update the left wrist position (I don't know why, maybe the right arm is a blended animation?)
@@ -965,7 +976,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
                 if (arm_fit_data != nullptr) {
                     //spdlog::info("First element: {:x}", (uintptr_t)first_element);
 
-                    auto arm_fit_data_t = utility::re_managed_object::get_type_definition(arm_fit_data);
+                    auto arm_fit_data_t = arm_fit_data->get_type_definition();
                     auto arm_fit_data_tmatrix_field = arm_fit_data_t->get_field("<TargetMatrix>k__BackingField");
                     auto& target_matrix = arm_fit_data_tmatrix_field->get_data<Matrix4x4f>(arm_fit_data);
 
@@ -989,7 +1000,7 @@ void FirstPerson::update_player_arm_ik(RETransform* transform) {
                             if (first_solver != nullptr) {
                                 //spdlog::info("First solver: {:x}", (uintptr_t)first_solver);
 
-                                auto first_solver_t = utility::re_managed_object::get_type_definition(first_solver);
+                                auto first_solver_t = first_solver->get_type_definition();
                                 auto apply_joint_field = first_solver_t->get_field("<ApplyJoint>k__BackingField");
                                 auto& apply_joint = apply_joint_field->get_data<REJoint*>(first_solver);
 
@@ -1132,7 +1143,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
     // We're going to modify the player's weapon (gun) to fire from the muzzle instead of the camera
     // Luckily the game has that built-in so we don't really need to hook anything
     static auto equipment_t = sdk::find_type_definition(game_namespace("survivor.Equipment"));
-    auto equipment = utility::re_component::find<REComponent>(transform, equipment_t->get_type());
+    auto equipment = transform->find<REComponent>(equipment_t->get_type());
 
     if (equipment != nullptr) {
         auto main_weapon_field = equipment_t->get_field("<EquipWeapon>k__BackingField");
@@ -1140,18 +1151,18 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
 
         if (main_weapon != nullptr) {
             auto main_weapon_game_object = sdk::call_object_func<REGameObject*>(main_weapon, "get_GameObject", context, main_weapon);
-            auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->transform : (RETransform*)nullptr;
+            auto main_weapon_transform = main_weapon_game_object != nullptr ? main_weapon_game_object->get_transform() : (RETransform*)nullptr;
 
             static auto implement_gun_typedef = sdk::find_type_definition(game_namespace("implement.Gun"));
             static auto implement_melee_typedef = sdk::find_type_definition(game_namespace("implement.Melee"));
 
-            auto main_weapon_t = utility::re_managed_object::get_type_definition(main_weapon);
+            auto main_weapon_t = main_weapon->get_type_definition();
 
             if (main_weapon_game_object != nullptr && main_weapon_t != nullptr && main_weapon_t->is_a(implement_gun_typedef)) {
                 auto& fire_bullet_param = *sdk::get_object_field<REManagedObject*>(main_weapon, "<FireBulletParam>k__BackingField");
 
                 if (fire_bullet_param != nullptr) {
-                    auto fire_bullet_param_t = utility::re_managed_object::get_type_definition(fire_bullet_param);
+                    auto fire_bullet_param_t = fire_bullet_param->get_type_definition();
                     auto& fire_bullet_type = *sdk::get_object_field<app::ropeway::weapon::shell::ShellDefine::FireBulletType>(fire_bullet_param, "_FireBulletType");
 
                     // Set the fire bullet type to AlongMuzzle, which fires from the muzzle's position and rotation
@@ -1161,7 +1172,7 @@ void FirstPerson::update_player_muzzle_behavior(RETransform* transform, bool res
                         auto is_grenade = false;
 
                         if (shell_generator != nullptr) {
-                            auto shell_generator_t = utility::re_managed_object::get_type_definition(shell_generator);
+                            auto shell_generator_t = shell_generator->get_type_definition();
 
                             if (shell_generator_t != nullptr && shell_generator_t->is_a(throw_grenade_generator_type)) {
                                 is_grenade = true;
@@ -1244,8 +1255,8 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
 
     static auto ik_leg_def = sdk::find_type_definition("via.motion.IkLeg");
     static auto via_motion_def = sdk::find_type_definition("via.motion.Motion");
-    auto ik_leg = utility::re_component::find<REComponent>(transform, ik_leg_def->type);
-    auto via_motion = utility::re_component::find<REComponent>(transform, via_motion_def->type);
+    auto ik_leg = transform->find<REComponent>(ik_leg_def->get_type());
+    auto via_motion = transform->find<REComponent>(via_motion_def->get_type());
 
     // We're going to use the leg IK to adjust the height of the player according to headset position
     if (ik_leg != nullptr && via_motion != nullptr) {
@@ -1255,7 +1266,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
 
             sdk::call_object_func<void*>(ik_leg, "set_CenterPositionCtrl", sdk::get_thread_context(), ik_leg, via::motion::IkLeg::EffectorCtrl::None);
             sdk::call_object_func<void*>(ik_leg, "set_CenterOffset", sdk::get_thread_context(), ik_leg, &zero_offset);
-            utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::Center);
+            ik_leg->call_method("set_CenterAdjust", via::motion::IkLeg::CenterAdjust::Center);
 
             return;
         }
@@ -1324,7 +1335,7 @@ void FirstPerson::update_player_body_ik(RETransform* transform, bool restore, bo
         // so the head adjustment will be more accurate and smooth if the player is standing straight.
         // a small side effect is that the player can slightly float, but it's worth it.
         // not a TDB method unfortunately.
-        utility::re_managed_object::call_method(ik_leg, "set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
+        ik_leg->call_method("set_CenterAdjust", via::motion::IkLeg::CenterAdjust::None);
         update_player_arm_ik(transform);
     }
 }
@@ -1346,7 +1357,7 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
         return;
     }
 
-    auto player_matrix = glm::mat4{ *(glm::quat*)&transform->angles };
+    auto player_matrix = glm::mat4{ *(glm::quat*)&transform->get_angles() };
 
     auto player_right = *(Vector3f*)&player_matrix[0] * -1.0f;
     player_right[1] = 0.0f;
@@ -1383,7 +1394,7 @@ void FirstPerson::update_player_body_rotation(RETransform* transform) {
     auto camera_quat = glm::quat{ camera_matrix };
 
     // Finally rotate the player transform to match the camera in a two-dimensional fashion
-    transform->angles = *(Vector4f*)&camera_quat;
+    transform->get_angles() = *(Vector4f*)&camera_quat;
 }
 
 void FirstPerson::update_player_roomscale(RETransform* transform) {
@@ -1452,27 +1463,27 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     
     auto& vr = VR::get();
 
-    /*if (vr->is_hmd_active() && m_camera_system->cameraController != nullptr) {
-        m_last_controller_rotation = *(glm::quat*)&m_camera_system->cameraController->worldRotation;
+    /*if (vr->is_hmd_active() && CAMSYS(m_camera_system, cameraController) != nullptr) {
+        m_last_controller_rotation = *(glm::quat*)&CAMSYS(m_camera_system, cameraController)->worldRotation;
     }*/
 
     const auto gui_state = *sdk::get_object_field<int32_t>(m_gui_master, "<State_>k__BackingField");
     const auto is_paused = gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::PAUSE || gui_state == (int32_t)app::ropeway::gui::GUIMaster::GuiState::INVENTORY;
 
-    m_last_camera_type = utility::re_managed_object::get_field<app::ropeway::camera::CameraControlType>(m_camera_system, "BusyCameraType");
+    m_last_camera_type = m_camera_system->get_reflection_property<app::ropeway::camera::CameraControlType>("BusyCameraType");
     m_last_pause_state = is_paused;
 
     const auto is_player_camera = m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER && !is_paused;
-    const auto is_switching_camera = utility::re_managed_object::get_field<bool>(m_camera_system->mainCameraController, "SwitchingCamera");
+    const auto is_switching_camera = ((::REManagedObject*)CAMSYS(m_camera_system, mainCameraController))->get_reflection_property<bool>("SwitchingCamera");
     const auto is_player_in_control = (is_player_camera && !is_switching_camera && !m_last_pause_state);
     const auto is_switching_to_player_camera = is_player_camera && is_switching_camera;
 
-    auto& mtx = transform->worldTransform;
+    auto& mtx = transform->get_world_transform();
 
     // Don't mess with the camera if we're in a cutscene
     if (!is_first_person_allowed()) {
-        if (m_camera_system->mainCameraController != nullptr && !is_paused && !is_switching_to_player_camera) {
-            m_camera_system->mainCameraController->updateCamera = true;
+        if (CAMSYS(m_camera_system, mainCameraController) != nullptr && !is_paused && !is_switching_to_player_camera) {
+            CAMSYS(m_camera_system, mainCameraController)->updateCamera = true;
         }
 
         if (is_paused) {
@@ -1516,10 +1527,10 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         if (is_switching_camera) {
             m_interp_camera_speed = 100.0f;
 
-            auto c = m_camera_system->mainCameraController;
+            auto c = CAMSYS(m_camera_system, mainCameraController);
 
             if (is_player_camera) {
-                auto len = c->switchInterpolationTime;
+                auto len = MAINCAM(c, switchInterpolationTime);
                 
                 if (len == 0.0f) {
                     len = 1.0f;
@@ -1540,10 +1551,10 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     // Lets camera modification work in cutscenes/action camera etc
     if (!is_player_camera && !is_switching_camera && is_first_person_allowed()) {
-        m_camera_system->mainCameraController->updateCamera = false;
+        CAMSYS(m_camera_system, mainCameraController)->updateCamera = false;
     }
     else {
-        m_camera_system->mainCameraController->updateCamera = true;
+        CAMSYS(m_camera_system, mainCameraController)->updateCamera = true;
     }
 
     if (is_first_person_allowed()) {
@@ -1568,19 +1579,19 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
         m_last_controller_angles = utility::math::euler_angles(Matrix4x4f{m_last_controller_rotation});
 
         if (m_player_camera_controller != nullptr) {
-            m_player_camera_controller->worldRotation = m_camera_system->cameraController->worldRotation;
+            m_player_camera_controller->worldRotation = CAMSYS(m_camera_system, cameraController)->worldRotation;
 
-            m_player_camera_controller->pitch = m_last_controller_angles.x;
-            m_player_camera_controller->yaw = m_last_controller_angles.y;
+            CAMCTRL(m_player_camera_controller, pitch) = m_last_controller_angles.x;
+            CAMCTRL(m_player_camera_controller, yaw) = m_last_controller_angles.y;
         }
 
-        m_camera_system->mainCameraController->cameraRotation = *(Vector4f*)&m_last_controller_rotation;
-        m_camera_system->cameraController->worldRotation = *(Vector4f*)&m_last_controller_rotation;
+        MAINCAM(CAMSYS(m_camera_system, mainCameraController), cameraRotation) = *(Vector4f*)&m_last_controller_rotation;
+        CAMSYS(m_camera_system, cameraController)->worldRotation = *(Vector4f*)&m_last_controller_rotation;
 
         m_has_cutscene_rotation = false;
         m_ignore_next_player_angles = true;
 
-        m_camera_system->mainCameraController->updateCamera = false;
+        CAMSYS(m_camera_system, mainCameraController)->updateCamera = false;
 
         //*(Matrix3x4f*)&mtx = cutscene_inverse * m_last_camera_matrix_pre_vr;
 
@@ -1687,11 +1698,11 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
     // Apply the same matrix data to other things stored in-game (positions/quaternions)
     if (is_first_person_allowed()) {
         camera_pos = Vector4f{ final_pos, 1.0f };
-        m_camera_system->cameraController->worldPosition = *(Vector4f*)&camera_pos;
-        m_camera_system->cameraController->worldRotation = *(Vector4f*)&final_quat;
+        CAMSYS(m_camera_system, cameraController)->worldPosition = *(Vector4f*)&camera_pos;
+        CAMSYS(m_camera_system, cameraController)->worldRotation = *(Vector4f*)&final_quat;
 
-        transform->position = *(Vector4f*)&camera_pos;
-        transform->angles = *(Vector4f*)&final_quat;
+        transform->get_position() = *(Vector4f*)&camera_pos;
+        transform->get_angles() = *(Vector4f*)&final_quat;
 
         // Apply the new matrix
         *(Matrix3x4f*)&mtx = final_mat;
@@ -1705,15 +1716,15 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
     // Fixes snappiness after camera switching
     if (!is_player_in_control) {
-        m_last_controller_pos = m_camera_system->cameraController->worldPosition;
+        m_last_controller_pos = CAMSYS(m_camera_system, cameraController)->worldPosition;
 
         if (!is_switching_to_player_camera) {
             m_last_controller_rotation = final_quat;
         }
 
-        m_camera_system->mainCameraController->cameraPosition = m_last_controller_pos;
-        m_camera_system->mainCameraController->cameraRotation = *(Vector4f*)&final_quat_pre_vr;
-        m_camera_system->cameraController->worldRotation = *(Vector4f*)&final_quat_pre_vr;
+        CAMSYS(m_camera_system, mainCameraController)->cameraPosition = m_last_controller_pos;
+        MAINCAM(CAMSYS(m_camera_system, mainCameraController), cameraRotation) = *(Vector4f*)&final_quat_pre_vr;
+        CAMSYS(m_camera_system, cameraController)->worldRotation = *(Vector4f*)&final_quat_pre_vr;
 
         //if (!is_switching_to_player_camera) {
             //m_last_controller_angles = utility::math::euler_angles(final_mat_pre_vr);
@@ -1725,12 +1736,12 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
         // These are what control the real rotation, so only set it in a cutscene or something
         // If we did it all the time, the view would drift constantly
-        //m_camera_system->cameraController->pitch = m_last_controller_angles.x;
-        //m_camera_system->cameraController->yaw = m_last_controller_angles.y;
+        //CAMSYS(m_camera_system, cameraController)->pitch = m_last_controller_angles.x;
+        //CAMSYS(m_camera_system, cameraController)->yaw = m_last_controller_angles.y;
 
         if (m_player_camera_controller != nullptr) {
-            m_player_camera_controller->worldPosition = m_camera_system->cameraController->worldPosition;
-            m_player_camera_controller->worldRotation = m_camera_system->cameraController->worldRotation;
+            m_player_camera_controller->worldPosition = CAMSYS(m_camera_system, cameraController)->worldPosition;
+            m_player_camera_controller->worldRotation = CAMSYS(m_camera_system, cameraController)->worldRotation;
 
             /*if (m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER) {
                 m_last_controller_angles.z = 0.0f;
@@ -1740,8 +1751,8 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 
             // Forces the game to keep the previous angles/rotation we set after exiting a cutscene
             //if (is_switching_to_player_camera) {
-                m_player_camera_controller->pitch = m_last_controller_angles.x;
-                m_player_camera_controller->yaw = m_last_controller_angles.y;
+                CAMCTRL(m_player_camera_controller, pitch) = m_last_controller_angles.x;
+                CAMCTRL(m_player_camera_controller, yaw) = m_last_controller_angles.y;
             //}
 
             m_ignore_next_player_angles = m_ignore_next_player_angles || is_switching_to_player_camera;
@@ -1776,15 +1787,15 @@ void FirstPerson::update_camera_transform(RETransform* transform) {
 }
 
 void FirstPerson::update_sweet_light_context(RopewaySweetLightManagerContext* ctx) {
-    if (ctx->controller == nullptr || ctx->controller->ownerGameObject == nullptr) {
+    if (ctx->controller == nullptr || ctx->controller->get_game_object() == nullptr) {
         return;
     }
 
 
     // Disable the camera light source.
-    ctx->controller->ownerGameObject->shouldDraw = !(m_enabled->value() &&
+    ctx->controller->get_game_object()->set_shouldDraw(!(m_enabled->value() &&
                                                      m_disable_light_source->value() &&
-                                                     m_camera_system->cameraController == m_player_camera_controller);
+                                                     CAMSYS(m_camera_system, cameraController) == m_player_camera_controller));
 }
 
 void FirstPerson::update_player_bones(RETransform* transform) {
@@ -1804,7 +1815,7 @@ void FirstPerson::update_player_bones(RETransform* transform) {
     }
 
     // Forcefully rotate the bone to match the camera direction
-    if (m_camera_system->cameraController == m_player_camera_controller && m_rotate_mesh->value()) {
+    if (CAMSYS(m_camera_system, cameraController) == m_player_camera_controller && m_rotate_mesh->value()) {
         auto wanted_mat = m_last_camera_matrix * Matrix4x4f{
             -1, 0, 0, 0,
             0, 1, 0, 0,
@@ -1829,11 +1840,11 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
     }
 
     auto is_active_camera = m_camera_system != nullptr
-        && m_camera_system->cameraController != nullptr
-        && m_camera_system->cameraController->cameraParam != nullptr
-        && m_camera_system->cameraController->activeCamera != nullptr
-        && m_camera_system->mainCameraController != nullptr
-        && m_camera_system->mainCameraController->mainCamera != nullptr;
+        && CAMSYS(m_camera_system, cameraController) != nullptr
+        && CAMSYS(m_camera_system, cameraController)->cameraParam != nullptr
+        && CAMSYS(m_camera_system, cameraController)->activeCamera != nullptr
+        && CAMSYS(m_camera_system, mainCameraController) != nullptr
+        && MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera) != nullptr;
 
     if (!is_active_camera) { 
         return; 
@@ -1843,7 +1854,7 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
         return;
     }
 
-    if (auto param = controller->cameraParam; param != nullptr) {
+    if (auto param = CAMCTRL(controller, cameraParam); param != nullptr) {
         auto new_value = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
 
         if (m_last_camera_type == app::ropeway::camera::CameraControlType::PLAYER) {
@@ -1852,23 +1863,23 @@ void FirstPerson::update_fov(RopewayPlayerCameraController* controller) {
                 auto delta = prev_value - new_value;
 
                 m_fov_offset->value() += delta;
-                m_camera_system->mainCameraController->mainCamera->fov = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
-                controller->activeCamera->fov = m_camera_system->mainCameraController->mainCamera->fov;
+                MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov = (param->fov * m_fov_mult->value()) + m_fov_offset->value();
+                CAMCTRL(controller, activeCamera)->fov = MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov;
             }
             else {
-                m_camera_system->mainCameraController->mainCamera->fov = new_value;
-                controller->activeCamera->fov = m_camera_system->mainCameraController->mainCamera->fov;
+                MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov = new_value;
+                CAMCTRL(controller, activeCamera)->fov = MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov;
             }
 
-            m_last_player_fov = controller->activeCamera->fov;
+            m_last_player_fov = CAMCTRL(controller, activeCamera)->fov;
         }
         else {
             if (m_last_player_fov == 0.0f) {
                 m_last_player_fov = 90.0f;
             }
 
-            m_camera_system->mainCameraController->mainCamera->fov = m_last_player_fov;
-            controller->activeCamera->fov = m_last_player_fov;
+            MAINCAM(CAMSYS(m_camera_system, mainCameraController), mainCamera)->fov = m_last_player_fov;
+            CAMCTRL(controller, activeCamera)->fov = m_last_player_fov;
         }
         
         // Causes the camera to ignore the FOV inside the param
@@ -1900,7 +1911,7 @@ void FirstPerson::update_joint_names() {
 }
 
 float FirstPerson::update_delta_time(REComponent* component) {
-    return utility::re_component::get_delta_time(component);
+    return component->get_delta_time();
 }
 
 bool FirstPerson::is_first_person_allowed() const {
@@ -1920,7 +1931,7 @@ bool FirstPerson::is_jacked(RETransform* transform) const {
     static auto jack_dominator_typedef = sdk::find_type_definition(game_namespace("JackDominator"));
     static auto jacked_method = jack_dominator_typedef->get_method("get_Jacked");
 
-    auto jack_dominator = utility::re_component::find<::REComponent*>(transform, jack_dominator_typedef->get_type());
+    auto jack_dominator = transform->find<::REComponent*>(jack_dominator_typedef->get_type());
 
     if (jack_dominator != nullptr) {
         return jacked_method->call<bool>(sdk::get_thread_context(), jack_dominator);
@@ -1949,16 +1960,15 @@ void FirstPerson::on_disabled() {
 
     // Disable fov and camera light changes
     if (m_camera_system != nullptr && m_sweet_light_manager != nullptr) {
-        update_fov(m_camera_system->cameraController);
+        update_fov(CAMSYS(m_camera_system, cameraController));
         update_sweet_light_context(utility::ropeway_sweetlight_manager::get_context(m_sweet_light_manager, 0));
         update_sweet_light_context(utility::ropeway_sweetlight_manager::get_context(m_sweet_light_manager, 1));
 
-        if (m_camera_system->mainCameraController != nullptr) {
-            m_camera_system->mainCameraController->updateCamera = true;
+        if (CAMSYS(m_camera_system, mainCameraController) != nullptr) {
+            CAMSYS(m_camera_system, mainCameraController)->updateCamera = true;
         }
     }
 
     m_wants_disable = false;
 }
 
-#endif
