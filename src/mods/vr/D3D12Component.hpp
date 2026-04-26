@@ -1,7 +1,9 @@
 #pragma once
 
 #include <array>
+#include <deque>
 #include <optional>
+#include <vector>
 
 #include <d3d11.h>
 #include <d3d12.h>
@@ -62,6 +64,11 @@ private:
 
     // Mimicking what OpenXR does.
     struct OpenVR {
+        struct RetiredTextureSet {
+            uint64_t release_after_submission{};
+            std::vector<ComPtr<ID3D12Resource>> textures{};
+        };
+
         d3d12::TextureContext& get_left() {
             auto& ctx = this->left_eye_tex[this->texture_counter % left_eye_tex.size()];
 
@@ -100,9 +107,44 @@ private:
             ctx.commands.execute();
         }
 
+        void retire_textures() {
+            RetiredTextureSet retired{};
+            retired.release_after_submission = this->submission_serial + 6;
+
+            for (auto& ctx : this->left_eye_tex) {
+                if (ctx.texture != nullptr) {
+                    retired.textures.emplace_back(ctx.texture);
+                }
+            }
+
+            for (auto& ctx : this->right_eye_tex) {
+                if (ctx.texture != nullptr) {
+                    retired.textures.emplace_back(ctx.texture);
+                }
+            }
+
+            if (retired.textures.empty()) {
+                return;
+            }
+
+            this->retired_textures.emplace_back(std::move(retired));
+
+            while (this->retired_textures.size() > 2) {
+                this->retired_textures.pop_front();
+            }
+        }
+
+        void prune_retired_textures() {
+            while (!this->retired_textures.empty() && this->submission_serial >= this->retired_textures.front().release_after_submission) {
+                this->retired_textures.pop_front();
+            }
+        }
+
         std::array<d3d12::TextureContext, 3> left_eye_tex{};
         std::array<d3d12::TextureContext, 3> right_eye_tex{};
+        std::deque<RetiredTextureSet> retired_textures{};
         uint32_t texture_counter{0};
+        uint64_t submission_serial{};
         DXGI_FORMAT last_format{};
     } m_openvr;
 

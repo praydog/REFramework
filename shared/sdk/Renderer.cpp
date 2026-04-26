@@ -753,6 +753,10 @@ void RenderContext::clear_rtv(sdk::renderer::RenderTargetView* rtv, float color[
 - 0xD InterleaveNormalDepthHalfWithoutGBuffer
 */
 void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
+    copy_texture(dest, src, &fence);
+}
+
+void RenderContext::copy_texture(Texture* dest, Texture* src, Fence* fence) {
     // Okay it was actually this simple in older games but it isn't anymore in DD2+
     // There's some extra garbage going on that I don't want to deal with right now
     // so will just call the function directly
@@ -787,7 +791,7 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     // so in universal builds we dispatch at runtime but both branches must compile.
 #if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER < 82
     auto copy_legacy = [&]() {
-        using CopyTexFn = void (*)(RenderContext*, Texture*, Texture*, Fence&);
+        using CopyTexFn = void (*)(RenderContext*, Texture*, Texture*, Fence*);
         static auto func = []() -> CopyTexFn {
             spdlog::info("Searching for RenderContext::copy_texture");
 
@@ -855,7 +859,7 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
 
 #if defined(REFRAMEWORK_UNIVERSAL) || TDB_VER >= 82
     auto copy_modern = [&]() {
-        using CopyTexFn = void (*)(RenderContext*, Texture*, int32_t, Texture*, int32_t, Fence&);
+        using CopyTexFn = void (*)(RenderContext*, Texture*, int32_t, Texture*, int32_t, Fence*);
         static auto func = []() -> CopyTexFn {
             spdlog::info("Searching for RenderContext::copy_texture (>= TDB82)");
 
@@ -887,15 +891,7 @@ void RenderContext::copy_texture(Texture* dest, Texture* src, Fence& fence) {
     };
 #endif
 
-    const auto& gi = sdk::GameIdentity::get();
-
-    // SF6 currently reaches a crash in the legacy copy_texture path after the
-    // scanner resolves a CopyImage callsite. Force the modern path so we use the
-    // newer signature and resolver instead of the legacy single-src/dst ABI.
-    if (gi.is_sf6()) {
-        spdlog::info("[SF6] Forcing modern RenderContext::copy_texture path");
-        copy_modern();
-    } else if (gi.tdb_ver() < 82) {
+    if (sdk::GameIdentity::get().tdb_ver() < 82) {
         copy_legacy();
     } else {
         copy_modern();
