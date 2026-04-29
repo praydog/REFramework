@@ -370,15 +370,15 @@ struct ValueType {
         : type(t)
     {
         if (type != nullptr) {
-            data.resize(type->get_size());
+            data.resize(type->get_valuetype_size());
         }
     }
 
     ValueType(::sdk::RETypeDefinition* t, void* addr): type(t) {
         if (t != nullptr && addr != nullptr) {
             uint8_t* raw_data = reinterpret_cast<uint8_t*>(addr);
-            data.reserve(t->get_size());
-            data.insert(data.begin(), raw_data, raw_data + t->get_size());
+            data.reserve(t->get_valuetype_size());
+            data.insert(data.begin(), raw_data, raw_data + t->get_valuetype_size());
         }
     }
 
@@ -425,7 +425,20 @@ struct ValueType {
             return sol::make_object(l, sol::nil);
         }
 
-        auto real_obj = (void*)address();
+        // For instance methods on value types, we need to construct a fake boxed object.
+        // The native invoke() expects a ManagedObject* with a 0x10 byte header:
+        //   0x00: REObjectInfo* (type info / vtable pointer)
+        //   0x08: uint32_t refcount + padding
+        //   0x10: actual value type data starts here
+        std::vector<uint8_t> fake_boxed_storage(0x10 + type->get_valuetype_size(), 0);
+        // REObject header: REObjectInfo* at offset 0x00
+        *(void**)&fake_boxed_storage[0x00] = (void*)type;
+        // REManagedObject: reference count at offset 0x08 (set high to prevent GC interference)
+        *(uint32_t*)&fake_boxed_storage[0x08] = 9999;
+        // Copy value type data at offset 0x10
+        memcpy(&fake_boxed_storage[0x10], data.data(), type->get_valuetype_size());
+
+        auto real_obj = (void*)fake_boxed_storage.data();
         auto def = type->get_method(name);
 
         if (def == nullptr) {
