@@ -425,6 +425,12 @@ struct ValueType {
             return sol::make_object(l, sol::nil);
         }
 
+        auto def = type->get_method(name);
+
+        if (def == nullptr) {
+            return sol::make_object(l, sol::nil);
+        }
+
         // For instance methods on value types, we need to construct a fake boxed object.
         // The native invoke() expects a ManagedObject* with a 0x10 byte header:
         //   0x00: REObjectInfo* (type info / vtable pointer)
@@ -439,14 +445,12 @@ struct ValueType {
         memcpy(&fake_boxed_storage[0x10], data.data(), type->get_valuetype_size());
 
         auto real_obj = (void*)fake_boxed_storage.data();
-        auto def = type->get_method(name);
-
-        if (def == nullptr) {
-            return sol::make_object(l, sol::nil);
-        }
 
         auto vec_args = ::api::sdk::build_args(va);
         auto ret_val = def->invoke(real_obj, std::span(vec_args));
+
+        // copy back any changes to the value type from the fake boxed storage
+        memcpy(data.data(), &fake_boxed_storage[0x10], type->get_valuetype_size());
 
         if (ret_val.exception_thrown) {
             throw sol::error("Invoke threw an exception");
