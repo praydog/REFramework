@@ -431,26 +431,45 @@ struct ValueType {
             return sol::make_object(l, sol::nil);
         }
 
-        // For instance methods on value types, we need to construct a fake boxed object.
-        // The native invoke() expects a ManagedObject* with a 0x10 byte header:
-        //   0x00: REObjectInfo* (type info / vtable pointer)
-        //   0x08: uint32_t refcount + padding
-        //   0x10: actual value type data starts here
-        std::vector<uint8_t> fake_boxed_storage(0x10 + type->get_valuetype_size(), 0);
-        // REObject header: REObjectInfo* at offset 0x00
-        *(void**)&fake_boxed_storage[0x00] = (void*)type;
-        // REManagedObject: reference count at offset 0x08 (set high to prevent GC interference)
-        *(uint32_t*)&fake_boxed_storage[0x08] = 9999;
-        // Copy value type data at offset 0x10
-        memcpy(&fake_boxed_storage[0x10], data.data(), type->get_valuetype_size());
-
-        auto real_obj = (void*)fake_boxed_storage.data();
-
+        reframework::InvokeRet ret_val{};
         auto vec_args = ::api::sdk::build_args(va);
-        auto ret_val = def->invoke(real_obj, std::span(vec_args));
 
-        // copy back any changes to the value type from the fake boxed storage
-        memcpy(data.data(), &fake_boxed_storage[0x10], type->get_valuetype_size());
+        const auto mo_runtime_size = REManagedObject::runtime_size();
+
+        if (!def->is_static()) {
+            // For instance methods on value types, we need to construct a fake boxed object.
+            // The native invoke() expects a ManagedObject* with a 0x10 byte header:
+            //   0x00: REObjectInfo* (type info / vtable pointer)
+            //   0x08: uint32_t refcount + padding
+            //   0x10: actual value type data starts here
+            const auto type_vt_size = type->get_valuetype_size();
+
+            // Reduce allocation pressure with thread_local.
+            thread_local std::vector<uint8_t> fake_boxed_storage(mo_runtime_size + type_vt_size, 0);
+
+            if (fake_boxed_storage.size() < mo_runtime_size + type_vt_size) {
+                fake_boxed_storage.resize(mo_runtime_size + type_vt_size);
+            }
+
+            fake_boxed_storage.clear();
+
+            // REObject header: REObjectInfo* at offset 0x00
+            *(void**)&fake_boxed_storage[0x00] = (void*)type;
+            // REManagedObject: reference count at offset 0x08 (set high to prevent GC interference)
+            *(uint32_t*)&fake_boxed_storage[0x08] = 9999;
+            // Copy value type data at offset 0x10
+            memcpy(&fake_boxed_storage[mo_runtime_size], data.data(), type_vt_size);
+
+            auto real_obj = (void*)fake_boxed_storage.data();
+
+            ret_val = def->invoke(real_obj, std::span(vec_args));
+
+            // copy back any changes to the value type from the fake boxed storage
+            memcpy(data.data(), &fake_boxed_storage[mo_runtime_size], type_vt_size);
+        } else {
+            // Static methods expect the value type to not be boxed.
+            ret_val = def->invoke((void*)address(), std::span(vec_args));
+        }
 
         if (ret_val.exception_thrown) {
             throw sol::error("Invoke threw an exception");
