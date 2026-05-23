@@ -9,6 +9,9 @@
 #include <Dbt.h>
 
 #include <spdlog/sinks/basic_file_sink.h>
+#include <spdlog/sinks/dist_sink.h>
+#include <spdlog/sinks/wincolor_sink.h>
+#include <spdlog/sinks/msvc_sink.h>
 
 // minhook, used for AllocateBuffer
 extern "C" {
@@ -255,6 +258,9 @@ REFramework::REFramework(HMODULE reframework_module)
     {
 
     s_reframework_module = reframework_module;
+    m_dist_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
+
+    m_logger->sinks().push_back(m_dist_sink);
 
     std::scoped_lock __{m_startup_mutex};
     const auto& gi = sdk::GameIdentity::get();
@@ -2535,4 +2541,22 @@ void REFramework::deinit_d3d12() {
 
     ImGui::GetIO().BackendRendererUserData = nullptr;
     m_d3d12 = {};
+}
+
+void REFramework::open_console() {
+    if (m_console_setup) {
+        SetForegroundWindow(GetConsoleWindow());
+        return;
+    }
+
+    AllocConsole();
+
+    std::shared_ptr<spdlog::sinks::dist_sink_mt> dist_sink = std::static_pointer_cast<spdlog::sinks::dist_sink_mt>(m_dist_sink);
+    dist_sink->add_sink(std::make_shared<spdlog::sinks::wincolor_stdout_sink_st>());
+    dist_sink->add_sink(std::make_shared<spdlog::sinks::wincolor_stderr_sink_st>());
+    dist_sink->add_sink(std::make_shared<spdlog::sinks::msvc_sink_mt>());
+
+    SetForegroundWindow(GetConsoleWindow());
+
+    m_console_setup = true;
 }

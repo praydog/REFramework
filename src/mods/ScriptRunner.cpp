@@ -49,8 +49,6 @@ void error(const char* str) {
 }
 
 void debug(const char* str) {
-    OutputDebugString(str);
-    fprintf(stderr, "%s\n", str);
     spdlog::debug(str);
 }
 }
@@ -956,6 +954,18 @@ void ScriptRunner::hook_battle_rule() {
 }
 
 void ScriptRunner::on_frame() {
+    if (!m_console_startup_checked) {
+        // Delay because C# API hides it
+        if (m_console_startup_delay_frames > 0) {
+            m_console_startup_delay_frames--;
+        } else {
+            m_console_startup_checked = true;
+
+            if (m_open_debug_console_at_startup->value()) {
+                g_framework->open_console();
+            }
+        }
+    }
     if (!m_scene_okay) try {
         if (!m_checked_scene_once) {
             m_checked_scene_once = true;
@@ -1088,15 +1098,13 @@ void ScriptRunner::on_draw_ui() {
         ImGui::SameLine();
 
         if (ImGui::Button("Spawn Debug Console")) {
-            if (!m_console_spawned) {
-                AllocConsole();
-                freopen("CONIN$", "r", stdin);
-                freopen("CONOUT$", "w", stdout);
-                freopen("CONOUT$", "w", stderr);
-
-                m_console_spawned = true;
-            }
+            g_framework->open_console();
         }
+
+        if (m_open_debug_console_at_startup->draw("Open Debug Console at Startup")) {
+            g_framework->request_save_config();
+        }
+
         //Garbage collection currently only showing from main lua state, might rework to show total later?
         if (ImGui::TreeNode("Garbage Collection Stats")) {
             std::scoped_lock _{ m_access_mutex };
@@ -1284,11 +1292,7 @@ void ScriptRunner::on_gui_draw_element(REComponent* gui_element, void* primitive
 }
 
 void ScriptRunner::spew_error(const std::string& p) {
-    OutputDebugString(p.c_str());
-
-    if (m_console_spawned) {
-        fprintf(stderr, "%s\n", p.c_str());
-    }
+    fprintf(stderr, "%s\n", p.c_str());
 
     if (m_log_to_disk->value()) {
         spdlog::error(p);
