@@ -370,15 +370,15 @@ struct ValueType {
         : type(t)
     {
         if (type != nullptr) {
-            data.resize(type->get_valuetype_size());
+            data.resize(type->get_size());
         }
     }
 
     ValueType(::sdk::RETypeDefinition* t, void* addr): type(t) {
         if (t != nullptr && addr != nullptr) {
             uint8_t* raw_data = reinterpret_cast<uint8_t*>(addr);
-            data.reserve(t->get_valuetype_size());
-            data.insert(data.begin(), raw_data, raw_data + t->get_valuetype_size());
+            data.reserve(t->get_size());
+            data.insert(data.begin(), raw_data, raw_data + t->get_size());
         }
     }
 
