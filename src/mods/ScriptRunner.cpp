@@ -164,6 +164,17 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
     log["warn"] = api::log::warn;
     log["error"] = api::log::error;
     log["debug"] = api::log::debug;
+    log["set_level"] = [](const std::string& level) {
+        if (level == "info") {
+            spdlog::set_level(spdlog::level::info);
+        } else if (level == "warn") {
+            spdlog::set_level(spdlog::level::warn);
+        } else if (level == "error") {
+            spdlog::set_level(spdlog::level::err);
+        } else if (level == "debug") {
+            spdlog::set_level(spdlog::level::debug);
+        }
+    };
     m_lua["log"] = log;
 
     
