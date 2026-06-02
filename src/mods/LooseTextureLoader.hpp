@@ -60,7 +60,7 @@ public:
     void early_initialize();
 
 private:
-    static constexpr const char* CONFIG_PREFIX = "LooseFileLoader_";
+    static constexpr const char* CONFIG_PREFIX = "LooseTextureLoader_";
     static std::string generate_name(std::string_view name) { return std::string{CONFIG_PREFIX} + name.data(); }
 
     static constexpr const wchar_t *DEFAULT_ROOT_RESOURCE_PATH = L"natives/STM/";
