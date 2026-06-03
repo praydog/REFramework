@@ -109,6 +109,10 @@ static constexpr ExeMapping s_exe_table[] = {
     // Pragmata (provisional)
 
     {"pragmata",                GameID::PRAGMATA},
+
+    // Onimusha WotS
+    {"onimushawots",           GameID::ONIMUSHA_WOTS},
+    {"onimushawots_demo",           GameID::ONIMUSHA_WOTS},
 };
 
 void GameIdentity::detect_game() {
@@ -350,6 +354,16 @@ void GameIdentity::derive_engine_params() {
         m_reengine_at      = true;
         m_game_name        = "pragmata";
         m_target_name      = "PRAGMATA";
+        break;
+
+    case GameID::ONIMUSHA_WOTS:
+        m_tdb_ver          = 82;
+        m_type_index_bits  = 19;
+        m_field_bits       = 20;
+        m_reengine_packed  = true;
+        m_reengine_at      = true;
+        m_game_name        = "onimusha_wots";
+        m_target_name      = "ONIMUSHA_WOTS";
         break;
 
     case GameID::Unknown:

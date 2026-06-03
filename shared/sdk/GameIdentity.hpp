@@ -29,6 +29,7 @@ enum class GameID : uint8_t {
     ONIMUSHA2,   // Onimusha 2: Samurai's Destiny
     STARFORCE,   // Mega Man Star Force Legacy Collection
     PRAGMATA,
+    ONIMUSHA_WOTS, // Onimusha: Way of the Sword
     Count
 };
 
