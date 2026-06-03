@@ -341,7 +341,8 @@ void FreeCam::on_update_transform(RETransform* transform) {
             *(Vector4f*)&joint->anglesOffset = Vector4f{0.0f, 0.00f, 0.0f, 1.0f};
         }
     } else {
-        if (joint != nullptr) {
+        // TODO: Get rid of this hacky workaround for onimusha, not sure whats happening here yet.
+        if (joint != nullptr && !gi.is_onimusha_wots()) {
             sdk::set_joint_local_rotation(joint, glm::quat{1.0f, 0.0f, 0.0f, 0.0f});
             sdk::set_joint_local_position(joint, Vector4f{});
         }
