@@ -184,6 +184,7 @@ private:
     } m_re4;
     
     const ModToggle::Ptr m_ultrawide_fix{ ModToggle::create(generate_name("UltrawideFix"), false) };
+    const ModToggle::Ptr m_ultrawide_16_10_mode{ ModToggle::create(generate_name("Ultrawide16x10Mode"), false) };
 #if defined(REFRAMEWORK_UNIVERSAL) || defined(MHWILDS)
     const ModToggle::Ptr m_ultrawide_vertical_fov{ ModToggle::create(generate_name("UltrawideFixVerticalFOV_V2"), true) };
     const ModSlider::Ptr m_ultrawide_ui_correction{ ModSlider::create(generate_name("UltrawideUICorrection"), 0.0f, 100.0f, 100.0f) };
@@ -306,6 +307,7 @@ private:
 
     ValueList m_options{
         *m_ultrawide_fix,
+        *m_ultrawide_16_10_mode,
         *m_ultrawide_vertical_fov,
         *m_ultrawide_custom_fov,
         *m_ultrawide_constrain_ui,
