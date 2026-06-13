@@ -16,6 +16,10 @@ jobs:
           pip install libclang
           python dev/audit_direct_access_clang.py
 
+      - name: Pin cmake
+        run: choco install cmake --version=3.31.4 --installargs 'ADD_CMAKE_TO_PATH=System' -y --no-progress
+        shell: powershell
+
       - name: Configure CMake
         run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 

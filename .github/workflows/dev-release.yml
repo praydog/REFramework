@@ -14,8 +14,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
 
+      - name: Pin cmake
+        run: choco install cmake --version=3.31.4 --installargs 'ADD_CMAKE_TO_PATH=System' -y --no-progress
+        shell: powershell
+
       - name: Configure CMake
-        run: cmake -S ${{github.workspace}}/csharp-api -B ${{github.workspace}}/csharp-api/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        run: cmake -S ${{github.workspace}}/csharp-api -B ${{github.workspace}}/csharp-api/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
 
       - name: Build
         run: cmake --build ${{github.workspace}}/csharp-api/build --config ${{env.BUILD_TYPE}} --target ALL_BUILD
@@ -52,6 +56,10 @@ jobs:
         run: |
           pip install libclang
           python dev/audit_direct_access_clang.py
+
+      - name: Pin cmake
+        run: choco install cmake --version=3.31.4 --installargs 'ADD_CMAKE_TO_PATH=System' -y --no-progress
+        shell: powershell
 
       - name: Configure CMake
         run: cmake -S ${{github.workspace}} -B ${{github.workspace}}/build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEVELOPER_MODE=ON "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
