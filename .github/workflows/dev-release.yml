@@ -2,6 +2,7 @@ name: Dev Release
 on: [push, workflow_dispatch]
 env:
   BUILD_TYPE: Release
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   csharp-release:
     runs-on: windows-latest
