@@ -11,6 +11,10 @@ the actual type of the expression.
 Requirements:
     pip install libclang
 
+    The pip 'libclang' package bundles LLVM 18. If MSVC 14.44+ STL is installed
+    (requires Clang 19+), install LLVM 19+ separately. The script auto-detects
+    the system LLVM at C:/Program Files/LLVM/bin/libclang.dll.
+
 Usage:
     python dev/audit_direct_access_clang.py [file ...]
     
@@ -24,11 +28,27 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
-try:
-    import clang.cindex as ci
-except ImportError:
-    print("ERROR: pip install libclang", file=sys.stderr)
-    sys.exit(2)
+# Point libclang at the system LLVM if it's newer than the bundled one.
+# The pip 'libclang' package bundles LLVM 18, but MSVC 14.44+ STL requires Clang 19+.
+# The pip package uses 'CLANG_LIBRARY_FILE' (not 'CLANG_LIBRARY_PATH') to override.
+_system_libclang = (
+    os.environ.get("CLANG_LIBRARY_FILE")
+    or r"C:\Program Files\LLVM\bin\libclang.dll"
+)
+if _system_libclang and os.path.isfile(_system_libclang):
+    ci = None
+    try:
+        import clang.cindex as ci
+        ci.conf.set_library_file(_system_libclang)
+    except ImportError:
+        print("ERROR: pip install libclang", file=sys.stderr)
+        sys.exit(2)
+else:
+    try:
+        import clang.cindex as ci
+    except ImportError:
+        print("ERROR: pip install libclang", file=sys.stderr)
+        sys.exit(2)
 
 # ============================================================================
 # Configuration
@@ -84,6 +104,17 @@ SIZEOF_BANNED_TYPES = {
     "REParameterDef", "GenericListData",
     # Transform — varies across 4 sizes
     "RETransform",
+    # Derived from REType — sizeof shifts with REType::runtime_size()
+    "RETypeCLR",
+}
+# Fields in derived classes of variable-layout bases.
+# When a base class has runtime_size() that varies by game (e.g. REType: 0x60/0x68),
+# fields declared after the base in a derived class have compile-time offsets that
+# differ from their runtime offsets. Direct field access uses the wrong offset.
+# Access these fields through runtime-dispatch accessors instead.
+# See PR #1780 for the motivating bug (RETypeCLR::deserializers on MHWILDS).
+SHIFTED_DERIVED_FIELDS = {
+    "RETypeCLR": {"deserializers", "native_type", "name2"},
 }
 
 # Types where array subscript [index] is wrong (sizeof == 1 stride).
@@ -95,6 +126,13 @@ FIELD_TO_TYPES = defaultdict(set)
 for tname, fields in GUARDED_TYPES.items():
     for fname in fields:
         FIELD_TO_TYPES[fname].add(tname)
+
+# Flatten shifted derived fields lookup
+SHIFTED_FIELD_TO_TYPES = defaultdict(set)
+for tname, fields in SHIFTED_DERIVED_FIELDS.items():
+    for fname in fields:
+        SHIFTED_FIELD_TO_TYPES[fname].add(tname)
+
 
 # Files where direct access is expected (accessor implementations)
 WHITELIST_SUFFIXES = {
@@ -183,6 +221,8 @@ def get_compile_flags():
         "-fms-compatibility",
         "-fdelayed-template-parsing",
         "-Wno-everything",  # suppress all warnings, we only want AST
+        "-ferror-limit=0",  # don't stop at first error — partial ASTs are useful
+        "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH",  # MSVC 14.44+ STL requires Clang 19+; suppress the #error
     ]
     flags.extend(includes)
     flags.extend(defines)
@@ -201,6 +241,20 @@ def get_compile_flags():
         if os.path.isdir(d):
             flags.append(f"-I{d}")
 
+    # src/ for headers like <utility/ImGui.hpp>
+    src_dir = REPO_ROOT / "src"
+    if src_dir.is_dir():
+        flags.append(f"-I{src_dir}")
+
+    # Ensure third-party headers like json.hpp are findable via angle brackets
+    dep_root = REPO_ROOT / "dependencies"
+    if dep_root.is_dir():
+        for dep_dir in dep_root.iterdir():
+            if dep_dir.is_dir() and not dep_dir.name.startswith("."):
+                flag = f"-I{dep_dir}"
+                if flag not in flags:
+                    flags.append(flag)
+
     return flags
 
 
@@ -211,8 +265,10 @@ def get_minimal_flags():
         "-fms-extensions", "-fms-compatibility",
         "-fdelayed-template-parsing",
         "-Wno-everything",
+        "-ferror-limit=0",
         "-DREFRAMEWORK_UNIVERSAL",
         "-DWIN32", "-D_WINDOWS", "-DNDEBUG",
+        "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH",
         f"-I{REPO_ROOT / 'shared'}",
         f"-I{REPO_ROOT / 'include'}",
         f"-I{REPO_ROOT / 'src'}",
@@ -236,6 +292,48 @@ def get_type_name(cursor):
     if spelling.endswith("*"):
         spelling = spelling[:-1].strip()
     return spelling
+
+
+def _resolve_var_cast_type(member_ref_cursor, tu_cursor):
+    """Recover the cast target type from the enclosing VAR_DECL when the AST
+    is degraded (e.g. auto clr_t = (sdk::RETypeCLR*)...).
+
+    Walks the AST to find a VAR_DECL on the same line as the base expression,
+    then traces its initializer's CSTYLE_CAST_EXPR → TYPE_REF to get the type.
+    Returns the unqualified type name (e.g. 'RETypeCLR') or None.
+    """
+    target_line = member_ref_cursor.location.line
+    # Search nearby lines for the VAR_DECL (cast may be 1-2 lines before the access)
+    search_lines = range(max(1, target_line - 5), target_line + 1)
+
+    def search(cursor):
+        if (cursor.kind == ci.CursorKind.VAR_DECL
+                and cursor.location.line in search_lines):
+            # Trace initializer: VAR_DECL → CSTYLE_CAST_EXPR → TYPE_REF
+            for child in cursor.get_children():
+                if child.kind == ci.CursorKind.CSTYLE_CAST_EXPR:
+                    # Prefer TYPE_REF → referenced declaration (most reliable)
+                    for gc in child.get_children():
+                        if gc.kind == ci.CursorKind.TYPE_REF:
+                            ref = gc.referenced
+                            if ref and ref.spelling:
+                                return ref.spelling
+                    # Fallback: parse the cast type spelling
+                    spelling = child.type.spelling if child.type else ""
+                    if spelling and "dependent" not in spelling:
+                        spelling = spelling.replace("const ", "").replace("class ", "").replace("struct ", "")
+                        if spelling.endswith(" *"):
+                            spelling = spelling[:-2].strip()
+                        if "::" in spelling:
+                            spelling = spelling.split("::")[-1]
+                        return spelling
+        for child in cursor.get_children():
+            result = search(child)
+            if result:
+                return result
+        return None
+
+    return search(tu_cursor)
 
 
 def scan_file(filepath, flags):
@@ -336,10 +434,64 @@ def scan_file(filepath, flags):
                                         "kind": "array_subscript",
                                     })
 
+        # Check 4: Direct access to fields in derived classes of variable-layout bases.
+        # These fields have runtime offsets that differ from compile-time offsets
+        # because the base class size varies at runtime (e.g. REType::runtime_size()).
+        # When the AST is degraded by parse errors, spelling may be empty — in that
+        # case, recover the field name by tokenizing the cursor's source extent, and
+        # the type from the enclosing VAR_DECL's cast initializer TYPE_REF.
+        if cursor.kind == ci.CursorKind.MEMBER_REF_EXPR:
+            field_name = cursor.spelling
+            base_type_name = None
+            children = list(cursor.get_children())
+
+            if field_name and field_name in SHIFTED_FIELD_TO_TYPES:
+                # Normal case: spelling is available
+                if children:
+                    base_type_name = get_type_name(children[0])
+            elif not field_name and error_count > 0:
+                # Degraded case: recover from source tokens at the cursor's extent.
+                # When parse errors break type resolution, the MEMBER_REF_EXPR
+                # spelling is empty. The cursor extent still covers the source range
+                # of the expression, so we tokenize it and take the last identifier
+                # token as the field name.
+                ext = cursor.extent
+                try:
+                    tokens = list(tu.get_tokens(extent=ext))
+                except Exception:
+                    tokens = []
+                for tok in reversed(tokens):
+                    if tok.kind == ci.TokenKind.IDENTIFIER:
+                        candidate = tok.spelling
+                        if candidate in SHIFTED_FIELD_TO_TYPES:
+                            field_name = candidate
+                            break
+
+                if field_name:
+                    # Recover the base type from the enclosing VAR_DECL's
+                    # cast initializer (e.g. auto clr_t = (sdk::RETypeCLR*)...)
+                    base_type_name = _resolve_var_cast_type(cursor, tu.cursor)
+
+            if field_name and base_type_name:
+                if base_type_name in SHIFTED_DERIVED_FIELDS and field_name in SHIFTED_DERIVED_FIELDS[base_type_name]:
+                    loc = cursor.location
+                    if loc.file and not is_whitelisted(loc.file.name):
+                        src_line = source_lines.get(loc.line, '')
+                        if 'static_assert' not in src_line:
+                            violations.append({
+                                "file": os.path.relpath(loc.file.name, REPO_ROOT).replace("\\", "/"),
+                                "line": loc.line,
+                                "col": loc.column,
+                                "type": base_type_name,
+                                "field": field_name,
+                                "kind": "shifted_derived_access",
+                            })
+
         for child in cursor.get_children():
             visit(child)
 
     visit(tu.cursor)
+
     return violations, error_count
 
 
@@ -394,7 +546,7 @@ def main():
             print(f"--- {fp} ({len(vv)}) ---")
             for v in vv:
                 kind = v.get('kind', 'direct_access')
-                marker = '!!' if kind == 'sizeof_banned' else '[]' if kind == 'array_subscript' else '  '
+                marker = '!!' if kind == 'sizeof_banned' else '[]' if kind == 'array_subscript' else '<<' if kind == 'shifted_derived_access' else '  '
                 print(f"  {marker} L{v['line']:>5}:{v['col']:<3}  {v['type']}::{v['field']}  ({kind})")
             print()
 
