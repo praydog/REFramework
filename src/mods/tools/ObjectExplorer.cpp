@@ -1364,7 +1364,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         }
 
         auto clr_t = (sdk::RETypeCLR*)type_info;
-        auto& deserialize_list = clr_t->deserializers;
+        auto& deserialize_list = clr_t->get_deserializers();
 
         for (const auto& sequence : deserialize_list) {
             const auto code = sequence.get_code();
