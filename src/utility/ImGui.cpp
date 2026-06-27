@@ -92,7 +92,7 @@ std::optional<Vector3f> get_camera_up() {
         std::nullopt;
     }
 
-    auto camera_transform = camera_gameobject->transform;
+    auto camera_transform = camera_gameobject->get_transform();
 
     if (camera_transform == nullptr) {
         std::nullopt;

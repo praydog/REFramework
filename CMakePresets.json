@@ -12,9 +12,28 @@
             "cacheVariables": {
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/"
             }
+        },
+        {
+            "name": "vs2026",
+            "displayName": "Visual Studio 2026 - amd64",
+            "description": "Using compilers for Visual Studio 18 2026 (x64 architecture)",
+            "generator": "Visual Studio 18 2026",
+            "toolset": "host=x64",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/"
+            }
         }
     ],
     "buildPresets": [
+        {
+            "name": "Release 2026",
+            "description": "",
+            "displayName": "Release",
+            "configuration": "Release",
+            "configurePreset": "vs2026"
+        },
         {
             "name": "Release 2022",
             "description": "",
@@ -28,6 +47,13 @@
             "displayName": "RelWithDebInfo",
             "configuration": "RelWithDebInfo",
             "configurePreset": "vs2022"
+        },
+        {
+            "name": "RelWithDebInfo 2026",
+            "description": "",
+            "displayName": "RelWithDebInfo",
+            "configuration": "RelWithDebInfo",
+            "configurePreset": "vs2026"
         }
     ]
 }

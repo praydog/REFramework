@@ -5,6 +5,27 @@
 #include "REString.hpp"
 #include "RETransform.hpp"
 
+#include "GameIdentity.hpp"
+
+static uintptr_t joints_offset() {
+    static const auto offset = []() -> uintptr_t {
+        const auto ver = sdk::GameIdentity::get().tdb_ver();
+        // RE2/RE3 TDB70 (and DMC5 TDB67): joints at 0xD0
+        // RE8+ (TDB69, TDB71-84): joints at 0xD8
+        if (ver <= 70) return 0xD0;
+        return 0xD8;
+    }();
+    return offset;
+}
+
+REJointArray& RETransform::get_joints() {
+    return *reinterpret_cast<REJointArray*>((uintptr_t)this + joints_offset());
+}
+
+const REJointArray& RETransform::get_joints() const {
+    return *reinterpret_cast<const REJointArray*>((uintptr_t)this + joints_offset());
+}
+
 namespace sdk {
 Vector4f sdk::get_transform_position(RETransform* transform) {
     static auto get_position_method = sdk::find_type_definition("via.Transform")->get_method("get_Position");
@@ -57,13 +78,13 @@ void set_transform_position(RETransform* transform, const Vector4f& pos, bool no
             const auto parent_rotation = sdk::get_transform_rotation(parent_transform);
             const auto local_diff = pos - parent_position;
             
-            transform->position = glm::vec4{glm::inverse(parent_rotation) * glm::vec3{local_diff}, 1.0f};
+            transform->get_position() = glm::vec4{glm::inverse(parent_rotation) * glm::vec3{local_diff}, 1.0f};
         } else {
-            transform->position = pos;
+            transform->get_position() = pos;
         }
 
-        transform->worldTransform[3] = pos;
-        transform->worldTransform[3].w = 1.0f;
+        transform->get_world_transform()[3] = pos;
+        transform->get_world_transform()[3].w = 1.0f;
     }
 }
 
@@ -187,32 +208,10 @@ std::string sdk::get_joint_name(REJoint* joint) {
 
 namespace utility::re_transform {
 REJoint* get_joint(const ::RETransform& transform, uint32_t index) {
-#if TDB_VER < 69
-    auto& joint_array = transform.joints;
-
-    if (joint_array.size <= 0 || joint_array.numAllocated <= 0 || joint_array.data == nullptr || joint_array.matrices == nullptr) {
-        return nullptr;
-    }
-
-    auto joint = joint_array.data->joints[index];
-
-    if (joint == nullptr) {
-        return nullptr;
-    }
-
-    auto joint_info = joint->info;
-
-    if (joint_info == nullptr || joint_info->name == nullptr) {
-        return nullptr;
-    }
-
-    return joint;
-#else
     static auto get_joints_method = sdk::find_method_definition("via.Transform", "get_Joints");
     auto joints = get_joints_method->call<REArrayBase*>(sdk::get_thread_context(), &transform);
 
     return utility::re_array::get_element<REJoint>(joints, index);
-#endif
 }
 
 glm::mat4 calculate_base_transform(const ::RETransform& transform, REJoint* target) {

@@ -3,6 +3,7 @@
 #include "utility/Scan.hpp"
 #include "utility/Module.hpp"
 
+#include "GameIdentity.hpp"
 #include "RETypeDB.hpp"
 #include "RETypes.hpp"
 
@@ -17,21 +18,16 @@ std::string& game_namespace(std::string_view base_name)
 {
     using namespace std::string_view_literals;
 
-    static constexpr std::string_view prefix{
-#if TDB_VER >= 74
-    "app."sv
-#elif defined(MHRISE)
-    "snow."sv
-#elif defined(RE8) || defined(RE7) || defined(DMC5) || defined(SF6)
-    "app."sv
-#elif RE4
-    "chainsaw."sv
-#elif RE3
-    "offline."sv
-#else
-    "app.ropeway."sv
-#endif
-    };
+    static const std::string_view prefix = []() -> std::string_view {
+        const auto& gi = sdk::GameIdentity::get();
+        switch (gi.game()) {
+            case sdk::GameID::RE2: return "app.ropeway."sv;
+            case sdk::GameID::RE3: return "offline."sv;
+            case sdk::GameID::RE4: return "chainsaw."sv;
+            case sdk::GameID::MHRISE: return "snow."sv;
+            default: return "app."sv;  // RE7, RE8, RE9, DMC5, SF6, DD2, MHWILDS, etc.
+        }
+    }();
 
     static thread_local std::string buffer = [&]
     {
@@ -59,7 +55,8 @@ RETypes::RETypes() {
     bool re7_version = false;
 
     if (!ref) {
-#if TDB_VER >= 73
+        const bool use_exhaustive_scan = sdk::GameIdentity::get().tdb_ver() >= 73;
+        if (use_exhaustive_scan) {
         // This is the absolutely foolproof way of finding it
         // We can probably completely replace it with this for all the games, but not doing that just yet to be safe
         const auto via_object_ref = utility::scan(mod, "BA 55 FD 09 D2");
@@ -98,11 +95,11 @@ RETypes::RETypes() {
                 for (auto i = 0; i < potential_types->numAllocated; ++i) try {
                     auto t = (*potential_types->data)[i];
 
-                    if (t == nullptr || IsBadReadPtr(t, sizeof(REType))) {
+                    if (t == nullptr || IsBadReadPtr(t, REType::runtime_size())) {
                         continue;
                     }
 
-                    if (t->name != nullptr && (std::string_view{t->name} == "via.clr.ManagedObject" || std::string_view{t->name} == "via.Object")) {
+                    if (t->get_type_name() != nullptr && (std::string_view{t->get_type_name()} == "via.clr.ManagedObject" || std::string_view{t->get_type_name()} == "via.Object")) {
                         m_raw_types = potential_types;
                         spdlog::info("Found TypeList: {:x} at ref {:x}", (uintptr_t)m_raw_types, ctx.addr);
                         break;
@@ -121,8 +118,7 @@ RETypes::RETypes() {
             refresh_map();
             return;
         }
-#else
-        // Scan for RE7 version
+        } else {
         // mov edx, 8F7E7AEh (TypeInfoNone hash)
         pat = "BA AE E7 F7 08";
 
@@ -172,7 +168,7 @@ RETypes::RETypes() {
 
         types_offset = 3;
         re7_version = true;
-#endif
+        }
     }
 
     spdlog::info("Initial ref: {:x}", (uintptr_t)*ref);
@@ -309,15 +305,15 @@ void RETypes::refresh_map() {
     for (auto i = 0; i < typeList.numAllocated; ++i) {
         auto t = (*typeList.data)[i];
 
-        if (t == nullptr || IsBadReadPtr(t, sizeof(REType)) || ((uintptr_t)t & (sizeof(void*) - 1)) != 0) {
+        if (t == nullptr || IsBadReadPtr(t, REType::runtime_size()) || ((uintptr_t)t & (sizeof(void*) - 1)) != 0) {
             continue;
         }
 
-        if (t->name == nullptr) {
+        if (t->get_type_name() == nullptr) {
             continue;
         }
 
-        auto name = std::string{ t->name };
+        auto name = std::string{ t->get_type_name() };
 
         if (name.empty()) {
             continue;

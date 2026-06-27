@@ -6,8 +6,16 @@
 #include "ReClass.hpp"
 
 #include "REManagedObject.hpp"
+#include "GameIdentity.hpp"
 
-namespace utility::re_managed_object {
+#include "RETypeDefDispatch.hpp"
+using namespace utility::re_type_accessor;
+
+size_t REManagedObject::runtime_size() {
+    // RE7 TDB49 has REManagedObject at 0x20 (enlarged REObject base with vtable).
+    // All other supported games: 0x10. Modern RE7 (TDB70) is also 0x10.
+    return 0x10;  // Stable across all supported games. Update if a future game changes it.
+}
 
 // Used all over the place. It may be one of the most referenced functions in a disassembler.
 // According to my IDA script, it's the 4th most referenced function though sometimes it's 5th or 6th.
@@ -18,8 +26,7 @@ namespace utility::re_managed_object {
 static void (*add_ref_func)(::REManagedObject*) = nullptr;
 static void (*release_func)(::REManagedObject*) = nullptr;
 
-namespace detail {
-void resolve_add_ref() {
+void REManagedObject::resolve_add_ref() {
     if (add_ref_func != nullptr) {
         return;
     }
@@ -45,7 +52,7 @@ void resolve_add_ref() {
     spdlog::info("[REManagedObject] Found add_ref function at {:x}", (uintptr_t)add_ref_func);
 }
 
-void resolve_release() {
+void REManagedObject::resolve_release() {
     if (release_func != nullptr) {
         return;
     }
@@ -87,43 +94,28 @@ void resolve_release() {
 
     spdlog::info("[REManagedObject] Found release function at {:x}", (uintptr_t)release_func);
 }
-}
 
-void add_ref(REManagedObject* object) {
-    if (object == nullptr) {
-        return;
-    }
-
-    detail::resolve_add_ref();
-
-    //spdlog::info("Pushing: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
+void REManagedObject::add_ref() {
+    resolve_add_ref();
 
 #if TDB_VER <= 49
-    if ((int32_t)object->referenceCount >= 0) {
-        _InterlockedIncrement(&object->referenceCount);
+    if ((int32_t)get_ref_count() >= 0) {
+        _InterlockedIncrement((volatile long*)ref_count_ptr());
     } else {
-        add_ref_func(object);
+        add_ref_func(this);
     }
 #else
-    add_ref_func(object);
+    add_ref_func(this);
 #endif
 }
 
-void release(REManagedObject* object) {
-    if (object == nullptr) {
-        return;
-    }
+void REManagedObject::release() {
+    resolve_release();
 
-    detail::resolve_release();
-
-    //spdlog::info("Popping: {} {} {:x}", (int32_t)object->referenceCount, utility::re_managed_object::get_type_definition(object)->get_full_name(), (uintptr_t)object);
-
-    release_func(object);
-
-    //spdlog::info("Now: {}", (int32_t)object->referenceCount);
+    release_func(this);
 }
 
-std::vector<::REManagedObject*> deserialize(const uint8_t* data, size_t size, bool add_references) {
+std::vector<::REManagedObject*> REManagedObject::deserialize(const uint8_t* data, size_t size, bool add_references) {
     static void (*deserialize_func)(void* placeholder, const sdk::NativeArray<::REManagedObject*>&, const uint8_t*, size_t) = []() -> decltype(deserialize_func) {
         spdlog::info("[REManagedObject] Finding deserialize function...");
         decltype(deserialize_func) result{nullptr};
@@ -173,7 +165,7 @@ std::vector<::REManagedObject*> deserialize(const uint8_t* data, size_t size, bo
     for (auto object : arr) {
         if (object != nullptr) {
             if (add_references) {
-                utility::re_managed_object::add_ref(object);
+                object->add_ref();
             }
 
             result.push_back(object);
@@ -183,12 +175,12 @@ std::vector<::REManagedObject*> deserialize(const uint8_t* data, size_t size, bo
     return result;
 }
 
-void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t size, const std::vector<::REManagedObject*>& objects) {
-    if (!is_managed_object(object)) {
+void REManagedObject::deserialize_native(const uint8_t* data, size_t size, const std::vector<::REManagedObject*>& objects) {
+    if (!is_managed_object(this)) {
         return;
     }
 
-    const auto tdef = get_type_definition(object);
+    const auto tdef = get_type_definition();
 
     if (tdef == nullptr) {
         return;
@@ -196,7 +188,7 @@ void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t s
 
     const auto t = tdef->get_type();
 
-    if (t == nullptr || t->fields == nullptr || t->fields->deserializer == nullptr) {
+    if (t == nullptr || get_fields(t) == nullptr || get_fields(t)->get_deserializer() == nullptr) {
         return;
     }
 
@@ -208,7 +200,7 @@ void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t s
         uint8_t* stack[32]{0};
     }; static_assert(sizeof(DeserializeStream) == 0x120, "DeserializeStream is not the correct size");
 
-    const auto deserializer = (void (*)(::REManagedObject*, DeserializeStream*, sdk::NativeArray<REManagedObject*>* objects))t->fields->deserializer;
+    const auto deserializer = (void (*)(::REManagedObject*, DeserializeStream*, sdk::NativeArray<REManagedObject*>* objects))get_fields(t)->get_deserializer();
 
     std::array<uint8_t, 1024 * 8> stack_buffer{};
 
@@ -227,175 +219,133 @@ void deserialize_native(::REManagedObject* object, const uint8_t* data, size_t s
         }
     }
 
-    deserializer(object, &stream, &objects_array);
+    deserializer(this, &stream, &objects_array);
 }
 
-bool is_managed_object(Address address) {
+bool REManagedObject::is_managed_object(void* address) {
     if (address == nullptr) {
         return false;
     }
 
-    if (IsBadReadPtr(address.ptr(), sizeof(void*))) {
+    if (IsBadReadPtr(address, sizeof(void*))) {
         return false;
     }
 
-    auto object = address.as<::REManagedObject*>();
+    auto object = (::REManagedObject*)address;
 
     if (object->info == nullptr || IsBadReadPtr(object->info, sizeof(void*))) {
         return false;
     }
 
-    auto class_info = object->info->classInfo;
+    auto class_info = object->info->get_class_info();
 
     if (class_info == nullptr || IsBadReadPtr(class_info, sizeof(void*))) {
         return false;
     }
 
-#if TDB_VER >= 71
-    const auto td = (sdk::RETypeDefinition*)class_info;
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 71) {
+        const auto td = (sdk::RETypeDefinition*)class_info;
 
-    if ((uintptr_t)td->managed_vt != (uintptr_t)object->info) {
-        // This allows for cases when a vtable hook is being used to replace this pointer.
-        if (IsBadReadPtr(td->managed_vt, sizeof(void*)) || *(sdk::RETypeDefinition**)td->managed_vt != td) {
+        if ((uintptr_t)TDEF_FIELD(td, managed_vt) != (uintptr_t)object->info) {
+            // This allows for cases when a vtable hook is being used to replace this pointer.
+            if (IsBadReadPtr(TDEF_FIELD(td, managed_vt), sizeof(void*)) || *(sdk::RETypeDefinition**)TDEF_FIELD(td, managed_vt) != td) {
+                return false;
+            }
+        }
+
+        if (TDEF_FIELD(td, type) == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(TDEF_FIELD(td, type), REType::runtime_size()) || TDEF_FIELD(td, type)->get_type_name() == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(TDEF_FIELD(td, type)->get_type_name(), sizeof(void*))) {
+            return false;
+        }
+    } else {
+        auto td = (sdk::RETypeDefinition*)class_info;
+        auto ci_parentInfo = td->get_managed_vt();
+        auto ci_type = td->get_type();
+        if (ci_parentInfo != object->info) {
+            // This allows for cases when a vtable hook is being used to replace this pointer.
+            if (IsBadReadPtr(ci_parentInfo, sizeof(void*)) || ci_parentInfo->get_class_info() != class_info) {
+                return false;
+            }
+        }
+
+        if (ci_type == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(ci_type, REType::runtime_size()) || ci_type->get_type_name() == nullptr) {
+            return false;
+        }
+
+        if (IsBadReadPtr(ci_type->get_type_name(), sizeof(void*))) {
             return false;
         }
     }
-
-    if (td->type == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(td->type, sizeof(REType)) || td->type->name == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(td->type->name, sizeof(void*))) {
-        return false;
-    }
-#elif TDB_VER > 49
-    if (class_info->parentInfo != object->info) {
-        // This allows for cases when a vtable hook is being used to replace this pointer.
-        if (IsBadReadPtr(class_info->parentInfo, sizeof(void*)) || class_info->parentInfo->classInfo != class_info) {
-            return false;
-        }
-    }
-
-    if (class_info->type == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(class_info->type, sizeof(REType)) || class_info->type->name == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(class_info->type->name, sizeof(void*))) {
-        return false;
-    }
-#else
-    auto info = object->info;
-
-    if (info->type == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(info->type, sizeof(REType)) || info->type->name == nullptr) {
-        return false;
-    }
-
-    if (IsBadReadPtr(info->type->name, sizeof(void*))) {
-        return false;
-    }
-
-    if (info->type->super != nullptr && IsBadReadPtr(info->type->super, sizeof(REType))) {
-        return false;
-    }
-
-    if (info->type->classInfo != nullptr && IsBadReadPtr(info->type->classInfo, sizeof(REObjectInfo))) {
-        return false;
-    }
-
-    static auto vm = sdk::VM::get();
-    const auto tdef = (sdk::RETypeDefinition*)info->classInfo;
-    
-    if (&vm->types[tdef->get_index()] != (regenny::via::clr::VM::Type*)object->info) {
-        return false;
-    }
-
-    /*if (info->type->classInfo != nullptr && info->type->classInfo != object->info) {
-        return false;
-    }*/
-#endif
 
     return true;
 }
 
-REType* get_type(::REManagedObject* object) {
-    if (object == nullptr) {
+REType* REManagedObject::get_type() const {
+    auto info_ptr = info;
+
+    if (info_ptr == nullptr) {
         return nullptr;
     }
 
-    auto info = object->info;
+    const auto& gi = sdk::GameIdentity::get();
+    if (gi.tdb_ver() >= 71) {
+        const auto td = get_type_definition();
 
-    if (info == nullptr) {
-        return nullptr;
+        if (td == nullptr) {
+            return nullptr;
+        }
+
+        return TDEF_FIELD(td, type);
+    } else {
+        auto class_info = info_ptr->get_class_info();
+
+        if (class_info == nullptr) {
+            return nullptr;
+        }
+
+        return ((sdk::RETypeDefinition*)class_info)->get_type();
     }
-
-#if TDB_VER >= 71
-    const auto td = get_type_definition(object);
-
-    if (td == nullptr) {
-        return nullptr;
-    }
-
-    return td->type;
-#elif TDB_VER > 49
-    auto class_info = info->classInfo;
-
-    if (class_info == nullptr) {
-        return nullptr;
-    }
-
-    return class_info->type;
-#else
-    return info->type;
-#endif
 }
 
-sdk::RETypeDefinition* get_type_definition(::REManagedObject* object) {
-    if (object == nullptr) {
+sdk::RETypeDefinition* REManagedObject::get_type_definition() const {
+    auto info_ptr = info;
+
+    if (info_ptr == nullptr) {
         return nullptr;
     }
 
-    auto info = object->info;
-
-    if (info == nullptr) {
-        return nullptr;
-    }
-
-    return (sdk::RETypeDefinition*)info->classInfo;
+    return (sdk::RETypeDefinition*)info_ptr->get_class_info();
 }
 
-REType* safe_get_type(::REManagedObject* object) {
-    return is_managed_object(object) ? get_type(object) : nullptr;
+REType* REManagedObject::safe_get_type() const {
+    return is_managed_object(const_cast<REManagedObject*>(this)) ? get_type() : nullptr;
 }
 
-std::string get_type_name(::REManagedObject* object) {
-    auto t = get_type(object);
+std::string REManagedObject::get_type_name() const {
+    auto t = get_type();
 
     if (t == nullptr) {
         return "";
     }
 
-    return t->name;
+    return t->get_type_name();
 }
 
-bool is_a(::REManagedObject* object, std::string_view name) {
-    if (object == nullptr) {
-        return false;
-    }
-
-    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = t->super) {
-        if (name == t->name) {
+bool REManagedObject::is_a(std::string_view name) const {
+    for (auto t = get_type(); t != nullptr && t->get_type_name() != nullptr; t = get_super(t)) {
+        if (name == t->get_type_name()) {
             return true;
         }
     }
@@ -403,12 +353,8 @@ bool is_a(::REManagedObject* object, std::string_view name) {
     return false;
 }
 
-bool is_a(::REManagedObject* object, REType* cmp) {
-    if (object == nullptr) {
-        return false;
-    }
-
-    for (auto t = re_managed_object::get_type(object); t != nullptr && t->name != nullptr; t = t->super) {
+bool REManagedObject::is_a(REType* cmp) const {
+    for (auto t = get_type(); t != nullptr && t->get_type_name() != nullptr; t = get_super(t)) {
         if (cmp == t) {
             return true;
         }
@@ -417,40 +363,30 @@ bool is_a(::REManagedObject* object, REType* cmp) {
     return false;
 }
 
-via::clr::VMObjType get_vm_type(::REManagedObject* object) {
-    auto info = object->info;
+via::clr::VMObjType REManagedObject::get_vm_type() const {
+    auto info_ptr = info;
 
-    if (info == nullptr || info->classInfo == nullptr) {
+    if (info_ptr == nullptr || info_ptr->get_class_info() == nullptr) {
         return via::clr::VMObjType::NULL_;
     }
 
-#if TDB_VER >= 71
-    return get_type_definition(object)->get_vm_obj_type();
-#elif TDB_VER >= 69
-    return (via::clr::VMObjType)(info->classInfo->objectFlags >> 5);
-#else
-    return (via::clr::VMObjType)info->classInfo->objectType;
-#endif
+    return get_type_definition()->get_vm_obj_type();
 }
 
-uint32_t get_size(::REManagedObject* object) {
-    auto info = object->info;
+uint32_t REManagedObject::get_size() const {
+    auto info_ptr = info;
 
-    if (info == nullptr || info->classInfo == nullptr) {
+    if (info_ptr == nullptr || info_ptr->get_class_info() == nullptr) {
         return 0;
     }
 
-#if TDB_VER > 49
-    const auto td = get_type_definition(object);
+    const auto td = get_type_definition();
     auto size = td->get_size();
-#else
-    auto size = info->size;
-#endif
 
-    switch (get_vm_type(object)) {
+    switch (get_vm_type()) {
     case via::clr::VMObjType::Array:
     {
-        auto container = (::REArrayBase*)object;
+        auto container = (::REArrayBase*)this;
 
         // array of ptrs by default
         auto element_size = utility::re_array::get_element_size(container);
@@ -465,10 +401,10 @@ uint32_t get_size(::REManagedObject* object) {
         break;
     }
     case via::clr::VMObjType::String:
-        size = sizeof(uint16_t) * (Address(object).get(sizeof(::REManagedObject)).to<uint32_t>() + 1) + 0x14;
+        size = sizeof(uint16_t) * (Address(const_cast<REManagedObject*>(this)).get(REManagedObject::runtime_size()).to<uint32_t>() + 1) + 0x14;
         break;
     case via::clr::VMObjType::Delegate:
-        size = 0x10 * (Address(object).get(sizeof(::REManagedObject)).to<uint32_t>() - 1) + 0x28;
+        size = 0x10 * (Address(const_cast<REManagedObject*>(this)).get(REManagedObject::runtime_size()).to<uint32_t>() - 1) + 0x28;
         break;
     case via::clr::VMObjType::Object:
     default:
@@ -478,19 +414,18 @@ uint32_t get_size(::REManagedObject* object) {
     return size;
 }
 
-REVariableList* get_variables(::REType* t) {
-    return re_type::get_variables(t);
+REVariableList* REManagedObject::get_variables(::REType* t) {
+    return utility::re_type::get_variables(t);
 }
 
-REVariableList* get_variables(::REManagedObject* obj) {
-    return get_variables(get_type(obj));
+REVariableList* REManagedObject::get_variables() const {
+    return get_variables(get_type());
 }
 
-VariableDescriptor* get_field_desc(::REManagedObject* obj, std::string_view field) {
-    return re_type::get_field_desc(get_type(obj), field);
+VariableDescriptor* REManagedObject::get_field_desc(std::string_view field) const {
+    return utility::re_type::get_field_desc(get_type(), field);
 }
 
-FunctionDescriptor* get_method_desc(::REManagedObject* obj, std::string_view name) {
-    return re_type::get_method_desc(get_type(obj), name);
-}
+FunctionDescriptor* REManagedObject::get_method_desc(std::string_view name) const {
+    return utility::re_type::get_method_desc(get_type(), name);
 }
