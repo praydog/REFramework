@@ -53,8 +53,11 @@ inline bool retype_has_shifted_pointers() {
 // All tdb >= 81 games swap these two scalar fields (typeCRC@0x2C, size@0x30
 // instead of RE8's size@0x2C, typeCRC@0x30). This is independent of the
 // pointer shift — MHSTORIES3/PRAGMATA have the scalar swap but NOT the shift.
+// STARFORCE (tdb 78) ships with the reorder too despite its older tdb version, out
+// so it must be checked explicitly.
 inline bool retype_has_field_reorder() {
-    return sdk::GameIdentity::get().tdb_ver() >= 81;
+    const auto& gi = sdk::GameIdentity::get();
+    return gi.tdb_ver() >= 81 || gi.is_starforce();
 }
 
 // Runtime accessors for REType fields that differ between layouts.

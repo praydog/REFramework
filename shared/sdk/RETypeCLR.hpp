@@ -157,6 +157,20 @@ public:
 };
 
 struct RETypeCLR : public ::REType {
+    sdk::NativeArray<sdk::DeserializeSequence>& get_deserializers() {
+        return *reinterpret_cast<sdk::NativeArray<sdk::DeserializeSequence>*>(
+            reinterpret_cast<uintptr_t>(this) + ::REType::runtime_size()
+        );
+    }
+
+    const sdk::NativeArray<sdk::DeserializeSequence>& get_deserializers() const {
+        return *reinterpret_cast<const sdk::NativeArray<sdk::DeserializeSequence>*>(
+            reinterpret_cast<uintptr_t>(this) + ::REType::runtime_size()
+        );
+    }
+
+    // Direct member access is only valid for the non-shifted REType layout.
+    // Use get_deserializers() so MHWILDS/RE9 read after the runtime REType size.
     sdk::NativeArray<sdk::DeserializeSequence> deserializers;
 
 #if TDB_VER > 49

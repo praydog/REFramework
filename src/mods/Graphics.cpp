@@ -278,6 +278,12 @@ void Graphics::on_draw_ui() {
         }
 
         if (m_ultrawide_fix->value()) {
+            m_ultrawide_16_10_mode->draw("16:10 Mode: Use Black Bars (maintain 16:9)");
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("On a 16:10 display, keeps the game at 16:9 with black bars instead of\n"
+                                  "stretching to fill the screen. Prevents UI element misalignment.");
+            }
+
             if (!sdk::GameIdentity::get().is_mhwilds()) {
                 m_ultrawide_constrain_ui->draw("Ultrawide: Constrain UI to 16:9");
                 if (m_ultrawide_constrain_ui->value()) {
@@ -751,7 +757,18 @@ void Graphics::do_ultrawide_fix() {
         return;
     }
 
-    set_ultrawide_fov(m_ultrawide_vertical_fov->value());
+    // When 16:10 letterbox mode is active, we intentionally skip the FOV correction
+    // because the content will be displayed at 16:9 with black bars — no FOV adjustment needed.
+    const bool use_16_10_letterbox = [this]() -> bool {
+        if (!m_ultrawide_16_10_mode->value() || !m_backbuffer_size.has_value()) return false;
+        const auto& size = m_backbuffer_size.value();
+        const double ratio = static_cast<double>(size[0]) / static_cast<double>(size[1]);
+        return glm::abs(ratio - 16.0 / 10.0) < 0.01;
+    }();
+
+    if (!use_16_10_letterbox) {
+        set_ultrawide_fov(m_ultrawide_vertical_fov->value());
+    }
 
     if (sdk::GameIdentity::get().is_re4()) {
         std::shared_lock _{m_re4.time_mtx};
@@ -793,7 +810,9 @@ void Graphics::do_ultrawide_fix() {
             } else if (glm::abs(ratio - _16_9) < epsilon) {
                 display_type = via::DisplayType::Uniform16x9;
             } else if (glm::abs(ratio - _16_10) < epsilon) {
-                display_type = via::DisplayType::Uniform16x10;
+                // In 16:10 letterbox mode, constrain content to 16:9 with black bars
+                // instead of stretching to fill the 16:10 screen.
+                display_type = use_16_10_letterbox ? via::DisplayType::Uniform16x9 : via::DisplayType::Uniform16x10;
             } else if (glm::abs(ratio - _21_9) < epsilon) {
                 display_type = via::DisplayType::Uniform21x9;
             } else if (glm::abs(ratio - _32_9) < epsilon) {

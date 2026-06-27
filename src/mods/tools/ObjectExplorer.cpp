@@ -46,6 +46,13 @@ std::unordered_map<uint32_t, std::shared_ptr<detail::ParsedMethod>> g_imethoddb{
 constexpr std::string_view TYPE_INFO_NAME = "REType";
 constexpr std::string_view TYPE_DEFINITION_NAME = "sdk::RETypeDefinition";
 
+// Upper bound on REType::size used as a sanity filter. Real game types are
+// nowhere near this large, the bound is intentionally generous so that if
+// it ever trips, it indicates the layout dispatch in RETypeLayouts.hpp is
+// reading the wrong field for the current game (e.g. a new title that swaps
+// size/typeCRC offsets and isn't yet covered by retype_has_field_reorder()).
+constexpr uint32_t MAX_PLAUSIBLE_TYPE_SIZE = 0x20000000; // 512 MiB
+
 std::unordered_set<std::string> g_class_set{};
 
 // via.typeinfo.TypeCode doesn't exist in older games...
@@ -748,11 +755,19 @@ void ObjectExplorer::on_draw_dev_ui() {
     std::vector<uint8_t> fake_type{ 0 };
 
     for (auto t : m_displayed_types) {
-        if (get_size(t) > fake_type.size()) {
-            fake_type.resize(get_size(t));
+        const auto size = get_size(t);
+
+        // Guard against garbage type entries that slip through populate_classes:
+        // a bogus size would resize fake_type to gigabytes and stall the process.
+        if (size == 0 || size > MAX_PLAUSIBLE_TYPE_SIZE) {
+            continue;
         }
-        
-        memset(fake_type.data(), 0, get_size(t));
+
+        if (size > fake_type.size()) {
+            fake_type.resize(size);
+        }
+
+        memset(fake_type.data(), 0, size);
         handle_type((REManagedObject*)fake_type.data(), t);
     }
 
@@ -1358,7 +1373,7 @@ void ObjectExplorer::generate_sdk(const bool skip_sdkgenny) {
         }
 
         auto clr_t = (sdk::RETypeCLR*)type_info;
-        auto& deserialize_list = clr_t->deserializers;
+        auto& deserialize_list = clr_t->get_deserializers();
 
         for (const auto& sequence : deserialize_list) {
             const auto code = sequence.get_code();
@@ -4758,6 +4773,23 @@ void ObjectExplorer::populate_classes() {
             if (t == nullptr || IsBadReadPtr(t, REType::runtime_size())) {
                 continue;
             }
+
+            // The raw type list is allowed to extend past the real entries, and
+            // "readable for runtime_size() bytes" is a weak fingerprint. Random
+            // allocations can pass. Reject anything whose size field is obviously
+            // not a real type size so downstream fake-object loops can't try to
+            // zero gigabytes of memory.
+            if (const auto size = get_size(t); size > MAX_PLAUSIBLE_TYPE_SIZE) {
+                spdlog::warn(
+                    "Skipping suspect type at slot {} ({:p}): size 0x{:X}. "
+                    "A size this large almost certainly means RETypeLayouts.hpp "
+                    "is reading the wrong field for this game, check whether "
+                    "retype_has_field_reorder()/retype_has_shifted_pointers() "
+                    "need to cover it.",
+                    i, (void*)t, size);
+                continue;
+            }
+
 
             if (t->get_type_name() == nullptr) {
                 continue;

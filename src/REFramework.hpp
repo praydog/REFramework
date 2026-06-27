@@ -160,7 +160,7 @@ public:
     }
 
 private:
-        void save_config();
+    void save_config();
     void consume_input();
     void init_fonts();
     void invalidate_device_objects();
@@ -171,6 +171,7 @@ private:
 public:
     bool hook_d3d11();
     bool hook_d3d12();
+    void open_console();
 
 private:
     bool initialize();
@@ -239,6 +240,7 @@ private:
     std::unique_ptr<WindowsMessageHook> m_windows_message_hook;
     std::unique_ptr<DInputHook> m_dinput_hook;
     std::shared_ptr<spdlog::logger> m_logger;
+    spdlog::sink_ptr m_dist_sink;
     Patch::Ptr m_set_cursor_pos_patch{};
 
     std::string m_error{""};
@@ -259,6 +261,7 @@ private:
 
     bool m_sent_message{false};
     bool m_message_hook_requested{false};
+    bool m_console_setup{false};
 
     RendererType m_renderer_type{RendererType::D3D11};
 

@@ -29,6 +29,7 @@ enum class GameID : uint8_t {
     ONIMUSHA2,   // Onimusha 2: Samurai's Destiny
     STARFORCE,   // Mega Man Star Force Legacy Collection
     PRAGMATA,
+    ONIMUSHA_WOTS, // Onimusha: Way of the Sword
     Count
 };
 
@@ -85,6 +86,8 @@ public:
     bool is_mhstories3()const { return m_game == GameID::MHSTORIES3; }
     bool is_starforce() const { return m_game == GameID::STARFORCE; }
     bool is_pragmata()  const { return m_game == GameID::PRAGMATA; }
+    bool is_onimusha_wots() const { return m_game == GameID::ONIMUSHA_WOTS; }
+    bool is_onimusha2() const { return m_game == GameID::ONIMUSHA2; }
 
 private:
     GameIdentity() = default;
