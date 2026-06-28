@@ -670,8 +670,16 @@ bool D3D12Hook::hook() {
     }
 
     if (s_command_queue_offset == 0) {
-        spdlog::error("Failed to find command queue offset");
-        return false;
+        if (s_is_wine) {
+            spdlog::warn("Wine/D3DMetal: command queue not found in swapchain (DXMT wraps it internally)");
+            spdlog::warn("Wine/D3DMetal: using dummy command queue as fallback — overlay may work");
+            s_wine_fallback_queue = command_queue;
+            command_queue->AddRef(); // keep alive after release below
+            // fall through — hook_impl() will still install Present hook
+        } else {
+            spdlog::error("Failed to find command queue offset");
+            return false;
+        }
     }
 
     //utility::ThreadSuspender suspender{};
@@ -818,7 +826,11 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
         d3d12->m_device = temp_device.Get();
     }
 
-    if (d3d12->m_using_proton_swapchain) {
+    if (d3d12->s_wine_fallback_queue != nullptr) {
+        // Wine/D3DMetal: DXMT wraps the queue internally so offset scan fails;
+        // use the dummy queue we captured — both are backed by the same Metal GPU
+        d3d12->m_command_queue = d3d12->s_wine_fallback_queue;
+    } else if (d3d12->m_using_proton_swapchain) {
         const auto real_swapchain = *(uintptr_t*)((uintptr_t)swap_chain + d3d12->s_proton_swapchain_offset);
         d3d12->m_command_queue = *(ID3D12CommandQueue**)(real_swapchain + d3d12->s_command_queue_offset);
     } else {
