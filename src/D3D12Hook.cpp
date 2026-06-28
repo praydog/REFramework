@@ -90,7 +90,7 @@ HRESULT WINAPI D3D12Hook::create_swapchain(IDXGIFactory4* factory, IUnknown* dev
     // device here is ID3D12CommandQueue* (passed as IUnknown* by D3D12 callers).
     if (SUCCEEDED(result) && swap_chain && *swap_chain && s_swapchain_vtable == nullptr) {
         spdlog::info("create_swapchain: bootstrapping vtable from real swapchain");
-        s_swapchain_vtable = *(void**)(*swap_chain); // COM vtable is at offset 0
+        s_swapchain_vtable = *(void***)(*swap_chain); // COM vtable is at offset 0
         spdlog::info("Swapchain vtable bootstrapped: {:x}", (uintptr_t)s_swapchain_vtable);
         if (s_command_queue_offset == 0) {
             for (auto i = 0; i < 512 * (int)sizeof(void*); i += (int)sizeof(void*)) {
@@ -137,7 +137,7 @@ HRESULT WINAPI D3D12Hook::create_swapchain_for_corewindow(IDXGIFactory2* factory
 
     if (SUCCEEDED(result) && swap_chain && *swap_chain) {
         if (s_swapchain_vtable == nullptr) {
-            s_swapchain_vtable = *(void**)(*swap_chain);
+            s_swapchain_vtable = *(void***)(*swap_chain);
             spdlog::info("create_swapchain_for_corewindow: vtable bootstrapped {:x}", (uintptr_t)s_swapchain_vtable);
         }
         if (s_command_queue_offset == 0) {
@@ -184,7 +184,7 @@ HRESULT WINAPI D3D12Hook::create_swapchain_for_composition(IDXGIFactory2* factor
 
     if (SUCCEEDED(result) && swap_chain && *swap_chain) {
         if (s_swapchain_vtable == nullptr) {
-            s_swapchain_vtable = *(void**)(*swap_chain);
+            s_swapchain_vtable = *(void***)(*swap_chain);
             spdlog::info("create_swapchain_for_composition: vtable bootstrapped {:x}", (uintptr_t)s_swapchain_vtable);
         }
         if (s_command_queue_offset == 0) {
