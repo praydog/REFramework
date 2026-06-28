@@ -669,6 +669,25 @@ bool D3D12Hook::hook() {
         }
     }
 
+    // Wine/DXMT: try vtable-matching scan as a third pass.
+    // DXMT stores the command queue via an internal pointer (not COM), so the direct
+    // value scan above fails. But the stored pointer points to the same vtable.
+    if (s_command_queue_offset == 0 && s_is_wine && command_queue != nullptr) {
+        const auto* queue_vtable = *(const void* const*)command_queue;
+        for (auto i = (int)sizeof(void*); i < 1024 * (int)sizeof(void*); i += (int)sizeof(void*)) {
+            const auto ptr = (uintptr_t)swap_chain1 + i;
+            if (IsBadReadPtr((void*)ptr, sizeof(void*))) break;
+            const auto candidate = *(const void* const*)ptr;
+            if (candidate == nullptr || IsBadReadPtr(candidate, sizeof(void*))) continue;
+            if (*(const void* const*)candidate == queue_vtable && candidate != (void*)command_queue) {
+                // Found an object with same vtable as our command queue at this offset
+                spdlog::info("Wine/D3DMetal: found queue by vtable match at offset {:x}", i);
+                s_command_queue_offset = (uint32_t)i;
+                break;
+            }
+        }
+    }
+
     if (s_command_queue_offset == 0) {
         if (s_is_wine) {
             spdlog::warn("Wine/D3DMetal: command queue not found in swapchain (DXMT wraps it internally)");
@@ -841,6 +860,14 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
                 spdlog::info("Wine/D3DMetal: upgraded fallback queue to game-device queue (foreground fix)");
                 d3d12->s_wine_fallback_queue->Release();
                 d3d12->s_wine_fallback_queue = game_queue;
+                // Create fence for CPU-wait synchronization (ensures our rendering
+                // finishes before DXMT's Present blit on the game's Metal queue)
+                if (s_wine_fence == nullptr) {
+                    if (SUCCEEDED(d3d12->m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&s_wine_fence)))) {
+                        s_wine_fence_event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+                        spdlog::info("Wine/D3DMetal: created present-sync fence");
+                    }
+                }
             } else {
                 spdlog::warn("Wine/D3DMetal: failed to create game-device queue, keeping dummy");
             }
@@ -896,10 +923,23 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
         d3d12->m_on_present(*d3d12);
     }
 
+    // Wine/D3DMetal: our queue is a different Metal queue than the game's.
+    // CPU-wait ensures our ImGui commands finish before DXMT's Present blit
+    // reads the backbuffer — Metal hazard tracking then guarantees visibility.
+    if (d3d12->s_wine_fence != nullptr && d3d12->m_command_queue != nullptr) {
+        const auto wait_val = ++d3d12->s_wine_fence_value;
+        if (SUCCEEDED(d3d12->m_command_queue->Signal(d3d12->s_wine_fence, wait_val))) {
+            if (d3d12->s_wine_fence->GetCompletedValue() < wait_val) {
+                d3d12->s_wine_fence->SetEventOnCompletion(wait_val, d3d12->s_wine_fence_event);
+                WaitForSingleObjectEx(d3d12->s_wine_fence_event, INFINITE, FALSE);
+            }
+        }
+    }
+
     ++g_present_depth;
 
     auto result = S_OK;
-    
+
     if (!d3d12->m_ignore_next_present) {
         result = present_fn(swap_chain, sync_interval, flags, r9);
 

@@ -138,7 +138,10 @@ protected:
 
     // This is static because unhooking it seems to cause a crash sometimes
     static inline ID3D12CommandQueue* s_wine_fallback_queue{nullptr};
-    static inline bool s_wine_queue_upgraded{false}; // true once queue replaced with game-device queue
+    static inline bool s_wine_queue_upgraded{false};
+    static inline ID3D12Fence* s_wine_fence{nullptr};
+    static inline UINT64 s_wine_fence_value{0};
+    static inline HANDLE s_wine_fence_event{nullptr};
     static inline std::unique_ptr<PointerHook> s_create_swapchain_hook{};
     static inline std::unique_ptr<PointerHook> s_create_swapchain_for_corewindow_hook{};
     static inline std::unique_ptr<PointerHook> s_create_swapchain_for_composition_hook{};
