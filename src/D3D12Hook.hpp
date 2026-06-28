@@ -138,18 +138,22 @@ protected:
 
     // This is static because unhooking it seems to cause a crash sometimes
     static inline std::unique_ptr<PointerHook> s_create_swapchain_hook{};
+    static inline std::unique_ptr<PointerHook> s_create_swapchain_for_corewindow_hook{};
+    static inline std::unique_ptr<PointerHook> s_create_swapchain_for_composition_hook{};
     static inline void** s_factory_vtable{ nullptr };
     static inline void** s_swapchain_vtable{ nullptr };
-    
+
     OnPresentFn m_on_present{ nullptr };
     OnPresentFn m_on_post_present{ nullptr };
     OnResizeBuffersFn m_on_resize_buffers{ nullptr };
     OnResizeTargetFn m_on_resize_target{ nullptr };
     //OnCreateSwapChainFn m_on_create_swap_chain{ nullptr };
-    
+
     static HRESULT WINAPI present(IDXGISwapChain3* swap_chain, uint64_t sync_interval, uint64_t flags, void* r9);
     static HRESULT WINAPI resize_buffers(IDXGISwapChain3* swap_chain, UINT buffer_count, UINT width, UINT height, DXGI_FORMAT new_format, UINT swap_chain_flags);
     static HRESULT WINAPI resize_target(IDXGISwapChain3* swap_chain, const DXGI_MODE_DESC* new_target_parameters);
     static HRESULT WINAPI create_swapchain(IDXGIFactory4* factory, IUnknown* device, HWND hwnd, const DXGI_SWAP_CHAIN_DESC* desc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* p_fullscreen_desc, IDXGIOutput* p_restrict_to_output, IDXGISwapChain** swap_chain);
+    static HRESULT WINAPI create_swapchain_for_corewindow(IDXGIFactory2* factory, IUnknown* device, IUnknown* window, const DXGI_SWAP_CHAIN_DESC1* desc, IDXGIOutput* restrict_to_output, IDXGISwapChain1** swap_chain);
+    static HRESULT WINAPI create_swapchain_for_composition(IDXGIFactory2* factory, IUnknown* device, const DXGI_SWAP_CHAIN_DESC1* desc, IDXGIOutput* restrict_to_output, IDXGISwapChain1** swap_chain);
 };
 

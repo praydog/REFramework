@@ -86,7 +86,120 @@ HRESULT WINAPI D3D12Hook::create_swapchain(IDXGIFactory4* factory, IUnknown* dev
 
     const auto result = create_swap_chain_fn(factory, device, hwnd, desc, p_fullscreen_desc, p_restrict_to_output, swap_chain);
 
+    // Bootstrap swapchain vtable from the real swapchain when dummy creation previously failed (Wine/D3DMetal).
+    // device here is ID3D12CommandQueue* (passed as IUnknown* by D3D12 callers).
+    if (SUCCEEDED(result) && swap_chain && *swap_chain && s_swapchain_vtable == nullptr) {
+        spdlog::info("create_swapchain: bootstrapping vtable from real swapchain");
+        s_swapchain_vtable = *(void**)(*swap_chain); // COM vtable is at offset 0
+        spdlog::info("Swapchain vtable bootstrapped: {:x}", (uintptr_t)s_swapchain_vtable);
+        if (s_command_queue_offset == 0) {
+            for (auto i = 0; i < 512 * (int)sizeof(void*); i += (int)sizeof(void*)) {
+                const auto ptr = (uintptr_t)(*swap_chain) + i;
+                if (IsBadReadPtr((void*)ptr, sizeof(void*))) break;
+                if (*(void**)ptr == (void*)device) {
+                    s_command_queue_offset = (uint32_t)i;
+                    spdlog::info("Command queue offset (create_swapchain bootstrap): {:x}", i);
+                    break;
+                }
+            }
+        }
+    }
+
     // rather than waiting on the hook monitor to notice the hook isn't working
+    if (!hook_was_nullptr) {
+        g_framework->hook_d3d12();
+    }
+
+    return result;
+}
+
+HRESULT WINAPI D3D12Hook::create_swapchain_for_corewindow(IDXGIFactory2* factory, IUnknown* device, IUnknown* window, const DXGI_SWAP_CHAIN_DESC1* desc, IDXGIOutput* restrict_to_output, IDXGISwapChain1** swap_chain) {
+    auto create_fn = s_create_swapchain_for_corewindow_hook->get_original<decltype(D3D12Hook::create_swapchain_for_corewindow)*>();
+
+    if (g_inside_d3d12_hook) {
+        spdlog::info("create_swapchain_for_corewindow (inside D3D12 hook)");
+        return create_fn(factory, device, window, desc, restrict_to_output, swap_chain);
+    }
+
+    spdlog::info("create_swapchain_for_corewindow called");
+
+    while (g_framework == nullptr) std::this_thread::yield();
+    std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
+
+    bool hook_was_nullptr = g_d3d12_hook == nullptr;
+
+    if (g_d3d12_hook != nullptr && g_framework->get_d3d12_hook() != nullptr) {
+        g_framework->on_reset();
+        g_d3d12_hook->unhook();
+    }
+
+    const auto result = create_fn(factory, device, window, desc, restrict_to_output, swap_chain);
+
+    if (SUCCEEDED(result) && swap_chain && *swap_chain) {
+        if (s_swapchain_vtable == nullptr) {
+            s_swapchain_vtable = *(void**)(*swap_chain);
+            spdlog::info("create_swapchain_for_corewindow: vtable bootstrapped {:x}", (uintptr_t)s_swapchain_vtable);
+        }
+        if (s_command_queue_offset == 0) {
+            for (auto i = 0; i < 512 * (int)sizeof(void*); i += (int)sizeof(void*)) {
+                const auto ptr = (uintptr_t)(*swap_chain) + i;
+                if (IsBadReadPtr((void*)ptr, sizeof(void*))) break;
+                if (*(void**)ptr == (void*)device) {
+                    s_command_queue_offset = (uint32_t)i;
+                    spdlog::info("Command queue offset (corewindow bootstrap): {:x}", i);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!hook_was_nullptr) {
+        g_framework->hook_d3d12();
+    }
+
+    return result;
+}
+
+HRESULT WINAPI D3D12Hook::create_swapchain_for_composition(IDXGIFactory2* factory, IUnknown* device, const DXGI_SWAP_CHAIN_DESC1* desc, IDXGIOutput* restrict_to_output, IDXGISwapChain1** swap_chain) {
+    auto create_fn = s_create_swapchain_for_composition_hook->get_original<decltype(D3D12Hook::create_swapchain_for_composition)*>();
+
+    if (g_inside_d3d12_hook) {
+        spdlog::info("create_swapchain_for_composition (inside D3D12 hook)");
+        return create_fn(factory, device, desc, restrict_to_output, swap_chain);
+    }
+
+    spdlog::info("create_swapchain_for_composition called");
+
+    while (g_framework == nullptr) std::this_thread::yield();
+    std::scoped_lock _{g_framework->get_hook_monitor_mutex()};
+
+    bool hook_was_nullptr = g_d3d12_hook == nullptr;
+
+    if (g_d3d12_hook != nullptr && g_framework->get_d3d12_hook() != nullptr) {
+        g_framework->on_reset();
+        g_d3d12_hook->unhook();
+    }
+
+    const auto result = create_fn(factory, device, desc, restrict_to_output, swap_chain);
+
+    if (SUCCEEDED(result) && swap_chain && *swap_chain) {
+        if (s_swapchain_vtable == nullptr) {
+            s_swapchain_vtable = *(void**)(*swap_chain);
+            spdlog::info("create_swapchain_for_composition: vtable bootstrapped {:x}", (uintptr_t)s_swapchain_vtable);
+        }
+        if (s_command_queue_offset == 0) {
+            for (auto i = 0; i < 512 * (int)sizeof(void*); i += (int)sizeof(void*)) {
+                const auto ptr = (uintptr_t)(*swap_chain) + i;
+                if (IsBadReadPtr((void*)ptr, sizeof(void*))) break;
+                if (*(void**)ptr == (void*)device) {
+                    s_command_queue_offset = (uint32_t)i;
+                    spdlog::info("Command queue offset (composition bootstrap): {:x}", i);
+                    break;
+                }
+            }
+        }
+    }
+
     if (!hook_was_nullptr) {
         g_framework->hook_d3d12();
     }
@@ -222,17 +335,59 @@ bool D3D12Hook::hook() {
         memcpy(d3d12_create_device, original_bytes->data(), original_bytes->size());
         
         if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
-            spdlog::error("Failed to create D3D12 Dummy device");
-            memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
-            return false;
+            spdlog::warn("D3D12CreateDevice with nullptr adapter failed, trying enumerated adapters (Wine/D3DMetal)");
+            const auto dxgi_tmp = LoadLibraryA("dxgi.dll");
+            if (dxgi_tmp) {
+                typedef HRESULT(WINAPI* CreateDXGIFactory1Fn)(REFIID, void**);
+                const auto cdf1 = (CreateDXGIFactory1Fn)GetProcAddress(dxgi_tmp, "CreateDXGIFactory1");
+                IDXGIFactory1* tmp_factory = nullptr;
+                if (cdf1 && SUCCEEDED(cdf1(IID_PPV_ARGS(&tmp_factory)))) {
+                    IDXGIAdapter* adapter = nullptr;
+                    for (UINT idx = 0; tmp_factory->EnumAdapters(idx, &adapter) != DXGI_ERROR_NOT_FOUND; ++idx) {
+                        if (SUCCEEDED(d3d12_create_device(adapter, feature_level, IID_PPV_ARGS(&device)))) {
+                            spdlog::info("D3D12 device created on adapter {}", idx);
+                            adapter->Release();
+                            break;
+                        }
+                        adapter->Release();
+                    }
+                    tmp_factory->Release();
+                }
+            }
+            if (!device) {
+                spdlog::error("Failed to create D3D12 Dummy device on any adapter");
+                memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+                return false;
+            }
         }
 
         spdlog::info("Restoring hooked bytes for D3D12CreateDevice");
         memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
     } else { // D3D12CreateDevice is not hooked
         if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
-            spdlog::error("Failed to create D3D12 Dummy device");
-            return false;
+            spdlog::warn("D3D12CreateDevice with nullptr adapter failed, trying enumerated adapters (Wine/D3DMetal)");
+            const auto dxgi_tmp = LoadLibraryA("dxgi.dll");
+            if (dxgi_tmp) {
+                typedef HRESULT(WINAPI* CreateDXGIFactory1Fn)(REFIID, void**);
+                const auto cdf1 = (CreateDXGIFactory1Fn)GetProcAddress(dxgi_tmp, "CreateDXGIFactory1");
+                IDXGIFactory1* tmp_factory = nullptr;
+                if (cdf1 && SUCCEEDED(cdf1(IID_PPV_ARGS(&tmp_factory)))) {
+                    IDXGIAdapter* adapter = nullptr;
+                    for (UINT idx = 0; tmp_factory->EnumAdapters(idx, &adapter) != DXGI_ERROR_NOT_FOUND; ++idx) {
+                        if (SUCCEEDED(d3d12_create_device(adapter, feature_level, IID_PPV_ARGS(&device)))) {
+                            spdlog::info("D3D12 device created on adapter {}", idx);
+                            adapter->Release();
+                            break;
+                        }
+                        adapter->Release();
+                    }
+                    tmp_factory->Release();
+                }
+            }
+            if (!device) {
+                spdlog::error("Failed to create D3D12 Dummy device on any adapter");
+                return false;
+            }
         }
     }
 
@@ -354,7 +509,7 @@ bool D3D12Hook::hook() {
     }
 
     if (!any_succeed) {
-        spdlog::error("Failed to create D3D12 Dummy Swap Chain");
+        spdlog::warn("Failed to create D3D12 Dummy Swap Chain, installing factory hooks as Wine/D3DMetal fallback");
 
         if (hwnd) {
             ::DestroyWindow(hwnd);
@@ -364,7 +519,30 @@ bool D3D12Hook::hook() {
             ::UnregisterClass(wc.lpszClassName, wc.hInstance);
         }
 
-        return false;
+        // Wine/D3DMetal: dummy swapchain creation failed but we have the factory.
+        // Hook ALL three factory swapchain creation methods so Present bootstraps
+        // whenever the game next creates or recreates its swapchain (e.g. on window mode change).
+        s_factory_vtable = *(void***)factory;
+        if (!s_create_swapchain_hook) {
+            auto& fn = s_factory_vtable[15]; // CreateSwapChainForHwnd
+            s_create_swapchain_hook = std::make_unique<PointerHook>(&fn, &D3D12Hook::create_swapchain);
+        }
+        if (!s_create_swapchain_for_corewindow_hook) {
+            auto& fn = s_factory_vtable[16]; // CreateSwapChainForCoreWindow
+            s_create_swapchain_for_corewindow_hook = std::make_unique<PointerHook>(&fn, &D3D12Hook::create_swapchain_for_corewindow);
+        }
+        if (!s_create_swapchain_for_composition_hook) {
+            auto& fn = s_factory_vtable[24]; // CreateSwapChainForComposition
+            s_create_swapchain_for_composition_hook = std::make_unique<PointerHook>(&fn, &D3D12Hook::create_swapchain_for_composition);
+        }
+        spdlog::info("Wine/D3DMetal: hooked factory[15/16/24], Present bootstraps on next swapchain creation");
+
+        command_queue->Release();
+        device->Release();
+        factory->Release();
+
+        m_hooked = true;
+        return m_hooked;
     }
 
     spdlog::info("Querying dummy swapchain");
@@ -529,6 +707,14 @@ void D3D12Hook::hook_impl() {
     if (s_create_swapchain_hook == nullptr) {
         auto& create_swapchain_fn = s_factory_vtable[15]; // CreateSwapChainForHwnd
         s_create_swapchain_hook = std::make_unique<PointerHook>(&create_swapchain_fn, &D3D12Hook::create_swapchain);
+    }
+    if (s_create_swapchain_for_corewindow_hook == nullptr) {
+        auto& fn = s_factory_vtable[16]; // CreateSwapChainForCoreWindow
+        s_create_swapchain_for_corewindow_hook = std::make_unique<PointerHook>(&fn, &D3D12Hook::create_swapchain_for_corewindow);
+    }
+    if (s_create_swapchain_for_composition_hook == nullptr) {
+        auto& fn = s_factory_vtable[24]; // CreateSwapChainForComposition
+        s_create_swapchain_for_composition_hook = std::make_unique<PointerHook>(&fn, &D3D12Hook::create_swapchain_for_composition);
     }
 
     m_hooked = true;
