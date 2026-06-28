@@ -322,6 +322,11 @@ bool D3D12Hook::hook() {
     // Get the original on-disk bytes of the D3D12CreateDevice export
     const auto original_bytes = utility::get_original_bytes(d3d12_create_device);
 
+    // In Wine/D3DMetal, D3D12CreateDevice is hooked by DXMT (the D3D12→Metal translator).
+    // Removing that hook and calling the raw function crashes because there is no native
+    // D3D12 on macOS. Detect Wine early and keep DXMT's hook in place.
+    static const bool s_is_wine = GetProcAddress(GetModuleHandleA("ntdll.dll"), "wine_get_version") != nullptr;
+
     // Temporarily unhook D3D12CreateDevice
     // it allows compatibility with ReShade and other overlays that hook it
     // this is just a dummy device anyways, we don't want the other overlays to be able to use it
@@ -331,9 +336,14 @@ bool D3D12Hook::hook() {
         std::vector<uint8_t> hooked_bytes(original_bytes->size());
         memcpy(hooked_bytes.data(), d3d12_create_device, original_bytes->size());
 
-        ProtectionOverride protection_override{ d3d12_create_device, original_bytes->size(), PAGE_EXECUTE_READWRITE };
-        memcpy(d3d12_create_device, original_bytes->data(), original_bytes->size());
-        
+        if (!s_is_wine) {
+            // Non-Wine: restore original bytes so we bypass ReShade/other hooks
+            ProtectionOverride protection_override{ d3d12_create_device, original_bytes->size(), PAGE_EXECUTE_READWRITE };
+            memcpy(d3d12_create_device, original_bytes->data(), original_bytes->size());
+        } else {
+            spdlog::info("Wine/D3DMetal: keeping DXMT hook intact (removing it crashes on macOS)");
+        }
+
         if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
             spdlog::warn("D3D12CreateDevice with nullptr adapter failed, trying enumerated adapters (Wine/D3DMetal)");
             const auto dxgi_tmp = LoadLibraryA("dxgi.dll");
@@ -356,13 +366,17 @@ bool D3D12Hook::hook() {
             }
             if (!device) {
                 spdlog::error("Failed to create D3D12 Dummy device on any adapter");
-                memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+                if (!s_is_wine) {
+                    memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+                }
                 return false;
             }
         }
 
-        spdlog::info("Restoring hooked bytes for D3D12CreateDevice");
-        memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+        if (!s_is_wine) {
+            spdlog::info("Restoring hooked bytes for D3D12CreateDevice");
+            memcpy(d3d12_create_device, hooked_bytes.data(), hooked_bytes.size());
+        }
     } else { // D3D12CreateDevice is not hooked
         if (FAILED(d3d12_create_device(nullptr, feature_level, IID_PPV_ARGS(&device)))) {
             spdlog::warn("D3D12CreateDevice with nullptr adapter failed, trying enumerated adapters (Wine/D3DMetal)");
