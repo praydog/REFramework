@@ -827,8 +827,25 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
     }
 
     if (d3d12->s_wine_fallback_queue != nullptr) {
-        // Wine/D3DMetal: DXMT wraps the queue internally so offset scan fails;
-        // use the dummy queue we captured — both are backed by the same Metal GPU
+        // Wine/D3DMetal: on first present() we have the game's real device.
+        // Replace the dummy-device queue with one from the game's device so
+        // REFramework's command lists (recorded on game device) are executed on
+        // the correct Metal command queue and composited in the right order.
+        if (!d3d12->s_wine_queue_upgraded && d3d12->m_device != nullptr) {
+            ID3D12CommandQueue* game_queue = nullptr;
+            D3D12_COMMAND_QUEUE_DESC q_desc{};
+            q_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+            q_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+            q_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+            if (SUCCEEDED(d3d12->m_device->CreateCommandQueue(&q_desc, IID_PPV_ARGS(&game_queue)))) {
+                spdlog::info("Wine/D3DMetal: upgraded fallback queue to game-device queue (foreground fix)");
+                d3d12->s_wine_fallback_queue->Release();
+                d3d12->s_wine_fallback_queue = game_queue;
+            } else {
+                spdlog::warn("Wine/D3DMetal: failed to create game-device queue, keeping dummy");
+            }
+            d3d12->s_wine_queue_upgraded = true;
+        }
         d3d12->m_command_queue = d3d12->s_wine_fallback_queue;
     } else if (d3d12->m_using_proton_swapchain) {
         const auto real_swapchain = *(uintptr_t*)((uintptr_t)swap_chain + d3d12->s_proton_swapchain_offset);
