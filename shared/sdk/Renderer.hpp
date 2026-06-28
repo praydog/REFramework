@@ -573,7 +573,7 @@ static_assert(sizeof(command::Fence) == 0x30);
 struct CopyBase : public Base {
     sdk::renderer::RenderResource* src{};
     sdk::renderer::RenderResource* dst{};
-    ::sdk::renderer::Fence fence{};
+    ::sdk::renderer::Fence* fence{};
 };
 
 struct CopyTexture : public CopyBase {
@@ -581,8 +581,8 @@ struct CopyTexture : public CopyBase {
     int32_t dst_subresource{-1};
 };
 
-static_assert(sizeof(CopyBase) == 0x30);
-static_assert(sizeof(CopyTexture) == 0x38);
+static_assert(sizeof(CopyBase) == 0x28);
+static_assert(sizeof(CopyTexture) == 0x30);
 }
 
 class RenderContext {
@@ -603,9 +603,9 @@ public:
     }
 
     void copy_texture(Texture* dest, Texture* src, Fence& fence);
+    void copy_texture(Texture* dest, Texture* src, Fence* fence);
     void copy_texture(Texture* dest, Texture* src) {
-        Fence fence{};
-        copy_texture(dest, src, fence);
+        copy_texture(dest, src, (Fence*)nullptr);
     }
 
 public:
