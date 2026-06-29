@@ -872,6 +872,36 @@ HRESULT WINAPI D3D12Hook::present(IDXGISwapChain3* swap_chain, uint64_t sync_int
                 spdlog::warn("Wine/D3DMetal: failed to create game-device queue, keeping dummy");
             }
             d3d12->s_wine_queue_upgraded = true;
+
+            // Now scan the REAL game swapchain (swap_chain) for the game's
+            // original command queue. Unlike the dummy swapchain scanned in hook(),
+            // the real swapchain was created by the game with its actual queue,
+            // so DXMT stores that queue somewhere inside this object.
+            // Using the real queue means DXMT will synchronize Present correctly.
+            if (d3d12->s_wine_fallback_queue != nullptr) {
+                const auto* queue_vtable = *(const void* const*)d3d12->s_wine_fallback_queue;
+                bool found_real_queue = false;
+                for (int scan_i = (int)sizeof(void*); scan_i < 4096 * (int)sizeof(void*); scan_i += (int)sizeof(void*)) {
+                    const auto scan_ptr = (uintptr_t)swap_chain + scan_i;
+                    if (IsBadReadPtr((void*)scan_ptr, sizeof(void*))) break;
+                    const auto candidate = *(const void* const*)scan_ptr;
+                    if (!candidate || IsBadReadPtr(candidate, sizeof(void*))) continue;
+                    if (*(const void* const*)candidate == queue_vtable) {
+                        // Found an object with the same vtable as our DXMT command queue.
+                        // This is the game's original command queue stored in the real swapchain.
+                        auto* real_queue = (ID3D12CommandQueue*)candidate;
+                        real_queue->AddRef();
+                        d3d12->s_wine_fallback_queue->Release();
+                        d3d12->s_wine_fallback_queue = real_queue;
+                        spdlog::info("Wine/D3DMetal: found game's REAL queue in swapchain at offset {:x} — using it!", scan_i);
+                        found_real_queue = true;
+                        break;
+                    }
+                }
+                if (!found_real_queue) {
+                    spdlog::warn("Wine/D3DMetal: real swapchain scan found no queue (will use created queue)");
+                }
+            }
         }
         d3d12->m_command_queue = d3d12->s_wine_fallback_queue;
     } else if (d3d12->m_using_proton_swapchain) {
