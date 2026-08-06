@@ -54,6 +54,15 @@ void REFrameworkConfig::on_draw_ui() {
 
     if (m_font_size->draw("Font Size")) {
         g_framework->set_font_size(m_font_size->value());
+
+        const auto monitor_size = g_framework->get_main_window_monitor_size();
+        if (monitor_size.x > 0.0f && monitor_size.y > 0.0f) {
+            set_ui_layout_state(
+                static_cast<int32_t>(monitor_size.x),
+                static_cast<int32_t>(monitor_size.y),
+                g_framework->get_font_size());
+        }
+
         changed = true;
     }
 
@@ -80,7 +89,10 @@ void REFrameworkConfig::on_config_load(const utility::Config& cfg) {
     }
     
     g_framework->set_font(m_font_file->value());
-    g_framework->set_font_size(m_font_size->value());
+    const auto saved_font_size = m_ui_font_size->value() > 0.0f
+        ? m_ui_font_size->value()
+        : static_cast<float>(m_font_size->value());
+    g_framework->set_font_size_for_display(saved_font_size, static_cast<float>(m_ui_monitor_height->value()));
 }
 
 void REFrameworkConfig::on_config_save(utility::Config& cfg) {
