@@ -31,6 +31,7 @@ extern "C" {
 
 #include "utility/Module.hpp"
 #include "utility/Patch.hpp"
+#include "utility/PersistentTreeState.hpp"
 #include "utility/Scan.hpp"
 #include "utility/Thread.hpp"
 
@@ -2097,6 +2098,7 @@ bool REFramework::initialize() {
 
         static const auto imgui_ini = (get_persistent_dir() / "ref_ui.ini").string();
         ImGui::GetIO().IniFilename = imgui_ini.c_str();
+        reframework::ui::initialize_tree_state(get_persistent_dir() / "ref_dropdown_status.ini");
 
         spdlog::info("Initializing ImGui Win32");
 
@@ -2162,6 +2164,7 @@ bool REFramework::initialize() {
 
         static const auto imgui_ini = (get_persistent_dir() / "ref_ui.ini").string();
         ImGui::GetIO().IniFilename = imgui_ini.c_str();
+        reframework::ui::initialize_tree_state(get_persistent_dir() / "ref_dropdown_status.ini");
         
         if (!ImGui_ImplWin32_Init(m_wnd)) {
             spdlog::error("Failed to initialize ImGui ImplWin32.");
