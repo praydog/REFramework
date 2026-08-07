@@ -9,6 +9,7 @@
 #endif
 #include <imgui_internal.h>
 #include "cimgui.h"
+#include "utility/PersistentTreeState.hpp"
 
 
 
@@ -924,13 +925,20 @@ CIMGUI_API void igSetColorEditOptions(ImGuiColorEditFlags flags)
 }
 CIMGUI_API bool igTreeNode_Str(const char* label)
 {
-    return ImGui::TreeNode(label);
+    const auto* id = label != nullptr ? label : "";
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        id,
+        [label]() { return ImGui::TreeNode(label); });
 }
 CIMGUI_API bool igTreeNode_StrStr(const char* str_id,const char* fmt,...)
 {
     va_list args;
     va_start(args, fmt);
-    bool ret = ImGui::TreeNodeV(str_id,fmt,args);
+    bool ret = reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        str_id != nullptr ? str_id : "",
+        [&]() { return ImGui::TreeNodeV(str_id,fmt,args); });
     va_end(args);
     return ret;
 }
@@ -956,7 +964,10 @@ CIMGUI_API bool igTreeNode_Ptr0(const void* ptr_id,const char* fmt)
 #endif
 CIMGUI_API bool igTreeNodeV_Str(const char* str_id,const char* fmt,va_list args)
 {
-    return ImGui::TreeNodeV(str_id,fmt,args);
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        str_id != nullptr ? str_id : "",
+        [&]() { return ImGui::TreeNodeV(str_id,fmt,args); });
 }
 CIMGUI_API bool igTreeNodeV_Ptr(const void* ptr_id,const char* fmt,va_list args)
 {
@@ -964,13 +975,23 @@ CIMGUI_API bool igTreeNodeV_Ptr(const void* ptr_id,const char* fmt,va_list args)
 }
 CIMGUI_API bool igTreeNodeEx_Str(const char* label,ImGuiTreeNodeFlags flags)
 {
-    return ImGui::TreeNodeEx(label,flags);
+    const bool can_persist = (flags & ImGuiTreeNodeFlags_Leaf) == 0;
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        label != nullptr ? label : "",
+        [label, flags]() { return ImGui::TreeNodeEx(label,flags); },
+        can_persist);
 }
 CIMGUI_API bool igTreeNodeEx_StrStr(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt,...)
 {
     va_list args;
     va_start(args, fmt);
-    bool ret = ImGui::TreeNodeExV(str_id,flags,fmt,args);
+    const bool can_persist = (flags & ImGuiTreeNodeFlags_Leaf) == 0;
+    bool ret = reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        str_id != nullptr ? str_id : "",
+        [&]() { return ImGui::TreeNodeExV(str_id,flags,fmt,args); },
+        can_persist);
     va_end(args);
     return ret;
 }
@@ -996,7 +1017,12 @@ CIMGUI_API bool igTreeNodeEx_Ptr0(const void* ptr_id,ImGuiTreeNodeFlags flags,co
 #endif
 CIMGUI_API bool igTreeNodeExV_Str(const char* str_id,ImGuiTreeNodeFlags flags,const char* fmt,va_list args)
 {
-    return ImGui::TreeNodeExV(str_id,flags,fmt,args);
+    const bool can_persist = (flags & ImGuiTreeNodeFlags_Leaf) == 0;
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        str_id != nullptr ? str_id : "",
+        [&]() { return ImGui::TreeNodeExV(str_id,flags,fmt,args); },
+        can_persist);
 }
 CIMGUI_API bool igTreeNodeExV_Ptr(const void* ptr_id,ImGuiTreeNodeFlags flags,const char* fmt,va_list args)
 {
@@ -1020,11 +1046,19 @@ CIMGUI_API float igGetTreeNodeToLabelSpacing()
 }
 CIMGUI_API bool igCollapsingHeader_TreeNodeFlags(const char* label,ImGuiTreeNodeFlags flags)
 {
-    return ImGui::CollapsingHeader(label,flags);
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        label != nullptr ? label : "",
+        [label, flags]() { return ImGui::CollapsingHeader(label,flags); },
+        (flags & ImGuiTreeNodeFlags_Leaf) == 0);
 }
 CIMGUI_API bool igCollapsingHeader_BoolPtr(const char* label,bool* p_visible,ImGuiTreeNodeFlags flags)
 {
-    return ImGui::CollapsingHeader(label,p_visible,flags);
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::CImGui,
+        label != nullptr ? label : "",
+        [label, p_visible, flags]() { return ImGui::CollapsingHeader(label,p_visible,flags); },
+        (flags & ImGuiTreeNodeFlags_Leaf) == 0);
 }
 CIMGUI_API void igSetNextItemOpen(bool is_open,ImGuiCond cond)
 {

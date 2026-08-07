@@ -127,13 +127,16 @@ public:
         return m_startup_mutex;
     }
 
-    void set_font_size(int size) { 
+    void set_font_size(float size) {
         if (m_font_size != size) {
             m_font_size = size;
         }
     }
 
+    void set_font_size_for_display(float size, float source_monitor_height);
+
     auto get_font_size() const { return m_font_size; }
+    auto get_main_window_monitor_size() const { return m_main_window_monitor_size; }
     auto get_default_font() const { return m_default_font; }
 
     void set_font(std::string path) { 
@@ -167,6 +170,7 @@ private:
 
     void draw_ui();
     void draw_about();
+    void preserve_main_window_position(const char* window_name);
 
 public:
     bool hook_d3d11();
@@ -200,6 +204,7 @@ private:
     bool m_has_frame{false};
     bool m_wants_device_object_cleanup{false};
     bool m_wants_save_config{false};
+    std::atomic<bool> m_wants_save_imgui_config{false};
     bool m_draw_ui{true};
     bool m_last_draw_ui{m_draw_ui};
     bool m_is_ui_focused{false};
@@ -210,6 +215,10 @@ private:
     
     ImVec2 m_last_window_pos{};
     ImVec2 m_last_window_size{};
+    HMONITOR m_main_window_monitor{};
+    ImVec2 m_main_window_monitor_size{};
+    bool m_loaded_saved_ui_monitor_size{false};
+    ImVec2 m_saved_ui_monitor_size{};
 
     struct AdditionalFont {
         std::filesystem::path filepath{};

@@ -14,6 +14,7 @@
 #include "sdk/SF6Utility.hpp"
 
 #include "utility/String.hpp"
+#include "utility/PersistentTreeState.hpp"
 #include <utility/ScopeGuard.hpp>
 
 #include "Mods.hpp"
@@ -1199,16 +1200,23 @@ void ScriptRunner::on_draw_ui() {
     if (!m_last_online_match_state) { 
         std::scoped_lock _{ m_access_mutex };
 
+        const bool scripts_initialized = !m_states.empty();
 
-        if (ImGui::CollapsingHeader("Script Generated UI")) {
-            if (m_states.empty()) {
-                return;
-            }
-            for (auto& state : m_states) {
-                state->on_draw_ui();
+        if (reframework::ui::persistent_tree_item(
+                reframework::ui::TreeStateSource::Native,
+                "Script Generated UI",
+                []() { return ImGui::CollapsingHeader("Script Generated UI"); })) {
+            if (scripts_initialized) {
+                for (auto& state : m_states) {
+                    state->on_draw_ui();
+                }
             }
         }
-            
+
+        if (scripts_initialized) {
+            reframework::ui::finish_tree_state_initialization(reframework::ui::TreeStateSource::Native);
+            reframework::ui::finish_tree_state_initialization(reframework::ui::TreeStateSource::Lua);
+        }
     }
 }
 
