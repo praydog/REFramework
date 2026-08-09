@@ -1696,10 +1696,6 @@ void REFramework::preserve_main_window_position(const char* window_name) {
             position = ImVec2{position.x * display_scale.x, position.y * display_scale.y};
             window_size = ImVec2{window_size.x * display_scale.x, window_size.y * display_scale.y};
             m_font_size *= display_scale.y;
-            REFrameworkConfig::get()->set_ui_layout_state(
-                static_cast<int32_t>(m_main_window_monitor_size.x),
-                static_cast<int32_t>(m_main_window_monitor_size.y),
-                m_font_size);
             restoring_scaled_size = true;
         }
     } else if (const auto* settings = ImGui::FindWindowSettingsByID(ImHashStr(window_name)); settings != nullptr) {
@@ -1753,6 +1749,12 @@ void REFramework::preserve_main_window_position(const char* window_name) {
 
     if (restoring_scaled_size) {
         ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
+        REFrameworkConfig::get()->set_ui_layout_state(
+            static_cast<int32_t>(m_main_window_monitor_size.x),
+            static_cast<int32_t>(m_main_window_monitor_size.y),
+            m_font_size);
+        request_save_config();
+        m_wants_save_imgui_config = true;
     }
 }
 
