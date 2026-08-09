@@ -227,12 +227,6 @@ void APIProxy::on_draw_ui() {
                 spdlog::error("[APIProxy] Exception occurred in on_imgui_draw_ui callback; one of the plugins has an error.");
             }
         }
-
-        if (reframework::ui::has_seen_tree_state_item(
-                reframework::ui::TreeStateSource::CImGui,
-                "REFramework.NET Script Generated UI")) {
-            reframework::ui::finish_tree_state_initialization(reframework::ui::TreeStateSource::CImGui);
-        }
     }
 }
 

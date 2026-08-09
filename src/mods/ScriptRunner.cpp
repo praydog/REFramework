@@ -1212,11 +1212,6 @@ void ScriptRunner::on_draw_ui() {
                 }
             }
         }
-
-        if (scripts_initialized) {
-            reframework::ui::finish_tree_state_initialization(reframework::ui::TreeStateSource::Native);
-            reframework::ui::finish_tree_state_initialization(reframework::ui::TreeStateSource::Lua);
-        }
     }
 }
 

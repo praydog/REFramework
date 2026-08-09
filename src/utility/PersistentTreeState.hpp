@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <charconv>
 #include <cstdint>
 #include <filesystem>
@@ -30,9 +29,8 @@ static inline constexpr uint64_t FNV_PRIME{1099511628211ull};
 struct TreeState {
     std::unordered_set<uint64_t> open_nodes{};
     std::unordered_set<uint64_t> initialized_nodes{};
-    std::array<std::unordered_set<uint64_t>, static_cast<size_t>(TreeStateSource::Count)> unseen_loaded_nodes{};
-    std::array<bool, static_cast<size_t>(TreeStateSource::Count)> initialization_finished{};
     std::filesystem::path settings_path{};
+    ImGuiContext* context{};
     bool loaded{};
 };
 
@@ -85,7 +83,6 @@ inline void read_line(std::string_view line) {
 
         if (source_value < static_cast<uint8_t>(TreeStateSource::Count)) {
             g_tree_state.open_nodes.insert(key);
-            g_tree_state.unseen_loaded_nodes[source_value].insert(key);
         }
     }
 }
@@ -124,19 +121,19 @@ inline void update_open_state(uint64_t key, bool is_open) {
 
 inline void initialize_tree_state(const std::filesystem::path& settings_path) {
     if (detail::g_tree_state.loaded) {
+        if (detail::g_tree_state.context != ImGui::GetCurrentContext()) {
+            detail::g_tree_state.context = ImGui::GetCurrentContext();
+            detail::g_tree_state.initialized_nodes.clear();
+        }
+
         return;
     }
 
     detail::g_tree_state.loaded = true;
     detail::g_tree_state.settings_path = settings_path;
+    detail::g_tree_state.context = ImGui::GetCurrentContext();
     detail::g_tree_state.open_nodes.clear();
     detail::g_tree_state.initialized_nodes.clear();
-
-    for (auto& unseen_nodes : detail::g_tree_state.unseen_loaded_nodes) {
-        unseen_nodes.clear();
-    }
-
-    detail::g_tree_state.initialization_finished.fill(false);
 
     std::ifstream input{settings_path};
     std::string line{};
@@ -164,33 +161,6 @@ inline void initialize_tree_state(const std::filesystem::path& settings_path) {
     }
 }
 
-inline bool has_seen_tree_state_item(TreeStateSource source, std::string_view stable_id) {
-    const auto key = detail::make_key(source, detail::string_component(stable_id));
-    return detail::g_tree_state.initialized_nodes.contains(key);
-}
-
-inline void finish_tree_state_initialization(TreeStateSource source) {
-    const auto source_index = static_cast<size_t>(source);
-
-    if (detail::g_tree_state.initialization_finished[source_index]) {
-        return;
-    }
-
-    detail::g_tree_state.initialization_finished[source_index] = true;
-    auto& unseen_nodes = detail::g_tree_state.unseen_loaded_nodes[source_index];
-    bool changed{};
-
-    for (const auto key : unseen_nodes) {
-        changed = detail::g_tree_state.open_nodes.erase(key) > 0 || changed;
-    }
-
-    unseen_nodes.clear();
-
-    if (changed) {
-        detail::save_open_nodes();
-    }
-}
-
 template <typename DrawFunction>
 bool persistent_tree_item(
     TreeStateSource source,
@@ -199,19 +169,13 @@ bool persistent_tree_item(
     bool can_persist = true) {
     const auto component = detail::string_component(stable_id);
     const auto key = detail::make_key(source, component);
-    const auto source_index = static_cast<size_t>(source);
 
-    if (can_persist) {
-        detail::g_tree_state.unseen_loaded_nodes[source_index].erase(key);
+    if (can_persist && detail::g_tree_state.initialized_nodes.insert(key).second) {
+        const auto& next_item_data = ImGui::GetCurrentContext()->NextItemData;
+        const bool caller_supplied_open_state = (next_item_data.HasFlags & ImGuiNextItemDataFlags_HasOpen) != 0;
 
-        if (!detail::g_tree_state.initialization_finished[source_index] &&
-            detail::g_tree_state.initialized_nodes.insert(key).second) {
-            const auto& next_item_data = ImGui::GetCurrentContext()->NextItemData;
-            const bool caller_supplied_open_state = (next_item_data.HasFlags & ImGuiNextItemDataFlags_HasOpen) != 0;
-
-            if (!caller_supplied_open_state) {
-                ImGui::SetNextItemOpen(detail::g_tree_state.open_nodes.contains(key), ImGuiCond_Always);
-            }
+        if (!caller_supplied_open_state) {
+            ImGui::SetNextItemOpen(detail::g_tree_state.open_nodes.contains(key), ImGuiCond_Always);
         }
     }
 
