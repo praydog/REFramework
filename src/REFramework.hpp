@@ -131,12 +131,16 @@ public:
         if (m_font_size != size) {
             m_font_size = size;
         }
+
+        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().DisplaySize.y > 0.0f) {
+            m_font_display_height = ImGui::GetIO().DisplaySize.y;
+        }
     }
 
-    void set_font_size_for_display(float size, float source_monitor_height);
+    void set_font_size_for_display(float size, float source_display_height);
 
     auto get_font_size() const { return m_font_size; }
-    auto get_main_window_monitor_size() const { return m_main_window_monitor_size; }
+    auto get_main_window_display_size() const { return m_main_window_display_size; }
     auto get_default_font() const { return m_default_font; }
 
     void set_font(std::string path) { 
@@ -171,6 +175,10 @@ private:
     void draw_ui();
     void draw_about();
     void preserve_main_window_position(const char* window_name);
+    void scale_font_for_display(float display_height);
+    void track_manual_ui_layout_changes();
+    void ensure_ui_layout_baseline();
+    void process_ui_layout_save(bool from_present);
 
 public:
     bool hook_d3d11();
@@ -215,10 +223,19 @@ private:
     
     ImVec2 m_last_window_pos{};
     ImVec2 m_last_window_size{};
-    HMONITOR m_main_window_monitor{};
-    ImVec2 m_main_window_monitor_size{};
-    bool m_loaded_saved_ui_monitor_size{false};
-    ImVec2 m_saved_ui_monitor_size{};
+    ImVec2 m_main_window_display_size{};
+    bool m_loaded_saved_ui_display_size{false};
+    ImVec2 m_saved_ui_display_size{};
+    bool m_ui_layout_save_pending{false};
+    std::chrono::steady_clock::time_point m_ui_layout_last_changed{};
+
+    struct UIWindowGeometry {
+        ImVec2 position{};
+        ImVec2 size{};
+    };
+
+    std::map<ImGuiID, UIWindowGeometry> m_ui_window_geometries{};
+    bool m_manual_ui_geometry_dirty{false};
 
     struct AdditionalFont {
         std::filesystem::path filepath{};
@@ -229,6 +246,7 @@ private:
     std::string m_default_font_file = "DEFAULT";
     bool m_fonts_need_init{true};
     float m_font_size{16};
+    float m_font_display_height{};
     ImFont* m_default_font;
     std::map<std::string, ImFont*> loaded_fonts{};
     std::vector<AdditionalFont> m_additional_fonts{};

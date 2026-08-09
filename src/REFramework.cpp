@@ -810,6 +810,30 @@ REFramework::~REFramework() {
 
     m_d3d_monitor_thread.reset();
 
+    const bool ui_layout_save_pending = std::exchange(m_ui_layout_save_pending, false);
+    m_wants_save_imgui_config = false;
+    const bool can_save_imgui_config = m_has_frame && ImGui::GetCurrentContext() != nullptr;
+
+    if (ui_layout_save_pending) {
+        if (m_mods_fully_initialized && can_save_imgui_config) {
+            save_config();
+
+            if (const auto* ini_filename = ImGui::GetIO().IniFilename; ini_filename != nullptr) {
+                ImGui::SaveIniSettingsToDisk(ini_filename);
+            }
+        }
+    } else {
+        if (m_wants_save_config && m_mods_fully_initialized) {
+            save_config();
+        }
+
+        if (can_save_imgui_config) {
+            if (const auto* ini_filename = ImGui::GetIO().IniFilename; ini_filename != nullptr) {
+                ImGui::SaveIniSettingsToDisk(ini_filename);
+            }
+        }
+    }
+
     if (m_is_d3d11) {
         deinit_d3d11();
     }
@@ -856,6 +880,9 @@ void REFramework::run_imgui_frame(bool from_present) {
 
     draw_ui();
     m_last_draw_ui = m_draw_ui;
+
+    ensure_ui_layout_baseline();
+    process_ui_layout_save(from_present);
 
     if (m_wants_save_imgui_config.exchange(false)) {
         if (const auto* ini_filename = ImGui::GetIO().IniFilename; ini_filename != nullptr) {
@@ -1485,13 +1512,14 @@ void REFramework::set_draw_ui(bool state, bool should_save) {
 
     if (state != prev_state && should_save) {
         if (!state) {
-            if (m_main_window_monitor_size.x > 0.0f && m_main_window_monitor_size.y > 0.0f) {
+            if (m_main_window_display_size.x > 0.0f && m_main_window_display_size.y > 0.0f) {
                 REFrameworkConfig::get()->set_ui_layout_state(
-                    static_cast<int32_t>(m_main_window_monitor_size.x),
-                    static_cast<int32_t>(m_main_window_monitor_size.y),
+                    static_cast<int32_t>(m_main_window_display_size.x),
+                    static_cast<int32_t>(m_main_window_display_size.y),
                     m_font_size);
             }
 
+            m_ui_layout_save_pending = false;
             m_wants_save_imgui_config = true;
         }
 
@@ -1501,20 +1529,23 @@ void REFramework::set_draw_ui(bool state, bool should_save) {
     }
 }
 
-void REFramework::set_font_size_for_display(float size, float source_monitor_height) {
-    float current_monitor_height = 0.0f;
-    const auto monitor = MonitorFromWindow(m_wnd, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO monitor_info{sizeof(MONITORINFO)};
+void REFramework::set_font_size_for_display(float size, float source_display_height) {
+    float current_display_height = 0.0f;
+    RECT client_rect{};
 
-    if (monitor != nullptr && GetMonitorInfo(monitor, &monitor_info)) {
-        current_monitor_height = static_cast<float>(monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top);
+    if (m_wnd != nullptr && GetClientRect(m_wnd, &client_rect)) {
+        current_display_height = static_cast<float>(client_rect.bottom - client_rect.top);
     }
 
-    if (source_monitor_height > 0.0f && current_monitor_height > 0.0f) {
-        size *= current_monitor_height / source_monitor_height;
+    if (source_display_height > 0.0f && current_display_height > 0.0f) {
+        size *= current_display_height / source_display_height;
     }
 
     set_font_size(size);
+
+    if (current_display_height > 0.0f) {
+        m_font_display_height = current_display_height;
+    }
 }
 
 void REFramework::consume_input() {
@@ -1660,67 +1691,161 @@ void REFramework::invalidate_device_objects() {
     m_wants_device_object_cleanup = false;
 }
 
-void REFramework::preserve_main_window_position(const char* window_name) {
-    const auto monitor = MonitorFromWindow(m_wnd, MONITOR_DEFAULTTONEAREST);
-    const auto previous_monitor_size = m_main_window_monitor_size;
-    MONITORINFO monitor_info{sizeof(MONITORINFO)};
-
-    if (monitor != nullptr && GetMonitorInfo(monitor, &monitor_info)) {
-        m_main_window_monitor = monitor;
-        m_main_window_monitor_size = ImVec2{
-            static_cast<float>(monitor_info.rcMonitor.right - monitor_info.rcMonitor.left),
-            static_cast<float>(monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top)};
-    } else if (monitor != m_main_window_monitor) {
-        m_main_window_monitor = monitor;
-        m_main_window_monitor_size = {};
+void REFramework::ensure_ui_layout_baseline() {
+    if (!m_mods_fully_initialized || REFrameworkConfig::get()->has_ui_layout_state()) {
+        return;
     }
 
-    const bool monitor_size_changed =
-        previous_monitor_size.x > 0.0f && previous_monitor_size.y > 0.0f &&
-        m_main_window_monitor_size.x > 0.0f && m_main_window_monitor_size.y > 0.0f &&
-        (previous_monitor_size.x != m_main_window_monitor_size.x ||
-         previous_monitor_size.y != m_main_window_monitor_size.y);
+    const auto display_size = ImGui::GetIO().DisplaySize;
+
+    if (display_size.x <= 0.0f || display_size.y <= 0.0f) {
+        return;
+    }
+
+    REFrameworkConfig::get()->set_ui_layout_state(
+        static_cast<int32_t>(display_size.x),
+        static_cast<int32_t>(display_size.y),
+        m_font_size);
+    request_save_config();
+}
+
+void REFramework::process_ui_layout_save(bool from_present) {
+    if (!m_ui_layout_save_pending || from_present ||
+        std::chrono::steady_clock::now() - m_ui_layout_last_changed < std::chrono::milliseconds{500}) {
+        return;
+    }
+
+    m_ui_layout_save_pending = false;
+    request_save_config();
+    m_wants_save_imgui_config = true;
+    m_saved_ui_display_size = m_main_window_display_size;
+}
+
+void REFramework::scale_font_for_display(float display_height) {
+    if (display_height <= 0.0f) {
+        return;
+    }
+
+    if (m_font_display_height > 0.0f && m_font_display_height != display_height) {
+        m_font_size *= display_height / m_font_display_height;
+    }
+
+    m_font_display_height = display_height;
+}
+
+void REFramework::track_manual_ui_layout_changes() {
+    auto& context = *ImGui::GetCurrentContext();
+    const bool left_mouse_down = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    const bool left_mouse_released = ImGui::IsMouseReleased(ImGuiMouseButton_Left);
+
+    for (const auto* window : context.Windows) {
+        if (window->LastFrameActive != context.FrameCount ||
+            (window->Flags & (ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_ChildWindow)) != 0) {
+            continue;
+        }
+
+        const UIWindowGeometry geometry{window->Pos, window->SizeFull};
+        const auto [entry, inserted] = m_ui_window_geometries.try_emplace(window->ID, geometry);
+
+        if (inserted) {
+            continue;
+        }
+
+        const bool geometry_changed =
+            entry->second.position.x != geometry.position.x ||
+            entry->second.position.y != geometry.position.y ||
+            entry->second.size.x != geometry.size.x ||
+            entry->second.size.y != geometry.size.y;
+
+        entry->second = geometry;
+
+        if (geometry_changed && (left_mouse_down || left_mouse_released)) {
+            m_manual_ui_geometry_dirty = true;
+        }
+    }
+
+    if (m_ui_layout_save_pending) {
+        m_manual_ui_geometry_dirty = false;
+    } else if (left_mouse_released && std::exchange(m_manual_ui_geometry_dirty, false)) {
+        m_wants_save_imgui_config = true;
+    }
+}
+
+void REFramework::preserve_main_window_position(const char* window_name) {
+    const auto previous_display_size = m_main_window_display_size;
+    const auto current_display_size = ImGui::GetIO().DisplaySize;
+
+    if (current_display_size.x <= 0.0f || current_display_size.y <= 0.0f) {
+        return;
+    }
+
+    m_main_window_display_size = current_display_size;
+
+    const bool display_size_changed =
+        previous_display_size.x > 0.0f && previous_display_size.y > 0.0f &&
+        (previous_display_size.x != m_main_window_display_size.x ||
+         previous_display_size.y != m_main_window_display_size.y);
+
+    scale_font_for_display(m_main_window_display_size.y);
+
+    if (!m_loaded_saved_ui_display_size) {
+        m_loaded_saved_ui_display_size = true;
+        const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
+
+        if (fs::exists(utility::widen(config_path))) {
+            const utility::Config cfg{config_path};
+            m_saved_ui_display_size = ImVec2{
+                static_cast<float>(cfg.get<int32_t>(REFrameworkConfig::UI_MONITOR_WIDTH_CONFIG_NAME.data()).value_or(0)),
+                static_cast<float>(cfg.get<int32_t>(REFrameworkConfig::UI_MONITOR_HEIGHT_CONFIG_NAME.data()).value_or(0))};
+        }
+    }
 
     ImVec2 position{};
     ImVec2 window_size{};
     bool restoring_scaled_size = false;
+    bool returned_to_saved_display = false;
 
-    if (const auto* window = ImGui::FindWindowByName(window_name); window != nullptr) {
+    const auto* settings = ImGui::FindWindowSettingsByID(ImHashStr(window_name));
+    const bool current_display_is_saved_display =
+        m_saved_ui_display_size.x > 0.0f && m_saved_ui_display_size.y > 0.0f &&
+        m_saved_ui_display_size.x == m_main_window_display_size.x &&
+        m_saved_ui_display_size.y == m_main_window_display_size.y;
+
+    if (display_size_changed && m_ui_layout_save_pending && current_display_is_saved_display && settings != nullptr) {
+        position = ImVec2{static_cast<float>(settings->Pos.x), static_cast<float>(settings->Pos.y)};
+        window_size = ImVec2{static_cast<float>(settings->Size.x), static_cast<float>(settings->Size.y)};
+        restoring_scaled_size = true;
+        returned_to_saved_display = true;
+        m_ui_layout_save_pending = false;
+    } else if (const auto* window = ImGui::FindWindowByName(window_name); window != nullptr) {
         position = window->Pos;
         window_size = window->Size;
 
-        if (monitor_size_changed) {
+        if (display_size_changed) {
             const ImVec2 display_scale{
-                m_main_window_monitor_size.x / previous_monitor_size.x,
-                m_main_window_monitor_size.y / previous_monitor_size.y};
+                m_main_window_display_size.x / previous_display_size.x,
+                m_main_window_display_size.y / previous_display_size.y};
             position = ImVec2{position.x * display_scale.x, position.y * display_scale.y};
             window_size = ImVec2{window_size.x * display_scale.x, window_size.y * display_scale.y};
-            m_font_size *= display_scale.y;
             restoring_scaled_size = true;
         }
-    } else if (const auto* settings = ImGui::FindWindowSettingsByID(ImHashStr(window_name)); settings != nullptr) {
+    } else if (settings != nullptr) {
         position = ImVec2{static_cast<float>(settings->Pos.x), static_cast<float>(settings->Pos.y)};
         window_size = ImVec2{static_cast<float>(settings->Size.x), static_cast<float>(settings->Size.y)};
 
-        if (!m_loaded_saved_ui_monitor_size) {
-            m_loaded_saved_ui_monitor_size = true;
-            const auto config_path = get_persistent_dir(REFrameworkConfig::REFRAMEWORK_CONFIG_NAME.data()).string();
-
-            if (fs::exists(utility::widen(config_path))) {
-                const utility::Config cfg{config_path};
-                m_saved_ui_monitor_size = ImVec2{
-                    static_cast<float>(cfg.get<int32_t>(REFrameworkConfig::UI_MONITOR_WIDTH_CONFIG_NAME.data()).value_or(0)),
-                    static_cast<float>(cfg.get<int32_t>(REFrameworkConfig::UI_MONITOR_HEIGHT_CONFIG_NAME.data()).value_or(0))};
-            }
-        }
-
-        if (m_saved_ui_monitor_size.x > 0.0f && m_saved_ui_monitor_size.y > 0.0f &&
-            m_main_window_monitor_size.x > 0.0f && m_main_window_monitor_size.y > 0.0f &&
-            (m_saved_ui_monitor_size.x != m_main_window_monitor_size.x ||
-             m_saved_ui_monitor_size.y != m_main_window_monitor_size.y)) {
+        if (display_size_changed && m_last_window_size.x > 0.0f && m_last_window_size.y > 0.0f) {
             const ImVec2 display_scale{
-                m_main_window_monitor_size.x / m_saved_ui_monitor_size.x,
-                m_main_window_monitor_size.y / m_saved_ui_monitor_size.y};
+                m_main_window_display_size.x / previous_display_size.x,
+                m_main_window_display_size.y / previous_display_size.y};
+            position = ImVec2{m_last_window_pos.x * display_scale.x, m_last_window_pos.y * display_scale.y};
+            window_size = ImVec2{m_last_window_size.x * display_scale.x, m_last_window_size.y * display_scale.y};
+            restoring_scaled_size = true;
+        } else if (m_saved_ui_display_size.x > 0.0f && m_saved_ui_display_size.y > 0.0f &&
+            (m_saved_ui_display_size.x != m_main_window_display_size.x ||
+             m_saved_ui_display_size.y != m_main_window_display_size.y)) {
+            const ImVec2 display_scale{
+                m_main_window_display_size.x / m_saved_ui_display_size.x,
+                m_main_window_display_size.y / m_saved_ui_display_size.y};
             position = ImVec2{position.x * display_scale.x, position.y * display_scale.y};
             window_size = ImVec2{window_size.x * display_scale.x, window_size.y * display_scale.y};
             restoring_scaled_size = true;
@@ -1729,17 +1854,17 @@ void REFramework::preserve_main_window_position(const char* window_name) {
         return;
     }
 
-    if (m_main_window_monitor_size.x > 0.0f && m_main_window_monitor_size.y > 0.0f) {
+    if (m_main_window_display_size.x > 0.0f && m_main_window_display_size.y > 0.0f) {
         const auto visibility_padding = ImMax(ImGui::GetStyle().DisplayWindowPadding, ImGui::GetStyle().DisplaySafeAreaPadding);
 
-        if (position.x > m_main_window_monitor_size.x - visibility_padding.x) {
-            position.x = ImMax(0.0f, m_main_window_monitor_size.x - window_size.x);
+        if (position.x > m_main_window_display_size.x - visibility_padding.x) {
+            position.x = ImMax(0.0f, m_main_window_display_size.x - window_size.x);
         } else if (position.x + window_size.x < visibility_padding.x) {
             position.x = 0.0f;
         }
 
-        if (position.y > m_main_window_monitor_size.y - visibility_padding.y) {
-            position.y = ImMax(0.0f, m_main_window_monitor_size.y - window_size.y);
+        if (position.y > m_main_window_display_size.y - visibility_padding.y) {
+            position.y = ImMax(0.0f, m_main_window_display_size.y - window_size.y);
         } else if (position.y + window_size.y < visibility_padding.y) {
             position.y = 0.0f;
         }
@@ -1750,11 +1875,14 @@ void REFramework::preserve_main_window_position(const char* window_name) {
     if (restoring_scaled_size) {
         ImGui::SetNextWindowSize(window_size, ImGuiCond_Always);
         REFrameworkConfig::get()->set_ui_layout_state(
-            static_cast<int32_t>(m_main_window_monitor_size.x),
-            static_cast<int32_t>(m_main_window_monitor_size.y),
+            static_cast<int32_t>(m_main_window_display_size.x),
+            static_cast<int32_t>(m_main_window_display_size.y),
             m_font_size);
-        request_save_config();
-        m_wants_save_imgui_config = true;
+
+        if (!returned_to_saved_display) {
+            m_ui_layout_save_pending = true;
+            m_ui_layout_last_changed = std::chrono::steady_clock::now();
+        }
     }
 }
 
@@ -1819,6 +1947,7 @@ void REFramework::draw_ui() {
     preserve_main_window_position(REF_NAME.c_str());
     bool is_open = true;
     ImGui::Begin(REF_NAME.c_str(), &is_open);
+    const auto* main_window = ImGui::GetCurrentWindow();
     ImGui::Text("Default Menu Key: Insert");
     ImGui::Checkbox("Transparency", &m_ui_option_transparent);
     ImGui::SameLine();
@@ -1843,8 +1972,10 @@ void REFramework::draw_ui() {
         ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
     }
 
-    m_last_window_pos = ImGui::GetWindowPos();
-    m_last_window_size = ImGui::GetWindowSize();
+    m_last_window_pos = main_window->Pos;
+    m_last_window_size = main_window->Size;
+
+    track_manual_ui_layout_changes();
 
     ImGui::PopFont();
     ImGui::End();
@@ -2091,8 +2222,8 @@ bool REFramework::initialize() {
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
-        m_loaded_saved_ui_monitor_size = false;
-        m_main_window_monitor = nullptr;
+        m_loaded_saved_ui_display_size = false;
+        m_saved_ui_display_size = {};
         ImNodes::SetImGuiContext(ImGui::GetCurrentContext());
         ImNodes::CreateContext();
 
@@ -2157,8 +2288,8 @@ bool REFramework::initialize() {
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
-        m_loaded_saved_ui_monitor_size = false;
-        m_main_window_monitor = nullptr;
+        m_loaded_saved_ui_display_size = false;
+        m_saved_ui_display_size = {};
         ImNodes::SetImGuiContext(ImGui::GetCurrentContext());
         ImNodes::CreateContext();
 

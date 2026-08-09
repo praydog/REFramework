@@ -40,6 +40,10 @@ public:
         m_font_size->value() = static_cast<int32_t>(font_size + 0.5f);
     }
 
+    bool has_ui_layout_state() const {
+        return m_ui_monitor_width->value() > 0 && m_ui_monitor_height->value() > 0;
+    }
+
 private:
     ModKey::Ptr m_menu_key{ ModKey::create(generate_name("MenuKey_V2"), VK_INSERT) };
     ModToggle::Ptr m_menu_open{ ModToggle::create(generate_name("MenuOpen"), true) };
