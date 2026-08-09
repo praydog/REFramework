@@ -1,0 +1,224 @@
+#pragma managed
+
+#include <reframework/API.hpp>
+
+#include "./API.hpp"
+#include "./PluginManager.hpp"
+
+
+REFrameworkNET::API::API(const REFrameworkPluginInitializeParam* param)
+{
+    Init_Internal(param);
+}
+
+REFrameworkNET::API::API(uintptr_t param)
+{
+    Init_Internal(reinterpret_cast<const REFrameworkPluginInitializeParam*>(param));
+}
+
+void REFrameworkNET::API::Init_Internal(const REFrameworkPluginInitializeParam* param)
+{
+    if (s_api != nullptr) {
+        Console::WriteLine("REFrameworkNET.API Init_Internal called but API is already initialized.");
+        return;
+    }
+
+    Console::WriteLine("REFrameworkNET.API Init_Internal called.");
+    s_api = reframework::API::initialize(param).get();
+    Callbacks::Impl::Setup(this);
+    Console::WriteLine("REFrameworkNET.API Init_Internal finished.");
+}
+
+REFrameworkNET::API::~API()
+{
+    Console::WriteLine("REFrameworkNET.API Destructor called.");
+}
+
+
+reframework::API* REFrameworkNET::API::GetNativeImplementation() {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    return s_api;
+}
+
+REFrameworkNET::TDB^ REFrameworkNET::API::GetTDB() {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    return gcnew REFrameworkNET::TDB(s_api->tdb());
+}
+
+System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>^ REFrameworkNET::API::GetManagedSingletons() {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    auto singletons = s_api->get_managed_singletons();
+    auto result = gcnew System::Collections::Generic::List<REFrameworkNET::ManagedSingleton^>();
+
+    for (auto& singleton : singletons) {
+        if (singleton.instance == nullptr) {
+            continue;
+        }
+
+        result->Add(gcnew REFrameworkNET::ManagedSingleton(
+            REFrameworkNET::ManagedObject::Get<REFrameworkNET::ManagedObject>(singleton.instance),
+            TypeDefinition::GetInstance(singleton.t),
+            gcnew REFrameworkNET::TypeInfo(singleton.type_info)
+        ));
+    }
+
+    return result;
+}
+
+System::Collections::Generic::List<REFrameworkNET::NativeSingleton^>^ REFrameworkNET::API::GetNativeSingletons() {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    auto singletons = s_api->get_native_singletons();
+    auto result = gcnew System::Collections::Generic::List<REFrameworkNET::NativeSingleton^>();
+
+    for (auto& singleton : singletons) {
+        if (singleton.instance == nullptr) {
+            continue;
+        }
+
+        // Not supported for now
+        if (singleton.t == nullptr) {
+            continue;
+        }
+
+        auto nativeObject = gcnew REFrameworkNET::NativeObject(singleton.instance, TypeDefinition::GetInstance(singleton.t));
+
+        result->Add(gcnew REFrameworkNET::NativeSingleton(
+            gcnew REFrameworkNET::NativeObject(singleton.instance, TypeDefinition::GetInstance(singleton.t)),
+            singleton.type_info != nullptr ? gcnew REFrameworkNET::TypeInfo(singleton.type_info) : nullptr
+        ));
+    }
+
+    return result;
+}
+
+REFrameworkNET::ManagedObject^ REFrameworkNET::API::GetManagedSingleton(System::String^ name) {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    auto result = s_api->get_managed_singleton(msclr::interop::marshal_as<std::string>(name));
+
+    if (result == nullptr) {
+        return nullptr;
+    }
+
+    return REFrameworkNET::ManagedObject::Get(result);
+}
+
+
+REFrameworkNET::NativeObject^ REFrameworkNET::API::GetNativeSingleton(System::String^ name) {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    auto result = s_api->get_native_singleton(msclr::interop::marshal_as<std::string>(name));
+
+    if (result == nullptr) {
+        return nullptr;
+    }
+
+    auto t = REFrameworkNET::API::GetTDB()->GetType(name);
+
+    if (t == nullptr) {
+        return nullptr;
+    }
+
+    return gcnew NativeObject(result, t);
+}
+
+// Separate method so PipeServer type is resolved lazily (not during JIT of LogError/etc)
+static void ForwardToPipeServer(System::String^ level, System::String^ message) {
+    REFrameworkNET::PipeServer::AddLog(level, message);
+}
+
+void REFrameworkNET::API::LogError(System::String^ message) {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    if (LogLevel <= LogLevel::Error) {
+        s_api->log_error(msclr::interop::marshal_as<std::string>(message).c_str());
+
+        if (LogToConsole) {
+            System::Console::WriteLine(message);
+        }
+
+        try { ForwardToPipeServer("error", message); } catch (...) {}
+    }
+}
+
+void REFrameworkNET::API::LogWarning(System::String^ message) {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    if (LogLevel <= LogLevel::Warning) {
+        s_api->log_warn(msclr::interop::marshal_as<std::string>(message).c_str());
+
+        if (LogToConsole) {
+            System::Console::WriteLine(message);
+        }
+
+        try { ForwardToPipeServer("warn", message); } catch (...) {}
+    }
+}
+
+void REFrameworkNET::API::LogInfo(System::String^ message) {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    if (LogLevel <= LogLevel::Info) {
+        s_api->log_info(msclr::interop::marshal_as<std::string>(message).c_str());
+
+        if (LogToConsole) {
+            System::Console::WriteLine(message);
+        }
+
+        try { ForwardToPipeServer("info", message); } catch (...) {}
+    }
+}
+
+System::String^ REFrameworkNET::API::GetPluginDirectory(System::Reflection::Assembly^ assembly) {
+    if (assembly == nullptr) {
+        return nullptr;
+    }
+
+    for each (auto state in PluginManager::s_plugin_states) {
+        if (state->assembly == assembly && state->script_path != nullptr) {
+            return System::IO::Path::GetDirectoryName(state->script_path);
+        }
+    }
+
+    // Fallback: try Assembly.Location for precompiled DLLs loaded outside PluginManager
+    auto location = assembly->Location;
+    if (!System::String::IsNullOrEmpty(location)) {
+        return System::IO::Path::GetDirectoryName(location);
+    }
+
+    return nullptr;
+}
+
+REFrameworkNET::ResourceManager^ REFrameworkNET::API::GetResourceManager() {
+    if (s_api == nullptr) {
+        throw gcnew APINotInitializedException();
+    }
+
+    auto mgr = s_api->resource_manager();
+    if (mgr == nullptr) {
+        return nullptr;
+    }
+    return gcnew REFrameworkNET::ResourceManager((REFrameworkResourceManagerHandle)mgr);
+}

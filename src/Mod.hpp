@@ -331,6 +331,8 @@ public:
             return false;
         }
 
+        bool changed = false;
+
         ImGui::PushID(this);
         ImGui::Button(name.data());
 
@@ -346,7 +348,9 @@ public:
                 }
 
                 if (keys[k]) {
-                    m_value = is_erase_key(k) ? UNBOUND_KEY : k;
+                    const auto new_value = is_erase_key(k) ? UNBOUND_KEY : k;
+                    changed = new_value != m_value;
+                    m_value = new_value;
                     m_waiting_for_new_key = false;
                     break;
                 }
@@ -368,7 +372,7 @@ public:
 
         ImGui::PopID();
 
-        return true;
+        return changed;
     }
 
     bool is_key_down() const {

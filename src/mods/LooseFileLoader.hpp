@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sdk/GameIdentity.hpp>
 #include <deque>
 #include <unordered_set>
 #include <spdlog/spdlog.h>
@@ -7,6 +8,7 @@
 #include <utility/FunctionHook.hpp>
 
 #include "../Mod.hpp"
+#include "LooseTextureLoader.hpp"
 
 class LooseFileLoader : public Mod {
 public:
@@ -24,18 +26,28 @@ public:
     void on_draw_ui() override;
 
     void hook();
+    void early_initialize();
 
     bool is_enabled() const {
         return m_enabled->value();
     }
 
+    bool can_loosely_load_file(const wchar_t* path);
+
+    LooseTextureLoader& get_texture_loader() { return m_texture_loader; }
+
 private:
     bool handle_path(const wchar_t* path, size_t hash);
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    static uint64_t path_to_hash_hook(const wchar_t* path);
+    static uint64_t path_to_hash_hook_legacy(void* This, const wchar_t* path);
+#else
 #if TDB_VER > 67
     static uint64_t path_to_hash_hook(const wchar_t* path);
 #else
     static uint64_t path_to_hash_hook(void* This, const wchar_t* path);
+#endif
 #endif
 
     bool m_hook_success{false};
@@ -71,4 +83,7 @@ private:
         *m_log_accessed_files,
         *m_log_loose_files,
     };
+
+    // Components
+    LooseTextureLoader m_texture_loader{};
 };

@@ -253,15 +253,14 @@ local ch8_update_postural_camera_motion_method = ch8_player_motion_controller_ty
 local ch9_player_motion_controller_type = sdk.find_type_definition("app.CH9PlayerMotionController")
 local ch9_update_postural_camera_motion_method = ch9_player_motion_controller_type:get_method("updatePosturalCameraMotion")
 
-local postural_camera_motion_args = nil
+local postural_camera_motion_self = nil
 
 local function on_pre_update_postural_camera_motion(args)
-    postural_camera_motion_args = args
+    postural_camera_motion_self = args[2]
 end
 
 local function on_post_update_postural_camera_motion(retval)
-    local args = postural_camera_motion_args
-    local controller = sdk.to_managed_object(args[2])
+    local controller = sdk.to_managed_object(postural_camera_motion_self)
     local game_object = controller:call("get_GameObject")
 
     if game_object ~= re7.player then
@@ -289,15 +288,14 @@ local ch8_player_movement_late_update_method = ch8_player_movement_type:get_meth
 local ch9_player_movement_type = sdk.find_type_definition("app.CH9PlayerMovement")
 local ch9_player_movement_late_update_method = ch9_player_movement_type:get_method("doLateUpdate")
 
-local player_movement_args = nil
+local player_movement_self = nil
 
 local function on_pre_player_movement_late_update(args)
-    player_movement_args = args
+    player_movement_self = args[2]
 end
 
 local function on_post_player_movement_late_update(retval)
-    local args = player_movement_args
-    local movement = sdk.to_managed_object(args[2])
+    local movement = sdk.to_managed_object(player_movement_self)
 
     re7.movement_speed_rate = movement:get_field("_SpeedRate")
     re7.movement_speed_vector = movement:get_field("_MoveSpeedVector")

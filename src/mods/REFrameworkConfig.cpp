@@ -40,17 +40,25 @@ void REFrameworkConfig::on_draw_ui() {
 
     ImGui::TreePush("Configuration");
 
-    m_menu_key->draw("Menu Key");
-    m_show_cursor_key->draw("Show Cursor Key");
-    m_remember_menu_state->draw("Remember Menu Open/Closed State");
-    m_always_show_cursor->draw("Draw Cursor With Menu Open");
+    bool changed = false;
+
+    changed |= m_menu_key->draw("Menu Key");
+    changed |= m_show_cursor_key->draw("Show Cursor Key");
+    changed |= m_remember_menu_state->draw("Remember Menu Open/Closed State");
+    changed |= m_always_show_cursor->draw("Draw Cursor With Menu Open");
 
     if (m_font_file->draw("Font")) {
         g_framework->set_font(m_font_file->value());
+        changed = true;
     }
 
     if (m_font_size->draw("Font Size")) {
         g_framework->set_font_size(m_font_size->value());
+        changed = true;
+    }
+
+    if (changed) {
+        g_framework->request_save_config();
     }
 
     ImGui::TreePop();

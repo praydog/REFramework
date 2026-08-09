@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Mod.hpp"
+#include <sdk/GameIdentity.hpp>
 
 class RenderToneMappingInternal {
 public:
@@ -75,9 +76,14 @@ private:
     const ModToggle::Ptr m_use_custom_global_fov{ ModToggle::create(generate_name("GlobalFOVEnabled"), false) };
     const ModSlider::Ptr m_global_fov{ ModSlider::create(generate_name("GlobalFOV"), 0.0f, 180.0f, 81.0f) };
 
-#ifdef RE8
+#ifdef REFRAMEWORK_UNIVERSAL
     const ModSlider::Ptr m_fov{ ModSlider::create(generate_name("FOV"), 0.0f, 180.0f, 81.0f) };
     const ModSlider::Ptr m_fov_aiming{ ModSlider::create(generate_name("FOVAiming"), 0.0f, 180.0f, 70.0f) };
+#else
+    #ifdef RE8
+    const ModSlider::Ptr m_fov{ ModSlider::create(generate_name("FOV"), 0.0f, 180.0f, 81.0f) };
+    const ModSlider::Ptr m_fov_aiming{ ModSlider::create(generate_name("FOVAiming"), 0.0f, 180.0f, 70.0f) };
+    #endif
 #endif
 
     ValueList m_options{
@@ -87,14 +93,23 @@ private:
         *m_use_custom_global_fov,
         *m_global_fov,
 
-#ifdef RE8
+#ifdef REFRAMEWORK_UNIVERSAL
         *m_fov,
         *m_fov_aiming
+#else
+    #ifdef RE8
+        *m_fov,
+        *m_fov_aiming
+    #endif
 #endif
     };
 
-#ifdef RE8
+#ifdef REFRAMEWORK_UNIVERSAL
     AppPropsManager* m_props_manager{ nullptr };
+#else
+    #ifdef RE8
+    AppPropsManager* m_props_manager{ nullptr };
+    #endif
 #endif
     RECamera* m_camera{ nullptr };
     REGameObject* m_player{ nullptr };

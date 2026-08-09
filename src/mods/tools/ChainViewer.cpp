@@ -13,44 +13,75 @@
 #include "sdk/REManagedObject.hpp"
 #include "sdk/Renderer.hpp"
 #include "sdk/REGameObject.hpp"
+#include <sdk/GameIdentity.hpp>
 
-#if TDB_VER < 69
-#include "sdk/regenny/re3/via/motion/Chain.hpp"
-#include "sdk/regenny/re3/via/motion/ChainCollisions.hpp"
-#elif TDB_VER == 69
-#include "sdk/regenny/re8/via/motion/Chain.hpp"
-#include "sdk/regenny/re8/via/motion/ChainCollisionTop.hpp"
-#include "sdk/regenny/re8/via/motion/ChainCollisions.hpp"
-#elif TDB_VER >= 70
-#if defined(MHRISE)
-#if TDB_VER == 70
-#define MHRISE_CHAIN70
-#include "sdk/regenny/mhrise/via/motion/Chain.hpp"
-#include "sdk/regenny/mhrise/via/motion/ChainCollisions.hpp"
-#else
-#include "sdk/regenny/mhrise_tdb71/via/motion/Chain.hpp"
-#include "sdk/regenny/mhrise_tdb71/via/motion/ChainCollisions.hpp"
-#include "sdk/regenny/mhrise_tdb71/via/motion/ChainCollisionTop.hpp"
-#endif
-#else
-
-#if defined(RE4)
-#include "sdk/regenny/re4/via/motion/Chain.hpp"
-#include "sdk/regenny/re4/via/motion/ChainCollisions.hpp"
-#include "sdk/regenny/re4/via/motion/ChainCollisionTop.hpp"
-#elif defined (SF6)
-#include "sdk/regenny/sf6/via/motion/Chain.hpp"
-#include "sdk/regenny/sf6/via/motion/ChainCollisions.hpp"
-#include "sdk/regenny/sf6/via/motion/ChainCollisionTop.hpp"
-#else
+// Chain struct includes. CollisionData offset differs:
+//   TDB < 71 (RE2/RE3/DMC5): 0x58
+//   TDB >= 71 (MHRise/SF6/DD2/etc): 0x60
+// We include both but access CollisionData via runtime offset dispatch.
 #include "sdk/regenny/re2_tdb70/via/motion/Chain.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisionTop.hpp"
 #include "sdk/regenny/re2_tdb70/via/motion/ChainCollisions.hpp"
-#endif
 
-#endif
+namespace {
+    inline bool is_legacy_chain() { return sdk::GameIdentity::get().tdb_ver() < 69; }
 
-#endif
+    // ChainCollisionArray: stable layout across all versions.
+    // collisions (ChainCollisionTop*) @ 0x0, num (int32) @ 0x8
+    struct ChainCollisionArrayAccessor {
+        uintptr_t addr;
+        ChainCollisionArrayAccessor(void* p) : addr((uintptr_t)p) {}
+        void* collisions_ptr() const { return *(void**)(addr + 0x0); }
+        int32_t num()           const { return *(int32_t*)(addr + 0x8); }
+    };
+
+    inline ChainCollisionArrayAccessor get_chain_collision_data(void* chain) {
+        const auto offset = sdk::GameIdentity::get().tdb_ver() >= 71 ? 0x60 : 0x58;
+        return ChainCollisionArrayAccessor((void*)((uintptr_t)chain + offset));
+    }
+
+    // ChainCollisionTop: stable layout. collisions (ChainCollisions*) @ 0x0, num_collisions @ 0x8
+    // Size: 0x100
+    inline int32_t get_collision_top_num(void* top_ptr, int i) {
+        auto* top = (uint8_t*)top_ptr + i * 0x100;
+        return *(int32_t*)(top + 0x8);
+    }
+    inline void* get_collision_top_collisions(void* top_ptr, int i) {
+        auto* top = (uint8_t*)top_ptr + i * 0x100;
+        return *(void**)(top + 0x0);
+    }
+
+    // ChainCollisions field offsets differ between re3 (DMC5, TDB<69) and re2_tdb70 (TDB>=69).
+    // re3:       sphere@0x00, capsule@0x10, offset@0x60, joint@0xA0, pair_joint@0xA8, radius@0xC0, size=0xE0
+    // re2_tdb70: sphere@0x10, capsule@0x20, offset@0xD0, joint@0x130, pair_joint@0x138, radius@0x150, size=0x180
+    struct CollisionAccessor {
+        uintptr_t addr;
+
+        CollisionAccessor(void* p) : addr((uintptr_t)p) {}
+
+        regenny::via::Sphere& sphere()       const { return *(regenny::via::Sphere*)(addr + (is_legacy_chain() ? 0x00 : 0x10)); }
+        regenny::via::Capsule& capsule()     const { return *(regenny::via::Capsule*)(addr + (is_legacy_chain() ? 0x10 : 0x20)); }
+        regenny::via::vec4& offset()         const { return *(regenny::via::vec4*)(addr + (is_legacy_chain() ? 0x60 : 0xD0)); }
+        regenny::via::vec4& pair_offset()    const { return *(regenny::via::vec4*)(addr + (is_legacy_chain() ? 0x70 : 0xE0)); }
+        regenny::via::Joint* joint()         const { return *(regenny::via::Joint**)(addr + (is_legacy_chain() ? 0xA0 : 0x130)); }
+        regenny::via::Joint* pair_joint()    const { return *(regenny::via::Joint**)(addr + (is_legacy_chain() ? 0xA8 : 0x138)); }
+        float& radius()                      const { return *(float*)(addr + (is_legacy_chain() ? 0xC0 : 0x150)); }
+        uint32_t& flags()                    const { return *(uint32_t*)(addr + (is_legacy_chain() ? 0xD4 : 0x164)); }
+    };
+
+    inline size_t chain_collisions_stride() {
+        return is_legacy_chain() ? 0xE0 : 0x180;
+    }
+
+    inline CollisionAccessor get_collision(ChainCollisionArrayAccessor& cdata, int i, int j, bool has_top) {
+        if (has_top) {
+            auto* sub_collisions = get_collision_top_collisions(cdata.collisions_ptr(), i);
+            return CollisionAccessor((uint8_t*)sub_collisions + j * chain_collisions_stride());
+        } else {
+            return CollisionAccessor((uint8_t*)cdata.collisions_ptr() + i * chain_collisions_stride());
+        }
+    }
+}
 
 #include "../BackBufferRenderer.hpp"
 #include "ObjectExplorer.hpp"
@@ -175,7 +206,7 @@ void ChainViewer::on_frame() {
 
     m_delta_time.update();
 
-    static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
+    static auto transform_def = first_transform->get_type_definition();
     static auto folder_def = sdk::find_type_definition("via.Folder");
     static auto gameobject_def = sdk::find_type_definition("via.GameObject");
     static auto next_transform_method = transform_def->get_method("get_Next");
@@ -196,7 +227,7 @@ void ChainViewer::on_frame() {
         return;
     }
 
-    auto camera_transform = camera_gameobject->transform;
+    auto camera_transform = camera_gameobject->get_transform();
 
     if (camera_transform == nullptr) {
         return;
@@ -249,8 +280,10 @@ void ChainViewer::on_frame() {
     static auto chain_runtime_type = chain_type->get_runtime_type();
     static auto chain_re_type = chain_type->get_type();
 
+    const auto& gi = sdk::GameIdentity::get();
+    const bool has_collision_top = gi.tdb_ver() >= 69 && !(gi.is_mhrise() && gi.tdb_ver() == 70);
     auto attempt_display_chains = [&](RETransform* transform) {
-        auto chain = utility::re_component::find<regenny::via::motion::Chain>(transform, chain_re_type);
+        auto chain = transform->find<regenny::via::motion::Chain>(chain_re_type);
         bool made = false;
 
         if (chain == nullptr) {
@@ -263,7 +296,7 @@ void ChainViewer::on_frame() {
             return;
         }
 
-        auto owner_name = utility::re_game_object::get_name(owner);
+        auto owner_name = owner->get_name();
 
         if (owner_name.empty()) {
             owner_name = "";
@@ -297,33 +330,29 @@ void ChainViewer::on_frame() {
             ObjectExplorer::get()->handle_address(chain);
         }
 
-        if (chain != nullptr && chain->CollisionData.num > 0 && chain->CollisionData.collisions != nullptr) {
-            for (auto i = 0; i < chain->CollisionData.num; ++i) {
-                #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
-                const auto& collider_top = chain->CollisionData.collisions[i];
+        auto collision_data = get_chain_collision_data(chain);
+        if (chain != nullptr && collision_data.num() > 0 && collision_data.collisions_ptr() != nullptr) {
+            for (auto i = 0; i < collision_data.num(); ++i) {
+                const auto num_sub = has_collision_top ? get_collision_top_num(collision_data.collisions_ptr(), i) : 1;
+                for (auto j = 0; j < num_sub; ++j) {
+                    auto collider = get_collision(collision_data, i, j, has_collision_top);
+                    auto adjusted_pos1 = collider.pair_joint() == nullptr ? *(Vector3f*)&collider.sphere().pos : *(Vector3f*)&collider.capsule().p0;
+                    auto adjusted_pos2 = collider.pair_joint() == nullptr ? Vector3f{} : *(Vector3f*)&collider.capsule().p1;
 
-                for (auto j = 0; j < collider_top.num_collisions; ++j) {
-                    auto& collider = collider_top.collisions[j];
-                #else
-                    auto& collider = chain->CollisionData.collisions[i];
-                #endif
-                    auto adjusted_pos1 = collider.pair_joint == nullptr ? *(Vector3f*)&collider.sphere.pos : *(Vector3f*)&collider.capsule.p0;
-                    auto adjusted_pos2 = collider.pair_joint == nullptr ? Vector3f{} : *(Vector3f*)&collider.capsule.p1;
+                    const auto joint_pos = collider.joint() != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.joint()) : Vector3f{};
+                    const auto joint_rot = collider.joint() != nullptr ? sdk::get_joint_rotation((::REJoint*)collider.joint()) : glm::identity<glm::quat>();
+                    const auto pair_joint_pos = collider.pair_joint() != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.pair_joint()) : Vector3f{};
+                    const auto predicted_pos = joint_pos + (joint_rot * *(Vector3f*)&collider.offset());
+                    const auto offset_length = glm::length(*(Vector3f*)&collider.offset());
 
-                    const auto joint_pos = collider.joint != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.joint) : Vector3f{};
-                    const auto joint_rot = collider.joint != nullptr ? sdk::get_joint_rotation((::REJoint*)collider.joint) : glm::identity<glm::quat>();
-                    const auto pair_joint_pos = collider.pair_joint != nullptr ? (Vector3f)sdk::get_joint_position((::REJoint*)collider.pair_joint) : Vector3f{};
-                    const auto predicted_pos = joint_pos + (joint_rot * *(Vector3f*)&collider.offset);
-                    const auto offset_length = glm::length(*(Vector3f*)&collider.offset);
-
-                    if (offset_length != 0.0f && collider.joint != nullptr && glm::length(predicted_pos - adjusted_pos1) >= (offset_length * 2.0f)) {
-                        if (collider.pair_joint != nullptr) {
-                            const auto rot = sdk::get_joint_rotation((::REJoint*)collider.joint);
-                            const auto rot2 = sdk::get_joint_rotation((::REJoint*)collider.pair_joint);
-                            adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint)) + (*(Vector3f*)&collider.capsule.p0);
-                            adjusted_pos2 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.pair_joint)) + (*(Vector3f*)&collider.capsule.p1);
+                    if (offset_length != 0.0f && collider.joint() != nullptr && glm::length(predicted_pos - adjusted_pos1) >= (offset_length * 2.0f)) {
+                        if (collider.pair_joint() != nullptr) {
+                            const auto rot = sdk::get_joint_rotation((::REJoint*)collider.joint());
+                            const auto rot2 = sdk::get_joint_rotation((::REJoint*)collider.pair_joint());
+                            adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint())) + (*(Vector3f*)&collider.capsule().p0);
+                            adjusted_pos2 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.pair_joint())) + (*(Vector3f*)&collider.capsule().p1);
                         } else {
-                            adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint)) + (*(Vector3f*)&collider.sphere.pos);
+                            adjusted_pos1 = (Vector3f)sdk::get_transform_position(sdk::get_joint_owner((::REJoint*)collider.joint())) + (*(Vector3f*)&collider.sphere().pos);
                         }
                     }
 
@@ -335,13 +364,13 @@ void ChainViewer::on_frame() {
                     const auto additional_rad = 2.0f;
 
                     // Draw spheres/capsules and imguizmo widgets
-                    if (collider.pair_joint == nullptr) {
+                    if (collider.pair_joint() == nullptr) {
 
-                        Matrix4x4f mat = glm::scale(Vector3f{collider.sphere.r, collider.sphere.r, collider.sphere.r});
+                        Matrix4x4f mat = glm::scale(Vector3f{collider.sphere().r, collider.sphere().r, collider.sphere().r});
                         mat[3] = Vector4f{adjusted_pos1, 1.0f};
 
                         if (g_framework->is_dx12()) {
-                            const auto radius = collider.sphere.r;
+                            const auto radius = collider.sphere().r;
                             DirectX::SimpleMath::Matrix world = DirectX::SimpleMath::Matrix::CreateScale(radius) * DirectX::SimpleMath::Matrix::CreateTranslation(adjusted_pos1.x, adjusted_pos1.y, adjusted_pos1.z);
 
                             d3d12_work.emplace_back([this, world](const BackBufferRenderer::RenderWorkData& data){
@@ -352,28 +381,28 @@ void ChainViewer::on_frame() {
                             });
                         } else {
                             // TODO
-                            imgui::draw_sphere(adjusted_pos1, collider.sphere.r, ImGui::GetColorU32(col), true);
+                            imgui::draw_sphere(adjusted_pos1, collider.sphere().r, ImGui::GetColorU32(col), true);
                         }
 
                         const auto screen_pos1 = sdk::renderer::world_to_screen(adjusted_pos1);
-                        const auto screen_pos1_top = sdk::renderer::world_to_screen(adjusted_pos1 + Vector3f{0.0f, collider.sphere.r, 0.0f});
+                        const auto screen_pos1_top = sdk::renderer::world_to_screen(adjusted_pos1 + Vector3f{0.0f, collider.sphere().r, 0.0f});
                         const auto cursor_pos = *(Vector2f*)&ImGui::GetIO().MousePos;
                         const auto can_use1 = (screen_pos1 && screen_pos1_top && glm::length(cursor_pos - *screen_pos1) <= glm::abs(screen_pos1_top->y - screen_pos1->y) * additional_rad) || ImGuizmo::IsUsing();
 
                         using OP = ImGuizmo::OPERATION;
 
                         if (can_use1) {
-                            ImGuizmo::SetID((intptr_t)&collider.sphere);
+                            ImGuizmo::SetID((intptr_t)&collider.sphere());
                             if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
-                                const auto delta = *(Vector3f*)&mat[3] - *(Vector3f*)&collider.sphere.pos;
-                                *(Vector3f*)&collider.offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.joint)) * delta;
-                                collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.sphere.r;
+                                const auto delta = *(Vector3f*)&mat[3] - *(Vector3f*)&collider.sphere().pos;
+                                *(Vector3f*)&collider.offset() += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.joint())) * delta;
+                                collider.radius() += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.sphere().r;
                             }
                         }
                     } else {
                         // Capsule
                         if (g_framework->is_dx12()) {
-                            const auto radius = collider.capsule.r;
+                            const auto radius = collider.capsule().r;
                             const auto delta = adjusted_pos2 - adjusted_pos1;
                             const auto dir = glm::normalize(delta);
                             const auto length = glm::length(delta) + (radius * 2.0f);
@@ -392,46 +421,46 @@ void ChainViewer::on_frame() {
                             });
                         } else {
                             // TODO
-                            imgui::draw_capsule(adjusted_pos1, adjusted_pos2, collider.capsule.r, ImGui::GetColorU32(col), true);
+                            imgui::draw_capsule(adjusted_pos1, adjusted_pos2, collider.capsule().r, ImGui::GetColorU32(col), true);
                         }
 
 
                         const auto screen_pos1 = sdk::renderer::world_to_screen(adjusted_pos1);
-                        const auto screen_pos1_top = sdk::renderer::world_to_screen(adjusted_pos1 + Vector3f{0.0f, collider.capsule.r, 0.0f});
+                        const auto screen_pos1_top = sdk::renderer::world_to_screen(adjusted_pos1 + Vector3f{0.0f, collider.capsule().r, 0.0f});
                         const auto cursor_pos = *(Vector2f*)&ImGui::GetIO().MousePos;
                         const auto can_use1 = (screen_pos1 && screen_pos1_top && glm::length(cursor_pos - *screen_pos1) <= glm::abs(screen_pos1_top->y - screen_pos1->y) * additional_rad) || ImGuizmo::IsUsing();
 
-                        Matrix4x4f mat = glm::scale(Vector3f{collider.capsule.r, collider.capsule.r, collider.capsule.r});
+                        Matrix4x4f mat = glm::scale(Vector3f{collider.capsule().r, collider.capsule().r, collider.capsule().r});
                         using OP = ImGuizmo::OPERATION;
 
                         if (can_use1) {
                             mat[3] = Vector4f{adjusted_pos1, 1.0f};
 
-                            ImGui::PushID(&collider.capsule.p0);
-                            ImGuizmo::SetID((intptr_t)&collider.capsule.p0);
+                            ImGui::PushID(&collider.capsule().p0);
+                            ImGuizmo::SetID((intptr_t)&collider.capsule().p0);
                             if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
                                 const auto delta = *(Vector3f*)&mat[3] - adjusted_pos1;
-                                *(Vector3f*)&collider.offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.joint)) * delta;
+                                *(Vector3f*)&collider.offset() += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.joint())) * delta;
                                 //collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
-                                collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule.r;
+                                collider.radius() += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule().r;
                             }
                             ImGui::PopID();
                         }
 
                         const auto screen_pos2 = sdk::renderer::world_to_screen(adjusted_pos2);
-                        const auto screen_pos2_top = sdk::renderer::world_to_screen(adjusted_pos2 + Vector3f{0.0f, collider.capsule.r, 0.0f});
+                        const auto screen_pos2_top = sdk::renderer::world_to_screen(adjusted_pos2 + Vector3f{0.0f, collider.capsule().r, 0.0f});
                         const auto can_use2 = (screen_pos2 && screen_pos2_top && glm::length(cursor_pos - *screen_pos2) <= glm::abs(screen_pos2_top->y - screen_pos2->y) * additional_rad) || ImGuizmo::IsUsing();
 
                         if (can_use2) {
                             mat[3] = Vector4f{adjusted_pos2, 1.0f};
 
-                            ImGui::PushID(&collider.capsule.p1);
-                            ImGuizmo::SetID((intptr_t)&collider.capsule.p1);
+                            ImGui::PushID(&collider.capsule().p1);
+                            ImGuizmo::SetID((intptr_t)&collider.capsule().p1);
                             if (ImGuizmo::Manipulate((float*)&view, (float*)&proj, OP::TRANSLATE | OP::SCALEU, ImGuizmo::MODE::WORLD, (float*)&mat)) {
                                 const auto delta = *(Vector3f*)&mat[3] - adjusted_pos2;
-                                *(Vector3f*)&collider.pair_offset += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.pair_joint)) * delta;
+                                *(Vector3f*)&collider.pair_offset() += glm::inverse(sdk::get_joint_rotation((::REJoint*)collider.pair_joint())) * delta;
                                 //collider.radius = (glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f;
-                                collider.radius += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule.r;
+                                collider.radius() += ((glm::length(mat[0]) + glm::length(mat[1]) + glm::length(mat[2])) / 3.0f) - collider.capsule().r;
                             }
                             ImGui::PopID();
                         }
@@ -445,50 +474,47 @@ void ChainViewer::on_frame() {
                         
                         ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
 
-                    #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
-                        if (ImGui::TreeNode(&collider, "Collision %d %d", i, j)) {
-                    #else
-                        if (ImGui::TreeNode(&collider, "Collision %d", i)) {
-                    #endif
-                            auto made_joint_node = ImGui::TreeNode(&collider.joint, "Joint");
+                    const bool tree_open = has_collision_top
+                        ? ImGui::TreeNode((void*)collider.addr, "Collision %d %d", i, j)
+                        : ImGui::TreeNode((void*)collider.addr, "Collision %d", i);
+                    if (tree_open) {
+                            auto made_joint_node = ImGui::TreeNode((void*)(collider.addr + 0x100), "Joint");
 
                             const auto col = ImVec4{100.0f / 255.0f, 149.0f / 255.0f, 237.0f / 255.0f, 255 / 255.0f};
 
-                            if (collider.joint != nullptr) {
+                            if (collider.joint() != nullptr) {
                                 ImGui::SameLine();
-                                ImGui::TextColored(col, "%s", sdk::get_joint_name((::REJoint*)collider.joint).c_str());
+                                ImGui::TextColored(col, "%s", sdk::get_joint_name((::REJoint*)collider.joint()).c_str());
                             }
 
                             if (made_joint_node) {
-                                ObjectExplorer::get()->handle_address(collider.joint);
+                                ObjectExplorer::get()->handle_address(collider.joint());
                                 ImGui::TreePop();
                             }
 
-                            made_joint_node = ImGui::TreeNode(&collider.pair_joint, "Pair Joint");
+                            made_joint_node = ImGui::TreeNode((void*)(collider.addr + 0x108), "Pair Joint");
 
-                            if (collider.pair_joint != nullptr) {
+                            if (collider.pair_joint() != nullptr) {
                                 ImGui::SameLine();
-                                ImGui::TextColored(col, "%s", sdk::get_joint_name((::REJoint*)collider.pair_joint).c_str());
+                                ImGui::TextColored(col, "%s", sdk::get_joint_name((::REJoint*)collider.pair_joint()).c_str());
                             }
 
                             if (made_joint_node) {
-                                ObjectExplorer::get()->handle_address(collider.pair_joint);
+                                ObjectExplorer::get()->handle_address(collider.pair_joint());
                                 ImGui::TreePop();
                             }
 
-                            ImGui::DragFloat("Radius", (float*)&collider.radius, 0.01f, 0.0f, 0.0f);
-                            ImGui::DragInt("Flags", (int*)&collider.flags, 1, 0, 0);
+                            ImGui::DragFloat("Radius", &collider.radius(), 0.01f, 0.0f, 0.0f);
+                            ImGui::DragInt("Flags", (int*)&collider.flags(), 1, 0, 0);
 
-                            ImGui::DragFloat3("Offset", (float*)&collider.offset, 0.01f, 0.0f, 0.0f);
-                            ImGui::DragFloat3("Pair Offset", (float*)&collider.pair_offset, 0.01f, 0.0f, 0.0f);
+                            ImGui::DragFloat3("Offset", (float*)&collider.offset(), 0.01f, 0.0f, 0.0f);
+                            ImGui::DragFloat3("Pair Offset", (float*)&collider.pair_offset(), 0.01f, 0.0f, 0.0f);
                             ImGui::TreePop();
                         }
 
                         ImGui::PopID();
                     }
-            #if TDB_VER >= 69 && !defined(MHRISE_CHAIN70)
                 }
-            #endif
             }
         }
 
@@ -517,7 +543,7 @@ void ChainViewer::on_frame() {
                     continue;
                 }
 
-                const auto transform = owner->transform;
+                const auto transform = owner->get_transform();
 
                 if (transform == nullptr) {
                     continue;

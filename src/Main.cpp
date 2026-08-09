@@ -7,6 +7,7 @@
 #include <utility/Module.hpp>
 #include <utility/Thread.hpp>
 
+#include <sdk/GameIdentity.hpp>
 #include <safetyhook/allocator.hpp>
 
 // minhook, used for AllocateBuffer
@@ -19,6 +20,7 @@ extern "C" {
 #include "REFramework.hpp"
 
 HMODULE g_dinput = 0;
+decltype(DirectInput8Create)* g_original_dinput8_create = nullptr;
 std::mutex g_load_mutex{};
 extern bool g_success_made_ldr_notification;
 
@@ -42,6 +44,9 @@ bool load_dinput8() {
             return false;
         }
 
+        // Cache the original proc address immediately before any overlay (e.g. EOS) can hook it
+        g_original_dinput8_create = (decltype(DirectInput8Create)*)GetProcAddress(g_dinput, "DirectInput8Create");
+
         return true;
     }
 
@@ -57,8 +62,21 @@ __declspec(dllexport) HRESULT WINAPI
 // It is a redefinition, so we assign an export by not using the original name
 #pragma comment(linker, "/EXPORT:DirectInput8Create=direct_input8_create")
 
+    // Reentrancy guard: overlays like EOS hook DirectInput8Create in the system DLL,
+    // and their hook calls back into our export, causing infinite recursion / stack overflow.
+    // On re-entry, call the real system function directly so the chain still completes.
+    static thread_local bool s_in_call = false;
+
     load_dinput8();
-    return ((decltype(DirectInput8Create)*)GetProcAddress(g_dinput, "DirectInput8Create"))(hinst, dw_version, riidltf, ppv_out, punk_outer);
+
+    if (s_in_call) {
+        return g_original_dinput8_create(hinst, dw_version, riidltf, ppv_out, punk_outer);
+    }
+
+    s_in_call = true;
+    auto result = g_original_dinput8_create(hinst, dw_version, riidltf, ppv_out, punk_outer);
+    s_in_call = false;
+    return result;
 }
 }
 
@@ -74,23 +92,27 @@ void startup_thread(HMODULE reframework_module) {
     freopen("CONOUT$", "w", stderr);
 #endif
 
+    // GameIdentity::initialize() already called from DllMain (before integrity hooks).
+    // The call is idempotent, but the authoritative init is the DllMain one.
+
     if (load_dinput8()) {
         g_framework = std::make_unique<REFramework>(reframework_module);
 
         const auto our_dll = utility::get_module_within(&load_dinput8);
+        const auto& gi = sdk::GameIdentity::get();
 
-#if defined(MHRISE)
-        if (our_dll) {
+        if (gi.is_mhrise()) {
+            if (our_dll) {
+                if (!g_success_made_ldr_notification) {
+                    utility::spoof_module_paths_in_exe_dir();
+                }
+                utility::unlink(*our_dll);
+            }
+        } else if (gi.is_dd2() || gi.tdb_ver() >= 74) {
             if (!g_success_made_ldr_notification) {
                 utility::spoof_module_paths_in_exe_dir();
             }
-            utility::unlink(*our_dll);
         }
-#elif defined (DD2) || TDB_VER >= 74
-        if (!g_success_made_ldr_notification) {
-            utility::spoof_module_paths_in_exe_dir();
-        }
-#endif
     }
 }
 
@@ -114,6 +136,11 @@ BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
         }
 
         AllocateBuffer((LPVOID)halfway_module); // minhook
+
+        // GameIdentity must be initialized before the integrity hooks below,
+        // because hook_add_vectored_exception_handler gates on tdb_ver() >= 73.
+        // Safe under loader lock: detection is just GetModuleFileNameW.
+        sdk::GameIdentity::initialize();
 
         IntegrityCheckBypass::setup_pristine_syscall();
         IntegrityCheckBypass::hook_add_vectored_exception_handler();

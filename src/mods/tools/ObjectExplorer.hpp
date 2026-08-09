@@ -57,8 +57,12 @@ struct ParsedParams {
 struct ParsedMethod {
     std::shared_ptr<ParsedType> owner{};
     sdk::REMethodDefinition* m{};
+#ifdef REFRAMEWORK_UNIVERSAL
+    sdk::REMethodImpl* m_impl{};
+#else
 #if TDB_VER >= 69
     sdk::REMethodImpl* m_impl{};
+#endif
 #endif
     const char* name{};
 
@@ -70,8 +74,12 @@ struct ParsedField {
     std::shared_ptr<ParsedType> owner{};
     std::shared_ptr<ParsedType> type{};
     sdk::REField* f{};
+#ifdef REFRAMEWORK_UNIVERSAL
+    sdk::REFieldImpl* f_impl{};
+#else
 #if TDB_VER >= 69
     sdk::REFieldImpl* f_impl{};
+#endif
 #endif
     const char* name{};
     uint32_t offset_from_fieldptr{};
@@ -85,8 +93,12 @@ struct ParsedProperty {
 
     sdk::REProperty* p{};
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    sdk::REPropertyImpl* p_impl{};
+#else
 #if TDB_VER >= 69
     sdk::REPropertyImpl* p_impl{};
+#endif
 #endif
     const char* name{};
 };
@@ -106,10 +118,16 @@ struct ParsedType {
     std::vector<sdk::REField*> fields{};
     std::vector<sdk::REProperty*> props{};
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    std::vector<sdk::REMethodImpl*> method_impls{};
+    std::vector<sdk::REPropertyImpl> prop_impls{};
+    std::vector<sdk::REFieldImpl*> field_impls{};
+#else
 #if TDB_VER >= 69
     std::vector<sdk::REMethodImpl*> method_impls{};
     std::vector<sdk::REPropertyImpl> prop_impls{};
     std::vector<sdk::REFieldImpl*> field_impls{};
+#endif
 #endif
 
     std::vector<std::shared_ptr<ParsedField>> parsed_fields;
@@ -172,6 +190,7 @@ private:
     void context_menu(void* address, std::optional<std::string> name = std::nullopt, std::optional<std::function<void()>> additional_context = std::nullopt);
     void hook_method(sdk::REMethodDefinition* method, std::optional<std::string> name);
     void hook_all_methods(sdk::RETypeDefinition* type);
+    void unhook_all_methods(sdk::RETypeDefinition* type);
     void method_context_menu(sdk::REMethodDefinition* method, std::optional<std::string> name, ::REManagedObject* obj = nullptr);
     void make_same_line_text(std::string_view text, const ImVec4& color);
 
@@ -255,9 +274,23 @@ private:
             "Number of Threads Called From"
         };
 
+        enum class AutoUnhookMethod : uint8_t {
+            NONE,
+            EXCEED_CALL_COUNT
+        };
+
+        static inline constexpr std::array<const char*, 2> s_auto_unhook_method_names {
+            "None",
+            "Exceed Call Count"
+        };
+
         std::recursive_mutex mtx{};
         bool hide_uncalled_methods{false};
         SortMethod sort_method{SortMethod::NONE};
+
+        bool enable_auto_unhook{false};
+        AutoUnhookMethod auto_unhook_method{AutoUnhookMethod::NONE};
+        uint32_t auto_unhook_call_count_threshold{10000};
     } m_hooks_context{};
 
     std::recursive_mutex m_job_mutex{};

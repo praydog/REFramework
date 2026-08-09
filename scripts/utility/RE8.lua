@@ -204,15 +204,14 @@ if is_re7 then
     sdk.hook(terminate_method, on_pre_task_terminate, on_post_task_terminate)
 end
 
-local postural_camera_motion_args = nil
+local postural_camera_motion_self = nil
 
 local function on_pre_update_postural_camera_motion(args)
-    postural_camera_motion_args = args
+    postural_camera_motion_self = args[2]
 end
 
 local function on_post_update_postural_camera_motion(retval)
-    local args = postural_camera_motion_args
-    local controller = sdk.to_managed_object(args[2])
+    local controller = sdk.to_managed_object(postural_camera_motion_self)
 
     if is_re7 then
         local game_object = controller:call("get_GameObject")
@@ -265,15 +264,14 @@ if is_re7 then
     end
 end
 
-local player_movement_args = nil
+local player_movement_self = nil
 
 local function on_pre_player_movement_late_update(args)
-    player_movement_args = args
+    player_movement_self = args[2]
 end
 
 local function re7_on_post_player_movement_late_update(retval)
-    local args = player_movement_args
-    local movement = sdk.to_managed_object(args[2])
+    local movement = sdk.to_managed_object(player_movement_self)
 
     re8vr.movement_speed_rate = movement:get_field("_SpeedRate")
     re8.movement_speed_vector = movement:get_field("_MoveSpeedVector")
@@ -282,8 +280,7 @@ local function re7_on_post_player_movement_late_update(retval)
 end
 
 local function re8_on_post_player_movement_late_update(retval)
-    local args = player_movement_args
-    local movement = sdk.to_managed_object(args[2])
+    local movement = sdk.to_managed_object(player_movement_self)
 
     re8vr.movement_speed_rate = movement:get_field("SpeedRate")
     re8.movement_speed_vector = movement:get_field("MoveSpeedVector")

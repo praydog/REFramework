@@ -35,7 +35,7 @@ namespace utility::re_array {
 
         const auto element_size = utility::re_array::get_element_size(container);
 
-        auto data = Address{ (uintptr_t)((REArrayBase*)utility::re_managed_object::get_field_ptr(container) + 1) - sizeof(REManagedObject) };
+        auto data = Address{ (uintptr_t)((REArrayBase*)container->get_field_ptr() + 1) - REManagedObject::runtime_size() };
         return data.get(element_size * idx).as<T*>();
     }
 
@@ -45,7 +45,7 @@ namespace utility::re_array {
             return nullptr;
         }
 
-        auto data = (T**)((uintptr_t)((REArrayBase*)utility::re_managed_object::get_field_ptr(container) + 1) - sizeof(REManagedObject));
+        auto data = (T**)((uintptr_t)((REArrayBase*)container->get_field_ptr() + 1) - REManagedObject::runtime_size());
         return data[idx];
     }
 

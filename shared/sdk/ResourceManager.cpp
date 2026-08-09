@@ -7,6 +7,7 @@
 
 #include "RETypeDB.hpp"
 #include "ResourceManager.hpp"
+#include "GameIdentity.hpp"
 
 namespace sdk {
 // static definitions
@@ -57,7 +58,7 @@ REManagedObject* Resource::create_holder(sdk::RETypeDefinition* t) {
     }
 
     this->add_ref();
-    *(sdk::Resource**)((uintptr_t)instance + sizeof(::REManagedObject)) = this;
+    *(sdk::Resource**)((uintptr_t)instance + REManagedObject::runtime_size()) = this;
 
     return instance;
 }
@@ -118,73 +119,134 @@ void ResourceManager::update_pointers() {
         auto ip = *string_reference - 3;
         bool found = false;
 
-        for (auto i = 0; i < 10; ++i) {
-            hde64s hde{};
-            auto len = hde64_disasm((void*)ip, &hde);
-
-            if (hde.opcode == 0xE8) { // call
-                found = true;
-                break;
+        // Use exhaustive_decode. We need to follow control flow.
+        // newer games have been seen to have a hard jmp right after the string reference.
+        utility::exhaustive_decode((uint8_t*)ip, 100, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+            if (found) {
+                return utility::ExhaustionResult::BREAK;
             }
 
-            ip += len;
-        }
+            if (ctx.instrux.Category == ND_CAT_CALL) {
+                if (*(uint8_t*)ctx.addr == 0xE8) {
+                    spdlog::info("[ResourceManager::create_resource] Found function at {:x}", ctx.addr);
+                    s_create_resource_fn = (decltype(s_create_resource_fn))utility::calculate_absolute(ctx.addr + 1);
+                    s_create_resource_reference = ctx.addr;
+                    found = true;
+                    return utility::ExhaustionResult::BREAK;
+                }
+
+                return utility::ExhaustionResult::STEP_OVER;
+            }
+
+            return utility::ExhaustionResult::CONTINUE;
+        });
 
         if (found) {
-            s_create_resource_fn = (decltype(s_create_resource_fn))utility::calculate_absolute(ip + 1);
-            s_create_resource_reference = ip;
             Resource::update_pointers();
             spdlog::info("[ResourceManager::create_resource] Found function at {:x}", (uintptr_t)s_create_resource_fn);
             
             // now find create_userdata, using the previous function as a reference to ignore
             // since they both have the same pattern at the start of the function
-            const auto valid_patterns = {
-#if TDB_VER < 73
-                "66 83 F8 40 75 ? C6",
-                "66 83 F8 40 75 ? 48",
-#endif
-                "66 41 83 39 40" // DD2+
-            };
-
-            bool found = false;
-            bool exception_directory_maybe_removed = false;
-
-            for (const auto& pat : valid_patterns) {
-                for (auto ref = utility::scan(mod, pat); ref.has_value(); ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, pat)) {
-                    auto func = utility::find_function_start_with_call(*ref);
-
-                    if (func && *func != (uintptr_t)s_create_resource_fn) {
-                        if (std::abs((ptrdiff_t)(*func - (uintptr_t)s_create_resource_fn)) < 0x50) {
-                            spdlog::info("Exception directory may have been removed, falling back to int3 scan");
-                            exception_directory_maybe_removed = true;
-                            continue;
+            {
+                const auto tdb_ver = sdk::GameIdentity::get().tdb_ver();
+                bool found = false;
+                if (tdb_ver < 81) {
+                    auto valid_patterns = tdb_ver < 73
+                        ? std::initializer_list<const char*>{
+                            "66 83 F8 40 75 ? C6",
+                            "66 83 F8 40 75 ? 48",
+                            "66 41 83 39 40" // DD2+
                         }
+                        : std::initializer_list<const char*>{
+                            "66 41 83 39 40" // DD2+
+                        };
 
-                        if (exception_directory_maybe_removed) {
-                            func = utility::scan_reverse(*func, 0x100, "CC CC CC");
+                    bool exception_directory_maybe_removed = false;
 
-                            if (func) {
-                                *func += 3;
-                            } else {
-                                func = utility::scan_reverse(*ref, 0x100, "4C 89 4C");
+                    for (const auto& pat : valid_patterns) {
+                        for (auto ref = utility::scan(mod, pat); ref.has_value(); ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, pat)) {
+                            auto func = utility::find_function_start_with_call(*ref);
+
+                            if (func && *func != (uintptr_t)s_create_resource_fn) {
+                                if (std::abs((ptrdiff_t)(*func - (uintptr_t)s_create_resource_fn)) < 0x50) {
+                                    spdlog::info("Exception directory may have been removed, falling back to int3 scan");
+                                    exception_directory_maybe_removed = true;
+                                    continue;
+                                }
+
+                                if (exception_directory_maybe_removed) {
+                                    func = utility::scan_reverse(*func, 0x100, "CC CC CC");
+
+                                    if (func) {
+                                        *func += 3;
+                                    } else {
+                                        func = utility::scan_reverse(*ref, 0x100, "4C 89 4C");
+                                    }
+                                }
+
+                                found = true;
+                                s_create_userdata_fn = (decltype(s_create_userdata_fn))*func;
+                                break;
                             }
                         }
 
-                        found = true;
-                        s_create_userdata_fn = (decltype(s_create_userdata_fn))*func;
-                        break;
+                        if (found) {
+                            break;
+                        }
                     }
+                } else {
+                    // Heuristic invariant fallback using ABI guarantees.
+                    // Look for test r9, r9, followed by a conditional jump.
+                    // Shortly after that will be another conditional jmp, comparing the deref of r9.
+                    // Then look ~60 bytes ahead for a cmp * 0x40, word size.
+                    spdlog::info("[ResourceManager::create_userdata] Finding function via heuristic invariant search...");
+                    for (auto ref = utility::scan(mod, "4D 85 C9 0F 84 ? ? ? ?");
+                        ref.has_value();
+                        ref = utility::scan(*ref + 1, (mod_end - (*ref + 1)) - 100, "4D 85 C9 0F 84 ? ? ? ?"))
+                    {
+                        if (s_create_userdata_fn != nullptr) {
+                            break;
+                        }
+
+                        utility::linear_decode((uint8_t*)(*ref), 40, [&](utility::ExhaustionContext& ctx) -> bool {
+                            if (s_create_userdata_fn != nullptr) {
+                                return false;
+                            }
+
+                            if (!std::string_view(ctx.instrux.Mnemonic).starts_with("CMP")) {
+                                return true;
+                            }
+
+                            if (ctx.instrux.HasImm1 && (ctx.instrux.Immediate1 & 0xFFFFFFFF) == 0x40) {
+                                spdlog::info("[ResourceManager::create_userdata] Found candidate reference at {:x}", *ref);
+
+                                auto cond_jmp = utility::scan_disasm(*ref + 9, 30, "0F 84 ? ? ? ?");
+
+                                if (!cond_jmp || *cond_jmp >= ctx.addr) {
+                                    spdlog::info("[ResourceManager::create_userdata] Failed to find expected conditional jump, skipping reference at {:x}", *ref);
+                                    return true;
+                                }
+
+                                s_create_userdata_fn = (decltype(s_create_userdata_fn))utility::find_function_start_with_call(*ref).value_or(0);
+
+                                if (s_create_userdata_fn != nullptr) {
+                                    spdlog::info("[ResourceManager::create_userdata] Found via heuristic invariant search at {:x}", (uintptr_t)s_create_userdata_fn);
+                                    return false;
+                                }
+                            }
+
+                            return true;
+                        });
+                    }
+
+                    found = s_create_userdata_fn != nullptr;
                 }
 
                 if (found) {
-                    break;
+                    spdlog::info("[ResourceManager::create_userdata] Found function at {:x}", (uintptr_t)s_create_userdata_fn);
+                } else {
+                    spdlog::error("[ResourceManager::create_userdata] Failed to find function!");
                 }
-            }
-
-            if (found) {
-                spdlog::info("[ResourceManager::create_userdata] Found function at {:x}", (uintptr_t)s_create_userdata_fn);
-            } else {
-                spdlog::error("[ResourceManager::create_userdata] Failed to find function!");
             }
         } else {
             spdlog::error("[ResourceManager::create_resource] Failed to find function!");

@@ -12,6 +12,7 @@
 #include <dxgi.h>
 #include <wrl.h>
 
+#include "sdk/GameIdentity.hpp"
 #include "utility/Patch.hpp"
 #include "sdk/Math.hpp"
 #include "sdk/helpers/NativeObject.hpp"
@@ -514,19 +515,27 @@ private:
     const ModToggle::Ptr m_force_lensflares_settings{ ModToggle::create(generate_name("ForceLensFlares"), true) };
     const ModToggle::Ptr m_force_dynamic_shadows_settings{ ModToggle::create(generate_name("ForceDynamicShadows"), true) };
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    const ModToggle::Ptr m_allow_engine_overlays{ ModToggle::create(generate_name("AllowEngineOverlays_V2"), sdk::GameIdentity::get().tdb_ver() < 73) };
+#else
 #if TDB_VER < 73
     const ModToggle::Ptr m_allow_engine_overlays{ ModToggle::create(generate_name("AllowEngineOverlays_V2"), true) };
 #else
     const ModToggle::Ptr m_allow_engine_overlays{ ModToggle::create(generate_name("AllowEngineOverlays_V2"), false) };
 #endif
+#endif
 
     const ModToggle::Ptr m_desktop_fix{ ModToggle::create(generate_name("DesktopRecordingFix"), true) };
     const ModToggle::Ptr m_desktop_fix_skip_present{ ModToggle::create(generate_name("DesktopRecordingFixSkipPresent"), true) };
 
+#ifdef REFRAMEWORK_UNIVERSAL
+    const ModToggle::Ptr m_enable_asynchronous_rendering{ ModToggle::create(generate_name("AsyncRendering_V3"), sdk::GameIdentity::get().tdb_ver() < 73) };
+#else
 #if TDB_VER >= 73
     const ModToggle::Ptr m_enable_asynchronous_rendering{ ModToggle::create(generate_name("AsyncRendering_V3"), false) };
 #else
     const ModToggle::Ptr m_enable_asynchronous_rendering{ ModToggle::create(generate_name("AsyncRendering_V3"), true) };
+#endif
 #endif
 
     bool m_disable_projection_matrix_override{ false };

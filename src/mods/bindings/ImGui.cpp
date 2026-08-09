@@ -1468,7 +1468,7 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
         return std::nullopt;
     }
 
-    static auto transform_def = utility::re_managed_object::get_type_definition(first_transform);
+    static auto transform_def = first_transform->get_type_definition();
     static auto next_transform_method = transform_def->get_method("get_Next");
     static auto get_gameobject_method = transform_def->get_method("get_GameObject");
     static auto get_position_method = transform_def->get_method("get_Position");
@@ -1488,7 +1488,7 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     }
 
     auto camera_gameobject = get_gameobject_method->call<REGameObject*>(context, camera);
-    auto camera_transform = camera_gameobject->transform;
+    auto camera_transform = camera_gameobject->get_transform();
 
     Vector4f camera_origin{};
     get_position_method->call<void*>(&camera_origin, context, camera_transform);

@@ -476,7 +476,6 @@ end
 
 -- RE8 only.
 local function on_pre_hid_padman_update(args)
-    last_padman_args = args
 
     local padman = sdk.to_managed_object(args[2])
 
@@ -493,7 +492,6 @@ local function on_pre_hid_padman_update(args)
 end
 
 local function on_post_hid_padman_update(retval)
-    local args = last_padman_args
 
     return retval
 end
@@ -727,20 +725,20 @@ local function on_post_throwable_late_update(retval)
     return retval
 end
 
-local bomb_args = nil
+local bomb_self = nil
 
 local function on_pre_bomb_activate_throwable(args)
     if not inside_throw then return end
 
-    bomb_args = args
+    bomb_self = args[2]
 end
 
 local function on_post_bomb_activate_throwable(retval)
-    if not inside_throw or bomb_args == nil then
+    if not inside_throw or bomb_self == nil then
         return retval
     end
 
-    local bomb = sdk.to_managed_object(bomb_args[2])
+    local bomb = sdk.to_managed_object(bomb_self)
     local physics_rigid_body = bomb:get_field("<rigidBodySet>k__BackingField")
 
     if physics_rigid_body == nil then
@@ -769,7 +767,7 @@ local function on_post_bomb_activate_throwable(retval)
     rigid_body:call("setLinearVelocity", 0, right_velocity)
     rigid_body:call("setAngularVelocity", 0, rotation * right_angular_velocity)
 
-    bomb_args = nil
+    bomb_self = nil
     threw_bomb = true
 
     return retval
@@ -957,7 +955,7 @@ local function update_crosshair_world_pos(start_pos, end_pos)
     end
 end
 
-local last_camera_update_args = nil
+local last_camera_update_self = nil
 local last_cutscene_state = false
 local last_time_not_maximum_controllable = 0.0
 local GUI_MAX_SLERP_TIME = 1.5
@@ -1363,7 +1361,7 @@ if is_re8 then
 end
 
 local function on_pre_player_camera_update(args)
-    last_camera_update_args = args
+    last_camera_update_self = args[2]
 
     if not vrmod:is_hmd_active() then
         return
@@ -1386,9 +1384,8 @@ local function on_pre_player_camera_update(args)
 end
 
 local function on_post_player_camera_update(retval)
-    local args = last_camera_update_args
 
-    local player_camera = sdk.to_managed_object(args[2])
+    local player_camera = sdk.to_managed_object(last_camera_update_self)
     fix_player_camera(player_camera)
 
     return retval
@@ -1460,10 +1457,9 @@ sdk.hook(
             return retval
         end
 
-        local args = last_camera_update_args
-        if args == nil then return retval end
+        if last_camera_update_self == nil then return retval end
 
-        local player_camera = sdk.to_managed_object(args[2])
+        local player_camera = sdk.to_managed_object(last_camera_update_self)
 
         local zero_quat = Quaternion.new(1, 0, 0, 0)
         local zero_vec = Vector3f.new(0, 0, 0)
@@ -1491,8 +1487,8 @@ local function on_pre_upper_vertical_update(args)
 
     --[[local upper_vertical = sdk.to_managed_object(args[2])
 
-    if not last_camera_update_args then return end
-    local player_camera = sdk.to_managed_object(last_camera_update_args[2])
+    if not last_camera_update_self then return end
+    local player_camera = sdk.to_managed_object(last_camera_update_self)
 
     local camera_rot = player_camera:get_field("<CameraRotation>k__BackingField")
     local camera_pos = player_camera:get_field("<CameraPosition>k__BackingField")
@@ -1787,17 +1783,17 @@ local function melee_attack(hit_controller)
     end
 end
 
-local hit_controller_args = nil
+local hit_controller_self = nil
 
 local function on_pre_hit_controller_update(args)
-    hit_controller_args = args
+    hit_controller_self = args[2]
 end
 
 local function on_post_hit_controller_update(args)
     if not vrmod:is_hmd_active() or not vrmod:is_using_controllers() then return end
     if re8vr.is_in_cutscene or not re8vr.can_use_hands then return end
 
-    local hit_controller = sdk.to_managed_object(hit_controller_args[2])
+    local hit_controller = sdk.to_managed_object(hit_controller_self)
 
     melee_attack(hit_controller)
 end

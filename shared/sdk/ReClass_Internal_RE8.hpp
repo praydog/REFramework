@@ -1,3 +1,14 @@
+// Guarded struct types extracted to shared/sdk/types/ headers.
+// These are included first so the rest of this file can reference them.
+#include "types/REObject.hpp"
+#include "types/REType.hpp"
+#include "types/REManagedObject.hpp"
+#include "types/REComponent.hpp"
+#include "types/REGameObject.hpp"
+#include "types/REReflection.hpp"
+#include "types/REObjectInfo.hpp"
+#include "types/REClassInfo.hpp"
+
 // Created with ReClass.NET 1.2 by KN4CK3R
 
 class N0000000A
@@ -122,192 +133,34 @@ public:
 }; //Size: 0x0008
 static_assert(sizeof(CameraTypePtr) == 0x8);
 
-class REType
-{
-public:
-	void *N000003B4; //0x0000
-	uint32_t classIndex; //0x0008
-	int16_t flags; //0x000C < 0 == NoneType, 1 == abstract, 2 == concrete, 256 == interface, 16384 == root
-	char pad_000E[2]; //0x000E
-	uint64_t fastClassIndex; //0x0010
-	uint32_t typeIndexProbably; //0x0018
-	char pad_001C[4]; //0x001C
-	char *name; //0x0020
-	char pad_0028[4]; //0x0028
-	uint32_t size; //0x002C
-	uint32_t typeCRC; //0x0030
-	uint32_t miscFlags; //0x0034
-	class REType *super; //0x0038
-	class REType *childType; //0x0040
-	class REType *chainType; //0x0048
-	class REFieldList *fields; //0x0050
-	class REClassInfo *classInfo; //0x0058 is a managed type if this is not null
-}; //Size: 0x0060
-static_assert(sizeof(REType) == 0x60);
+// REType — extracted to types/REType.hpp
 
-class N000003DE
-{
-public:
-	char pad_0000[8]; //0x0000
-	class N000008E5 *N000003E0; //0x0008
-	char pad_0010[312]; //0x0010
-}; //Size: 0x0148
-static_assert(sizeof(N000003DE) == 0x148);
+// N000003DE — kept as-is (not a guarded type)
 
-class REObject
-{
-public:
-	class REObjectInfo *info; //0x0000
-}; //Size: 0x0008
-static_assert(sizeof(REObject) == 0x8);
+// REObject — extracted to types/REObject.hpp
 
-class REManagedObject : public REObject
-{
-public:
-	uint32_t referenceCount; //0x0008
-	int16_t N000071AE; //0x000C
-	char pad_000E[2]; //0x000E
-}; //Size: 0x0010
-static_assert(sizeof(REManagedObject) == 0x10);
+// REManagedObject — extracted to types/REManagedObject.hpp
 
-class REComponent : public REManagedObject
-{
-public:
-	class REGameObject *ownerGameObject; //0x0010
-	class REComponent *childComponent; //0x0018
-	class REComponent *prevComponent; //0x0020
-	class REComponent *nextComponent; //0x0028
-}; //Size: 0x0030
-static_assert(sizeof(REComponent) == 0x30);
+// REComponent + RECamera — extracted to types/REComponent.hpp
 
-class RECamera : public REComponent
-{
-public:
-	float nearClipPlane; //0x0030
-	float farClipPlane; //0x0034
-	float fov; //0x0038
-	float lookAtDistance; //0x003C
-	bool verticalEnable; //0x0040
-	char pad_0041[3]; //0x0041
-	float aspectRatio; //0x0044
-	int32_t N00000451; //0x0048
-	char pad_004C[4]; //0x004C
-	int32_t cameraType; //0x0050
-	char pad_0054[12]; //0x0054
-	wchar_t *cameraName; //0x0060
-	uint32_t N00000455; //0x0068
-	char pad_006C[32]; //0x006C
-	float N00000D40; //0x008C
-	float N0000045A; //0x0090
-	float N00000D43; //0x0094
-	float N0000045B; //0x0098
-	char pad_009C[252]; //0x009C
-}; //Size: 0x0198
-static_assert(sizeof(RECamera) == 0x198);
+// REGameObject — extracted to types/REGameObject.hpp
 
-class REGameObject : public REManagedObject
-{
-public:
-	char pad_0010[2]; //0x0010
-	bool shouldUpdate; //0x0012
-	bool shouldDraw; //0x0013
-	bool shouldUpdateSelf; //0x0014
-	bool shouldDrawSelf; //0x0015
-	bool shouldSelect; //0x0016
-	char pad_0017[1]; //0x0017
-	class RETransform *transform; //0x0018
-	class REFolder *folder; //0x0020
-	class SystemString *name; //0x0028 This can either be a pointer to the name or embedded directly
-	uint32_t N00000DDA; //0x0030
-	float timescale; //0x0034
-	char pad_0038[16]; //0x0038
-}; //Size: 0x0048
-static_assert(sizeof(REGameObject) == 0x48);
+// REFieldList, FunctionHolder, FunctionDescriptor — extracted to types/REReflection.hpp
 
-class REFieldList
-{
-public:
-	uint32_t unknown; //0x0000
-	char pad_0004[4]; //0x0004
-	class REFieldList *next; //0x0008
-	class FunctionHolder **(*methods)[4000]; //0x0010
-	int32_t num; //0x0018
-	int32_t maxItems; //0x001C
-	class REVariableList *variables; //0x0020
-	void* deserializer; //0x0028
-	uint32_t N00000730; //0x0030
-}; //Size: 0x0034
-static_assert(sizeof(REFieldList) == 0x34);
-
-class N0000074B
-{
+// N0000074B, N00000756 — internal ReClass types, kept as-is.
+class N0000074B {
 public:
 	class FunctionHolder **N0000074C[2048]; //0x0000
 }; //Size: 0x4000
 static_assert(sizeof(N0000074B) == 0x4000);
 
-class N00000756
-{
+class N00000756 {
 public:
 	class FunctionHolder *func; //0x0000
 }; //Size: 0x0008
 static_assert(sizeof(N00000756) == 0x8);
 
-class FunctionHolder
-{
-public:
-	class FunctionDescriptor *descriptor; //0x0000
-	char pad_0008[24]; //0x0008
-}; //Size: 0x0020
-static_assert(sizeof(FunctionHolder) == 0x20);
-
-class FunctionDescriptor
-{
-public:
-	char *name; //0x0000
-	class MethodParamInfo (*params)[256]; //0x0008
-	char pad_0010[4]; //0x0010
-	int32_t numParams; //0x0014
-	void* functionPtr; //0x0018
-	uint32_t returnTypeFlag; //0x0020 AND 1F = via::reflection::TypeKind
-	uint32_t typeIndex; //0x0024
-	char *returnTypeName; //0x0028
-	char pad_0030[8]; //0x0030
-}; //Size: 0x0038
-static_assert(sizeof(FunctionDescriptor) == 0x38);
-
-class REJointArray
-{
-public:
-	class REArrayBase *data; //0x0000
-	class JointMatrices *matrices; //0x0008
-	char pad_0010[256]; //0x0010
-}; //Size: 0x0110
-static_assert(sizeof(REJointArray) == 0x110);
-
-class RETransform : public REComponent
-{
-public:
-	Vector4f position; //0x0030
-	Vector4f angles; //0x0040
-	Vector4f scale; //0x0050
-	class REScene *scene; //0x0060
-	class RETransform *child; //0x0068
-	class RETransform *next; //0x0070
-	class RETransform *parentTransform; //0x0078
-	Matrix4x4f worldTransform; //0x0080
-	class N00007EEE *N000007D8; //0x00C0
-	int32_t N00000804; //0x00C8
-	uint32_t tickCount; //0x00CC
-	bool sameJointsConstraint; //0x00D0
-	bool N0000081A; //0x00D1
-	char pad_00D2[1]; //0x00D2
-	bool absoluteScaling; //0x00D3
-	char pad_00D4[4]; //0x00D4
-	class REJointArray joints; //0x00D8
-	char pad_01E8[8]; //0x01E8
-}; //Size: 0x01F0
-static_assert(sizeof(RETransform) == 0x1F0);
+#include "types/RETransform.hpp"
 
 class N0000B6D9
 {
@@ -374,58 +227,7 @@ public:
 }; //Size: 0x0048
 static_assert(sizeof(N00000965) == 0x48);
 
-class REObjectInfo
-{
-public:
-	class REClassInfo *classInfo; //0x0000
-	void* validator; //0x0008
-	void* N0000246A; //0x0010
-	void* getType; //0x0018
-	void* toString; //0x0020
-	void* copy; //0x0028
-	void* N00000995; //0x0030
-	void* N00000996; //0x0038
-	void* N00000997; //0x0040
-	void* N00000998; //0x0048
-	void* N00000999; //0x0050
-	void* getSize; //0x0058
-	void* N0000099B; //0x0060
-	void* N0000099C; //0x0068
-	void* N0000246C; //0x0070
-	void* N0000246D; //0x0078
-	void* N0000246E; //0x0080
-	void* N0000246F; //0x0088
-	void* N00002470; //0x0090
-	void* N00002471; //0x0098
-	void* N00002472; //0x00A0
-	void* N00002473; //0x00A8
-}; //Size: 0x00B0
-static_assert(sizeof(REObjectInfo) == 0xB0);
 
-class REClassInfo
-{
-public:
-	uint16_t typeIndex; //0x0000 index into global type array
-	char pad_0002[5]; //0x0002
-	uint8_t objectFlags; //0x0007 flags >> 5 ==  1 == normal type ? ??
-	uint32_t _; //0x0008
-	uint32_t elementBitField; //0x000C >> 4 is the value type index (RETypeImpl)
-	uint32_t typeFlags; //0x0010 System::Reflection::TypeAttributes or via::clr::TypeFlag
-	uint32_t size; //0x0014
-	uint32_t fqnHash; //0x0018
-	uint32_t typeCRC; //0x001C
-	uint32_t defaultCtor; //0x0020
-	uint32_t vt; //0x0024 vtable byte pool
-	uint32_t memberMethod; //0x0028
-	uint32_t memberField; //0x002C
-	uint32_t memberProp; //0x0030
-	uint32_t memberEvent; //0x0034
-	int32_t interfaces; //0x0038
-	int32_t generics; //0x003C byte pool
-	class RETypeCLR *type; //0x0040
-	class REObjectInfo *parentInfo; //0x0048
-}; //Size: 0x0050
-static_assert(sizeof(REClassInfo) == 0x50);
 
 class N00000CF1
 {
@@ -1080,6 +882,7 @@ static_assert(sizeof(ObjectPointer) == 0x98);
 class REVariableList
 {
 public:
+	int32_t get_num() const { return num; }
 	char pad_0000[8]; //0x0000
 	class N0000ADA4 *data; //0x0008
 	int32_t num; //0x0010
@@ -1094,29 +897,7 @@ public:
 }; //Size: 0x0800
 static_assert(sizeof(N0000ADA4) == 0x800);
 
-class VariableDescriptor
-{
-public:
-	char *name; //0x0000
-	uint32_t nameHash; //0x0008
-	uint16_t flags1; //0x000C
-	uint16_t N00008140; //0x000E
-	void* function; //0x0010
-	int32_t flags; //0x0018 (flags AND 0x1F) gives var type (via::clr::reflection::TypeKind)
-	uint32_t typeFqn; //0x001C
-	char *typeName; //0x0020
-	int32_t getter; //0x0028
-	union //0x002C 1 == pointer? 3 == builtin?
-	{
-		uint32_t variableType; //0x0000
-		uint32_t destructor; //0x0000
-	};
-	class StaticVariableDescriptor *staticVariableData; //0x0030
-	int32_t setter; //0x0038
-	int32_t attributes; //0x003C
-	char pad_0040[8]; //0x0040
-}; //Size: 0x0048
-static_assert(sizeof(VariableDescriptor) == 0x48);
+// VariableDescriptor — extracted to types/REReflection.hpp
 
 class N0000B627
 {
@@ -1303,12 +1084,14 @@ public:
 }; //Size: 0x0008
 static_assert(sizeof(TypeListArrayPtr) == 0x8);
 
+#ifndef REFRAMEWORK_UNIVERSAL
 class TypeListArray
 {
 public:
 	class REClassInfo N00000A51[100000]; //0x0000
 }; //Size: 0x7A1200
 static_assert(sizeof(TypeListArray) == 0x7A1200);
+#endif
 
 class GlobalArrayData2
 {

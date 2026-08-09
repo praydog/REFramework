@@ -46,7 +46,7 @@ REManagedObject* get_hud_manager_base(HUD_GROUP_TYPE t) {
         }
 
         for (::REManagedObject* it : **hud_manager_list) {
-            if (it != nullptr && utility::re_managed_object::get_type_definition(it) == battle_hud_manager_t) {
+            if (it != nullptr && it->get_type_definition() == battle_hud_manager_t) {
                 return it;
             }
         }

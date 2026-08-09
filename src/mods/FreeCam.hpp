@@ -4,6 +4,7 @@
 
 #include "sdk/ReClass.hpp"
 #include "sdk/helpers/NativeObject.hpp"
+#include <sdk/GameIdentity.hpp>
 
 class FreeCam : public Mod {
 public:
@@ -54,12 +55,20 @@ private:
         *m_rotation_speed,
     };
 
-#if defined(RE2) || defined(RE3)
+#ifdef REFRAMEWORK_UNIVERSAL
     RopewaySurvivorManager* m_survivor_manager{ nullptr };
+#else
+    #if defined(RE2) || defined(RE3)
+    RopewaySurvivorManager* m_survivor_manager{ nullptr };
+    #endif
 #endif
 
-#ifdef RE8
+#ifdef REFRAMEWORK_UNIVERSAL
     AppPropsManager* m_props_manager{ nullptr };
+#else
+    #ifdef RE8
+    AppPropsManager* m_props_manager{ nullptr };
+    #endif
 #endif
 
     sdk::helpers::NativeObject m_via_hid_gamepad{ "via.hid.GamePad" };
@@ -75,7 +84,7 @@ private:
 
     RECamera* m_camera{nullptr};
 
-#ifdef RE4
+#ifdef REFRAMEWORK_UNIVERSAL
     struct {
         bool attempted_hook{false};
         std::optional<size_t> get_past_move_frame_move_dir_vec_id{};
@@ -89,5 +98,21 @@ private:
     } m_player_motion_controller_hook{};
 
     REManagedObject* m_re4_body{nullptr};
+#else
+    #ifdef RE4
+    struct {
+        bool attempted_hook{false};
+        std::optional<size_t> get_past_move_frame_move_dir_vec_id{};
+        std::optional<size_t> update_id{};
+        std::optional<size_t> late_update_id{};
+    } m_player_body_updater_hook{};
+
+    struct {
+        bool attempted_hook{false};
+        std::optional<size_t> change_motion_internal_id{};
+    } m_player_motion_controller_hook{};
+
+    REManagedObject* m_re4_body{nullptr};
+    #endif
 #endif
 };

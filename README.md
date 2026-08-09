@@ -23,7 +23,7 @@ Example game folder: G:\SteamLibrary\steamapps\common\RESIDENT EVIL 2 BIOHAZARD 
 Supports both DirectX 11 and DirectX 12.
 
 ## Included Mods
-* Lua Scripting API & Plugin System (All games, check out the [Wiki](https://cursey.github.io/reframework-book/))
+* Lua Scripting API & Plugin System (All games, check out the [Wiki](https://refdocs.praydog.com))
 * VR
   * Generic 6DOF VR support for all games
   * Motion controls for RE2/RE3/RE7/RE8
@@ -51,10 +51,12 @@ Supports both DirectX 11 and DirectX 12.
 * Resident Evil 4
 * Resident Evil 7
 * Resident Evil Village
+* Resident Evil Requiem
 * Devil May Cry 5
 * Street Fighter 6
 * Monster Hunter Rise
 * Monster Hunter Wilds
+* Monster Hunter Stories 3
 * Dragon's Dogma 2
 * Ghosts 'n Goblins Resurrection (Using `RE8` build)
 * Apollo Justice: Ace Attorney Trilogy (Using `DD2` build)

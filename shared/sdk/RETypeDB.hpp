@@ -2,6 +2,9 @@
 #include <vector>
 #include <span>
 #include <cstdint>
+#include <type_traits>
+
+#include "GameIdentity.hpp"
 
 // Forward decls
 class RETypeDB;
@@ -120,12 +123,11 @@ struct TDB {
     uint32_t numAttributes;                     
     int32_t numInitData;                        
     uint32_t numAttributes2;                    
-    uint32_t numInternStrings;                  
-    uint32_t numModules;                        
-    int32_t devEntry;                           
-    int32_t appEntry;     
-    
-    uint32_t unkNum; // added in Pragmata (TDB 84)
+    uint32_t numInternStrings;
+    uint32_t unkNum; // added in TDB 82 (mhstories 3)
+    uint32_t numModules;                  
+    int32_t devEntry;                   
+    int32_t appEntry;
     
     uint32_t numStringPool;                     
     uint32_t numBytePool;                       
@@ -181,12 +183,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -216,10 +218,8 @@ struct RETypeImpl {
     int16_t interface_id; // 0x1c
     char pad_1e[0x12];
 };
-#if TDB_VER >= 71
 static_assert(sizeof(RETypeImpl) == 0x30);
 static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
-#endif
 
 struct REProperty {
     uint64_t impl_id : 20;
@@ -242,9 +242,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -260,8 +260,531 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
+    uint32_t types[1];
+};
+}
+
+
+namespace tdb83 {
+struct REMethodDefinition;
+struct REMethodImpl;
+struct REField;
+struct REFieldImpl;
+struct REProperty;
+struct RETypeImpl;
+struct REPropertyImpl;
+struct REParameterDef;
+struct REModule;
+
+struct TDB {
+    uint32_t magic;                             
+    uint32_t version;                           
+    uint32_t numTypes;                          
+    uint32_t typesStartOfGenericsProbably;       // I think this is the index of the start of the generics list in the types array (or start of something else)
+    
+    uint32_t unk_int_tdb74;
+    
+    uint32_t numMethods;                        
+    uint32_t numFields;                         
+    uint32_t numTypeImpl;                       
+    uint32_t numFieldImpl;                      
+    uint32_t numMethodImpl;                     
+    uint32_t numPropertyImpl;                   
+    uint32_t numProperties;                     
+    uint32_t numEvents;                         
+
+    uint32_t numParams;                         
+    uint32_t numAttributes;                     
+    int32_t numInitData;                        
+    uint32_t numAttributes2;                    
+    uint32_t numInternStrings;   
+
+    uint32_t unkNum; // added in TDB 82 (mhstories 3)
+
+    uint32_t numModules;                        
+    int32_t devEntry;                           
+    int32_t appEntry;     
+    
+    uint32_t numStringPool;                     
+    uint32_t numBytePool;                       
+
+    sdk::REModule* modules;                           
+    sdk::RETypeDefinition (*types)[93788];      
+    sdk::RETypeImpl (*typesImpl)[256];          
+    sdk::REMethodDefinition (*methods)[703558]; 
+    sdk::REMethodImpl (*methodsImpl)[56756];    
+    sdk::REField (*fields)[1];                  
+    sdk::REFieldImpl (*fieldsImpl)[1];          
+    sdk::REProperty (*properties)[256];         
+    sdk::REPropertyImpl (*propertiesImpl)[1];   
+    void* events;                               
+    sdk::REParameterDef (*params)[10000];       
+    class ::REAttributeDef (*attributes)[2000]; 
+    int32_t (*initData)[19890];                 
+    void* unk;
+    int32_t (*attributes2)[256];                
+    char (*stringPool)[1];                      
+    uint8_t (*bytePool)[256];                   
+    int32_t (*internStrings)[14154];            
+};
+
+struct REModule {
+    uint32_t guid[4];
+    int32_t unk1;
+    uint32_t unk2;
+    uint16_t major;
+    uint16_t minor;
+    uint16_t build;
+    uint16_t revision;
+    uint32_t flags;
+    int32_t assembly_name_offset; // string
+    int32_t location_offset; // string
+    uint32_t unk3;
+    uint32_t module_name_offset; // string
+    uint32_t unk4;
+    int32_t types_count;
+    int32_t types_start;
+    int32_t methods_count;
+    int32_t methods_start;
+    int32_t method_instantiations_count;
+    int32_t method_instantiations_start;
+    int32_t member_references_count;
+    int32_t member_references_start;
+};
+static_assert(sizeof(REModule) == 0x58);
+
+#pragma pack(push, 4)
+struct REParameterDef {
+    uint16_t attributes_id;
+    uint16_t init_data_index;
+    uint32_t name_offset : 30;
+    uint32_t modifier : 2;
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
+};
+
+struct REMethodDefinition {
+    uint32_t declaring_typeid : 19;
+    uint32_t params_lo : 13;
+    uint32_t impl_id : 19;
+    uint32_t params_hi : 13;
+    int32_t encoded_offset;
+};
+static_assert(sizeof(REMethodDefinition) == 0xC);
+
+struct REMethodImpl {
+    uint16_t attributes_id;
+    int16_t vtable_index;
+    uint16_t flags;
+    uint16_t impl_flags;
+    uint32_t name_offset;
+};
+
+struct RETypeImpl {
+    // TODO: IFDEF PRAGMATA
+    int64_t name_offset : 28; // 0x0
+    int64_t namespace_offset : 28; // 0x4
+    int32_t field_size; // 0x8
+    int32_t static_field_size; // 0xc
+    uint64_t unk_pad : 33; // 0x10
+    uint64_t num_member_fields : 24; // 0x10
+    uint64_t unk_pad_2 : 7; // 0x10
+    uint16_t num_member_methods; // 0x18
+    int16_t num_native_vtable; // 0x1a
+    int16_t interface_id; // 0x1c
+    char pad_1e[0x12];
+};
+static_assert(sizeof(RETypeImpl) == 0x30);
+static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
+
+struct REProperty {
+    uint64_t impl_id : 20;
+    uint64_t getter : 22;
+    uint64_t setter : 22;
+};
+
+struct REPropertyImpl {
+    uint16_t flags;
+    uint16_t attributes_id;
+    int32_t name_offset;
+};
+#pragma pack(pop)
+
+struct ParamList {
+    uint16_t numParams; //0x0000
+	uint16_t invokeID; //0x0002
+	uint32_t returnType; //0x0004
+	uint32_t params[1]; //0x0008
+};
+
+struct REField {
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
+    uint64_t init_data_hi : 6;
+    uint64_t rest2 : 1;
+};
+
+struct REFieldImpl {
+    uint16_t attributes_id;
+    uint16_t unk : 1;
+    uint16_t flags : 15;
+    uint32_t offset : 26;
+    uint32_t init_data_lo : 6;
+    uint32_t name_offset : 28;
+    uint32_t init_data_mid : 4;
+};
+
+struct GenericListData {
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
+    uint32_t types[1];
+};
+}
+
+namespace tdb82 {
+struct REMethodDefinition;
+struct REMethodImpl;
+struct REField;
+struct REFieldImpl;
+struct REProperty;
+struct RETypeImpl;
+struct REPropertyImpl;
+struct REParameterDef;
+struct REModule;
+
+struct TDB {
+    uint32_t magic;                             
+    uint32_t version;                           
+    uint32_t numTypes;                          
+    uint32_t typesStartOfGenericsProbably;       // I think this is the index of the start of the generics list in the types array (or start of something else)
+    
+    uint32_t unk_int_tdb74;
+    
+    uint32_t numMethods;                        
+    uint32_t numFields;                         
+    uint32_t numTypeImpl;                       
+    uint32_t numFieldImpl;                      
+    uint32_t numMethodImpl;                     
+    uint32_t numPropertyImpl;                   
+    uint32_t numProperties;                     
+    uint32_t numEvents;                         
+
+    uint32_t numParams;                         
+    uint32_t numAttributes;                     
+    int32_t numInitData;                        
+    uint32_t numAttributes2;                    
+    uint32_t numInternStrings; 
+    uint32_t unkNum; // added in TDB 82 (mhstories 3)                 
+    uint32_t numModules;                        
+    int32_t devEntry;                           
+    int32_t appEntry;     
+
+    uint32_t numStringPool;                     
+    uint32_t numBytePool;     
+
+    sdk::REModule* modules;                           
+    sdk::RETypeDefinition (*types)[93788];      
+    sdk::RETypeImpl (*typesImpl)[256];          
+    sdk::REMethodDefinition (*methods)[703558]; 
+    sdk::REMethodImpl (*methodsImpl)[56756];    
+    sdk::REField (*fields)[1];                  
+    sdk::REFieldImpl (*fieldsImpl)[1];          
+    sdk::REProperty (*properties)[256];         
+    sdk::REPropertyImpl (*propertiesImpl)[1];   
+    void* events;                               
+    sdk::REParameterDef (*params)[10000];       
+    class ::REAttributeDef (*attributes)[2000]; 
+    int32_t (*initData)[19890];                 
+    void* unk;
+    int32_t (*attributes2)[256];                
+    char (*stringPool)[1];                      
+    uint8_t (*bytePool)[256];                   
+    int32_t (*internStrings)[14154];            
+};
+
+struct REModule {
+    uint32_t guid[4];
+    int32_t unk1;
+    uint32_t unk2;
+    uint16_t major;
+    uint16_t minor;
+    uint16_t build;
+    uint16_t revision;
+    uint32_t flags;
+    int32_t assembly_name_offset; // string
+    int32_t location_offset; // string
+    uint32_t unk3;
+    uint32_t module_name_offset; // string
+    uint32_t unk4;
+    int32_t types_count;
+    int32_t types_start;
+    int32_t methods_count;
+    int32_t methods_start;
+    int32_t method_instantiations_count;
+    int32_t method_instantiations_start;
+    int32_t member_references_count;
+    int32_t member_references_start;
+};
+static_assert(sizeof(REModule) == 0x58);
+
+#pragma pack(push, 4)
+struct REParameterDef {
+    uint16_t attributes_id;
+    uint16_t init_data_index;
+    uint32_t name_offset : 30;
+    uint32_t modifier : 2;
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
+};
+
+struct REMethodDefinition {
+    uint32_t declaring_typeid : 19;
+    uint32_t params_lo : 13;
+    uint32_t impl_id : 19;
+    uint32_t params_hi : 13;
+    int32_t encoded_offset;
+};
+static_assert(sizeof(REMethodDefinition) == 0xC);
+
+struct REMethodImpl {
+    uint16_t attributes_id;
+    int16_t vtable_index;
+    uint16_t flags;
+    uint16_t impl_flags;
+    uint32_t name_offset;
+};
+
+struct RETypeImpl {
+    int32_t name_offset; // 0x0
+    int32_t namespace_offset; // 0x4
+    int32_t field_size; // 0x8
+    int32_t static_field_size; // 0xc
+    uint64_t unk_pad : 33; // 0x10
+    uint64_t num_member_fields : 24; // 0x10
+    uint64_t unk_pad_2 : 7; // 0x10
+    uint16_t num_member_methods; // 0x18
+    int16_t num_native_vtable; // 0x1a
+    int16_t interface_id; // 0x1c
+    char pad_1e[0x12];
+};
+static_assert(sizeof(RETypeImpl) == 0x30);
+static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
+
+struct REProperty {
+    uint64_t impl_id : 20;
+    uint64_t getter : 22;
+    uint64_t setter : 22;
+};
+
+struct REPropertyImpl {
+    uint16_t flags;
+    uint16_t attributes_id;
+    int32_t name_offset;
+};
+#pragma pack(pop)
+
+struct ParamList {
+    uint16_t numParams; //0x0000
+	uint16_t invokeID; //0x0002
+	uint32_t returnType; //0x0004
+	uint32_t params[1]; //0x0008
+};
+
+struct REField {
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
+    uint64_t init_data_hi : 6;
+    uint64_t rest2 : 1;
+};
+
+struct REFieldImpl {
+    uint16_t attributes_id;
+    uint16_t unk : 1;
+    uint16_t flags : 15;
+    uint32_t offset : 26;
+    uint32_t init_data_lo : 6;
+    uint32_t name_offset : 28;
+    uint32_t init_data_mid : 4;
+};
+
+struct GenericListData {
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
+    uint32_t types[1];
+};
+}
+
+namespace tdb81 {
+struct REMethodDefinition;
+struct REMethodImpl;
+struct REField;
+struct REFieldImpl;
+struct REProperty;
+struct RETypeImpl;
+struct REPropertyImpl;
+struct REParameterDef;
+struct REModule;
+
+struct TDB {
+    uint32_t magic;                             
+    uint32_t version;                           
+    uint32_t numTypes;                          
+    uint32_t typesStartOfGenericsProbably;       // I think this is the index of the start of the generics list in the types array (or start of something else)
+    
+    uint32_t unk_int_tdb74;
+    
+    uint32_t numMethods;                        
+    uint32_t numFields;                         
+    uint32_t numTypeImpl;                       
+    uint32_t numFieldImpl;                      
+    uint32_t numMethodImpl;                     
+    uint32_t numPropertyImpl;                   
+    uint32_t numProperties;                     
+    uint32_t numEvents;                         
+
+    uint32_t numParams;                         
+    uint32_t numAttributes;                     
+    int32_t numInitData;                        
+    uint32_t numAttributes2;                    
+    uint32_t numInternStrings;                  
+    uint32_t numModules;                        
+    int32_t devEntry;                           
+    int32_t appEntry;     
+    
+    uint32_t numStringPool;                     
+    uint32_t numBytePool;
+
+    uint32_t padding;
+
+    sdk::REModule* modules;
+    sdk::RETypeDefinition (*types)[93788];      
+    sdk::RETypeImpl (*typesImpl)[256];          
+    sdk::REMethodDefinition (*methods)[703558]; 
+    sdk::REMethodImpl (*methodsImpl)[56756];    
+    sdk::REField (*fields)[1];                  
+    sdk::REFieldImpl (*fieldsImpl)[1];          
+    sdk::REProperty (*properties)[256];         
+    sdk::REPropertyImpl (*propertiesImpl)[1];   
+    void* events;                               
+    sdk::REParameterDef (*params)[10000];       
+    class ::REAttributeDef (*attributes)[2000]; 
+    int32_t (*initData)[19890];                 
+    void* unk;
+    int32_t (*attributes2)[256];                
+    char (*stringPool)[1];                      
+    uint8_t (*bytePool)[256];                   
+    int32_t (*internStrings)[14154];            
+};
+
+static_assert(sizeof(TDB) == 240);
+
+struct REModule {
+    uint32_t guid[4];
+    int32_t unk1;
+    uint32_t unk2;
+    uint16_t major;
+    uint16_t minor;
+    uint16_t build;
+    uint16_t revision;
+    uint32_t flags;
+    int32_t assembly_name_offset; // string
+    int32_t location_offset; // string
+    uint32_t unk3;
+    uint32_t module_name_offset; // string
+    uint32_t unk4;
+    int32_t types_count;
+    int32_t types_start;
+};
+static_assert(sizeof(REModule) == 0x40);
+
+#pragma pack(push, 4)
+struct REParameterDef {
+    uint16_t attributes_id;
+    uint16_t init_data_index;
+    uint32_t name_offset : 30;
+    uint32_t modifier : 2;
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
+};
+
+struct REMethodDefinition {
+    uint32_t declaring_typeid : 19;
+    uint32_t params_lo : 13;
+    uint32_t impl_id : 19;
+    uint32_t params_hi : 13;
+    int32_t encoded_offset;
+};
+static_assert(sizeof(REMethodDefinition) == 0xC);
+
+struct REMethodImpl {
+    uint16_t attributes_id;
+    int16_t vtable_index;
+    uint16_t flags;
+    uint16_t impl_flags;
+    uint32_t name_offset;
+};
+
+struct RETypeImpl {
+    int32_t name_offset; // 0x0
+    int32_t namespace_offset; // 0x4
+    int32_t field_size; // 0x8
+    int32_t static_field_size; // 0xc
+    uint64_t unk_pad : 33; // 0x10
+    uint64_t num_member_fields : 24; // 0x10
+    uint64_t unk_pad_2 : 7; // 0x10
+    uint16_t num_member_methods; // 0x18
+    int16_t num_native_vtable; // 0x1a
+    int16_t interface_id; // 0x1c
+    char pad_1e[0x12];
+};
+static_assert(sizeof(RETypeImpl) == 0x30);
+static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
+
+struct REProperty {
+    uint64_t impl_id : 20;
+    uint64_t getter : 22;
+    uint64_t setter : 22;
+};
+
+struct REPropertyImpl {
+    uint16_t flags;
+    uint16_t attributes_id;
+    int32_t name_offset;
+};
+#pragma pack(pop)
+
+struct ParamList {
+    uint16_t numParams; //0x0000
+	uint16_t invokeID; //0x0002
+	uint32_t returnType; //0x0004
+	uint32_t params[1]; //0x0008
+};
+
+struct REField {
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
+    uint64_t init_data_hi : 6;
+    uint64_t rest2 : 1;
+};
+
+struct REFieldImpl {
+    uint16_t attributes_id;
+    uint16_t unk : 1;
+    uint16_t flags : 15;
+    uint32_t offset : 26;
+    uint32_t init_data_lo : 6;
+    uint32_t name_offset : 28;
+    uint32_t init_data_mid : 4;
+};
+
+struct GenericListData {
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -327,7 +850,6 @@ struct TDB {
     uint8_t (*bytePool)[256];                   
     int32_t (*internStrings)[14154];            
 };
-
 struct REModule {
     uint32_t guid[4];
     int32_t unk1;
@@ -359,12 +881,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -393,10 +915,8 @@ struct RETypeImpl {
     int16_t interface_id; // 0x1c
     char pad_1e[0x12];
 };
-#if TDB_VER >= 71
 static_assert(sizeof(RETypeImpl) == 0x30);
 static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
-#endif
 
 struct REProperty {
     uint64_t impl_id : 20;
@@ -419,9 +939,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -437,8 +957,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -502,12 +1022,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -536,10 +1056,8 @@ struct RETypeImpl {
     int16_t interface_id; // 0x1c
     char pad_1e[0x12];
 };
-#if TDB_VER >= 71
 static_assert(sizeof(RETypeImpl) == 0x30);
 static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
-#endif
 
 struct REProperty {
     uint64_t impl_id : 20;
@@ -562,9 +1080,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -580,8 +1098,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -645,12 +1163,12 @@ struct REParameterDef {
     uint16_t init_data_index;
     uint32_t name_offset : 30;
     uint32_t modifier : 2;
-    uint32_t type_id : TYPE_INDEX_BITS;
-    uint32_t flags : (32 - TYPE_INDEX_BITS);
+    uint32_t type_id : 19;
+    uint32_t flags : 13;
 };
 
 struct REMethodDefinition {
-    uint32_t declaring_typeid : TYPE_INDEX_BITS;
+    uint32_t declaring_typeid : 19;
     uint32_t params_lo : 13;
     uint32_t impl_id : 19;
     uint32_t params_hi : 13;
@@ -679,10 +1197,8 @@ struct RETypeImpl {
     int16_t interface_id; // 0x1c
     char pad_1e[0x12];
 };
-#if TDB_VER >= 71
 static_assert(sizeof(RETypeImpl) == 0x30);
 static_assert(offsetof(RETypeImpl, num_member_methods) == 0x18);
-#endif
 
 struct REProperty {
     uint64_t impl_id : 20;
@@ -705,9 +1221,9 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t impl_id : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 19;
+    uint64_t impl_id : 19;
+    uint64_t field_typeid : 19;
     uint64_t init_data_hi : 6;
     uint64_t rest2 : 1;
 };
@@ -723,8 +1239,8 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
-    uint32_t num : (32 - TYPE_INDEX_BITS);
+    uint32_t definition_typeid : 19;
+    uint32_t num : 13;
     uint32_t types[1];
 };
 }
@@ -890,7 +1406,7 @@ struct ParamList {
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 18;
     uint64_t impl_id : 20;
     uint64_t offset : 26;
 };
@@ -905,7 +1421,7 @@ struct REFieldImpl {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 18;
     uint32_t num : 14;
     uint32_t types[1];
 };
@@ -951,11 +1467,11 @@ struct TDB {
 };
 
 struct REMethodDefinition {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 17;
     uint64_t invoke_id : 16;
     uint64_t num_params : 6;
     uint64_t unk : 8; // NOT REALLY SURE WHAT THIS IS? IT HAS SOMETHING TO DO WITH RETURN TYPE
-    uint64_t return_typeid : TYPE_INDEX_BITS;
+    uint64_t return_typeid : 17;
     char pad_0008[2];
     int16_t vtable_index;
     uint32_t name_offset;
@@ -966,14 +1482,14 @@ struct REMethodDefinition {
 };
 
 struct REMethodParamDef {
-    uint64_t param_typeid : TYPE_INDEX_BITS;
+    uint64_t param_typeid : 17;
     uint64_t flags : 16;
     uint64_t name_offset : 31;
 };
 
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 17;
+    uint64_t field_typeid : 17;
     // TODO: fill in rest of bitfield
 
     uint32_t name_offset;
@@ -991,7 +1507,7 @@ struct REProperty {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 17;
     uint32_t num : 14;
     uint32_t types[1];
 };
@@ -1037,11 +1553,11 @@ struct TDB {
 };
 
 struct REMethodDefinition {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS; // 0 - 2
+    uint64_t declaring_typeid : 16; // 0 - 2
     int64_t vtable_index : 16;                   // 2 - 4
     uint64_t num_params : 8;                     // 4 - 5
     uint64_t unk : 8;                            // NOT REALLY SURE WHAT THIS IS? IT HAS SOMETHING TO DO WITH RETURN TYPE // 5 - 6
-    uint64_t return_typeid : TYPE_INDEX_BITS;
+    uint64_t return_typeid : 16;
     char pad_0008[2];
     int16_t invoke_id;
     uint32_t name_offset;
@@ -1052,15 +1568,15 @@ struct REMethodDefinition {
 };
 
 struct REMethodParamDef {
-    uint64_t param_typeid : TYPE_INDEX_BITS;
+    uint64_t param_typeid : 16;
     uint64_t flags : 16;
     uint64_t name_offset : 31;
 };
 
 #pragma pack(push, 4)
 struct REField {
-    uint64_t declaring_typeid : TYPE_INDEX_BITS;
-    uint64_t field_typeid : TYPE_INDEX_BITS;
+    uint64_t declaring_typeid : 16;
+    uint64_t field_typeid : 16;
     // TODO: fill in rest of bitfield
 
     uint32_t name_offset;
@@ -1081,7 +1597,7 @@ struct REProperty {
 };
 
 struct GenericListData {
-    uint32_t definition_typeid : TYPE_INDEX_BITS;
+    uint32_t definition_typeid : 16;
     uint32_t num : 16;
     uint16_t types[1];
 };
@@ -1176,22 +1692,61 @@ struct TDB {
 #pragma pack(pop)
 }
 
-// TODO?
-struct REModule_ : public sdk::tdb74::REModule {};
+struct REModule_: public sdk::tdb81::REModule {};
 
 #if TDB_VER >= 84
 struct RETypeDB_ : public sdk::tdb84::TDB {};
 
 struct REMethodDefinition_ : public sdk::tdb84::REMethodDefinition {};
-struct REMethodImpl : public sdk::tdb84::REMethodImpl {};
+struct REMethodImpl {};    // Decoupled: use dispatch macros for field access
 using REField_ = sdk::tdb84::REField;
-struct REFieldImpl : public sdk::tdb84::REFieldImpl {};
-struct RETypeImpl : public sdk::tdb84::RETypeImpl {};
-struct REPropertyImpl : public sdk::tdb84::REPropertyImpl {};
-struct REProperty : public sdk::tdb84::REProperty {};
-struct REParameterDef : public sdk::tdb84::REParameterDef {};
+struct REFieldImpl {};     // Decoupled: use RFIELDIMPL_FIELD for field access
+struct RETypeImpl {};      // Decoupled: use TIMPL_FIELD/TIMPL_DISPATCH for field access
+struct REPropertyImpl {};  // Decoupled: use dispatch macros for field access
+struct REProperty {};
+struct REParameterDef {};  // Decoupled: use TPARAM_FIELD for field access
 struct GenericListData : public sdk::tdb84::GenericListData {};
 using ParamList = sdk::tdb84::ParamList;
+
+#elif TDB_VER >= 83
+struct RETypeDB_ : public sdk::tdb83::TDB {};
+
+struct REMethodDefinition_ : public sdk::tdb83::REMethodDefinition {};
+struct REMethodImpl : public sdk::tdb83::REMethodImpl {};
+using REField_ = sdk::tdb83::REField;
+struct REFieldImpl : public sdk::tdb83::REFieldImpl {};
+struct RETypeImpl : public sdk::tdb83::RETypeImpl {};
+struct REPropertyImpl : public sdk::tdb83::REPropertyImpl {};
+struct REProperty : public sdk::tdb83::REProperty {};
+struct REParameterDef : public sdk::tdb83::REParameterDef {};
+struct GenericListData : public sdk::tdb83::GenericListData {};
+using ParamList = sdk::tdb83::ParamList;
+
+#elif TDB_VER >= 82
+struct RETypeDB_ : public sdk::tdb82::TDB {};
+struct REMethodDefinition_ : public sdk::tdb82::REMethodDefinition {};
+struct REMethodImpl : public sdk::tdb82::REMethodImpl {};
+using REField_ = sdk::tdb82::REField;
+struct REFieldImpl : public sdk::tdb82::REFieldImpl {};
+struct RETypeImpl : public sdk::tdb82::RETypeImpl {};
+struct REPropertyImpl : public sdk::tdb82::REPropertyImpl {};
+struct REProperty : public sdk::tdb82::REProperty {};
+struct REParameterDef : public sdk::tdb82::REParameterDef {};
+struct GenericListData : public sdk::tdb82::GenericListData {};
+using ParamList = sdk::tdb82::ParamList;
+
+#elif TDB_VER >= 81
+struct RETypeDB_ : public sdk::tdb81::TDB {};
+struct REMethodDefinition_ : public sdk::tdb81::REMethodDefinition {};
+struct REMethodImpl : public sdk::tdb81::REMethodImpl {};
+using REField_ = sdk::tdb81::REField;
+struct REFieldImpl : public sdk::tdb81::REFieldImpl {};
+struct RETypeImpl : public sdk::tdb81::RETypeImpl {};
+struct REPropertyImpl : public sdk::tdb81::REPropertyImpl {};
+struct REProperty : public sdk::tdb81::REProperty {};
+struct REParameterDef : public sdk::tdb81::REParameterDef {};
+struct GenericListData : public sdk::tdb81::GenericListData {};
+using ParamList = sdk::tdb81::ParamList;
 
 #elif TDB_VER >= 74
 struct RETypeDB_ : public sdk::tdb74::TDB {};
@@ -1275,11 +1830,54 @@ struct GenericListData : public sdk::tdb66::GenericListData {};
 #else
 static_assert(false, "TDB_VER is not defined");
 #endif
+
+// GenericListData bitfield dispatch.
+// tdb67:    definition_typeid:17, num:14 (1 bit padding)
+// tdb69-70: definition_typeid:18, num:14
+// tdb71+:   definition_typeid:19, num:13
+// Universal build compiles the tdb84 layout, so direct ->num / ->definition_typeid
+// reads are wrong on DMC5 (tdb67) AND on tdb69-70 games (RE2/RE3/RE7/RE8).
+// These helpers dispatch at runtime.
+namespace generic_list_accessor {
+    inline uint32_t get_num(const GenericListData* gd) {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v < 69) {
+            return reinterpret_cast<const tdb67::GenericListData*>(gd)->num;
+        }
+        if (v < 71) {
+            return reinterpret_cast<const tdb69::GenericListData*>(gd)->num;
+        }
+        return gd->num;
+    }
+    inline uint32_t get_definition_typeid(const GenericListData* gd) {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v < 69) {
+            return reinterpret_cast<const tdb67::GenericListData*>(gd)->definition_typeid;
+        }
+        if (v < 71) {
+            return reinterpret_cast<const tdb69::GenericListData*>(gd)->definition_typeid;
+        }
+        return gd->definition_typeid;
+    }
+    inline uint32_t get_type_at(const GenericListData* gd, uint32_t index) {
+        const auto v = sdk::GameIdentity::get().tdb_ver();
+        if (v < 69) {
+            return reinterpret_cast<const tdb67::GenericListData*>(gd)->types[index];
+        }
+        if (v < 71) {
+            return reinterpret_cast<const tdb69::GenericListData*>(gd)->types[index];
+        }
+        return gd->types[index];
+    }
+}
+
 } // namespace sdk
 
 namespace sdk {
-struct RETypeDB : public sdk::RETypeDB_ {
+struct RETypeDB {
     static RETypeDB* get();
+    // Version field at offset 0x04 is stable across all TDB variants.
+    uint32_t get_version() const { return reinterpret_cast<const sdk::tdb84::TDB*>(this)->version; }
 
     sdk::REModule* get_module(uint32_t index) const;
 
@@ -1290,39 +1888,120 @@ struct RETypeDB : public sdk::RETypeDB_ {
     sdk::REField* get_field(uint32_t index) const;
     sdk::REProperty* get_property(uint32_t index) const;
 
-    uint32_t get_num_modules() const {
-        return numModules;
+    // =========================================================================
+    // TDB header field dispatch: cast to the correct TDB struct per version.
+    // Each TDB version may have fields at different offsets.
+    // =========================================================================
+
+    // Dispatch macro: switches on tdb_ver() and casts `this` to the correct
+    // version-specific TDB struct to read `field`.
+    // Every case maps to a real TDB namespace struct — no cross-version reuse.
+#define TDB_DISPATCH(field) \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return reinterpret_cast<const sdk::tdb67::TDB*>(this)->field; \
+    case 69:          return reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE: same layout as TDB74 */ \
+    case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
 
-    uint32_t get_num_types() const {
-        return this->numTypes;
+    // TDB_DISPATCH_69: for fields that only exist in TDB >= 69 (typesImpl, params, etc.)
+    // Returns nullptr / 0 for TDB < 69.
+#define TDB_DISPATCH_69(field, fallback) \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return fallback; \
+    case 69:          return reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE */ \
+    case 81:          return reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
 
-    uint32_t get_num_methods() const {
-        return numMethods;
-    }
+    // --- Scalar count accessors ---
+    uint32_t get_num_modules() const    { TDB_DISPATCH(numModules) }
+    uint32_t get_num_types() const      { TDB_DISPATCH(numTypes) }
+    uint32_t get_num_methods() const    { TDB_DISPATCH(numMethods) }
+    uint32_t get_num_fields() const     { TDB_DISPATCH(numFields) }
+    uint32_t get_num_properties() const { TDB_DISPATCH(numProperties) }
+    uint32_t get_string_pool_size() const { TDB_DISPATCH(numStringPool) }
+    uint32_t get_byte_pool_size() const   { TDB_DISPATCH(numBytePool) }
 
-    uint32_t get_num_fields() const {
-        return numFields;
-    }
-
-#if TDB_VER >= 69
+    // numParams: named maybeNumParams in tdb66/67
     uint32_t get_num_params() const {
-        return numParams;
-    }
-#endif
-
-    uint32_t get_num_properties() const {
-        return numProperties;
-    }
-
-    uint32_t get_string_pool_size() const {
-        return numStringPool;
+        auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver <= 67) {
+            return reinterpret_cast<const sdk::tdb67::TDB*>(this)->maybeNumParams;
+        }
+        TDB_DISPATCH_69(numParams, 0)
     }
 
-    uint32_t get_byte_pool_size() const {
-        return numBytePool;
+    // --- Pointer field accessors ---
+    // TDB versions declare arrays with different bounds (e.g. types[81728] vs types[93788]).
+    // We cast all to the compiled-in (tdb84) return type so auto* deduction works.
+
+#define TDB_DISPATCH_PTR(field) \
+    using _ret = decltype(reinterpret_cast<const sdk::tdb84::TDB*>(nullptr)->field); \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return (_ret)reinterpret_cast<const sdk::tdb67::TDB*>(this)->field; \
+    case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return (_ret)reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE */ \
+    case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return (_ret)reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
     }
+
+#define TDB_DISPATCH_PTR_69(field) \
+    using _ret = decltype(reinterpret_cast<const sdk::tdb84::TDB*>(nullptr)->field); \
+    switch (sdk::GameIdentity::get().tdb_ver()) { \
+    case 66: case 67: return (_ret)nullptr; \
+    case 69:          return (_ret)reinterpret_cast<const sdk::tdb69::TDB*>(this)->field; \
+    case 70:          return (_ret)reinterpret_cast<const sdk::tdb70::TDB*>(this)->field; \
+    case 71: case 72: return (_ret)reinterpret_cast<const sdk::tdb71::TDB*>(this)->field; \
+    case 73:          return (_ret)reinterpret_cast<const sdk::tdb73::TDB*>(this)->field; \
+    case 74:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; \
+    case 78:          return (_ret)reinterpret_cast<const sdk::tdb74::TDB*>(this)->field; /* STARFORCE */ \
+    case 81:          return (_ret)reinterpret_cast<const sdk::tdb81::TDB*>(this)->field; \
+    case 82:          return (_ret)reinterpret_cast<const sdk::tdb82::TDB*>(this)->field; \
+    case 83:          return (_ret)reinterpret_cast<const sdk::tdb83::TDB*>(this)->field; \
+    default:          return (_ret)reinterpret_cast<const sdk::tdb84::TDB*>(this)->field; \
+    }
+
+    const void* get_types_ptr() const         { TDB_DISPATCH_PTR(types) }
+    const void* get_methods_ptr() const       { TDB_DISPATCH_PTR(methods) }
+    const void* get_fields_ptr() const        { TDB_DISPATCH_PTR(fields) }
+    const void* get_properties_ptr() const    { TDB_DISPATCH_PTR(properties) }
+    const void* get_modules_ptr() const       { TDB_DISPATCH_PTR(modules) }
+    auto* get_stringPool_ptr() const    { TDB_DISPATCH_PTR(stringPool) }
+    auto* get_bytePool_ptr() const      { TDB_DISPATCH_PTR(bytePool) }
+    auto* get_initData_ptr() const      { TDB_DISPATCH_PTR(initData) }
+    auto* get_internStrings_ptr() const { TDB_DISPATCH_PTR(internStrings) }
+
+    // Impl pointers: only exist in TDB >= 69, return nullptr for older games
+    const void* get_typesImpl_ptr() const     { TDB_DISPATCH_PTR_69(typesImpl) }
+    const void* get_methodsImpl_ptr() const   { TDB_DISPATCH_PTR_69(methodsImpl) }
+    const void* get_fieldsImpl_ptr() const    { TDB_DISPATCH_PTR_69(fieldsImpl) }
+    const void* get_propertiesImpl_ptr() const{ TDB_DISPATCH_PTR_69(propertiesImpl) }
+    const void* get_params_ptr() const        { TDB_DISPATCH_PTR_69(params) }
+#undef TDB_DISPATCH
+#undef TDB_DISPATCH_69
+#undef TDB_DISPATCH_PTR
+#undef TDB_DISPATCH_PTR_69
 
     const char* get_string(uint32_t offset) const;
     uint8_t* get_bytes(uint32_t offset) const;
@@ -1368,7 +2047,6 @@ struct RETypeDB : public sdk::RETypeDB_ {
         return result;
     }
 
-#if TDB_VER >= 69
     uint32_t get_param_bitmask() const {
         static auto result = [this]() -> uint32_t {
             uint32_t out{1};
@@ -1381,27 +2059,232 @@ struct RETypeDB : public sdk::RETypeDB_ {
 
         return result;
     }
-#endif
+
+    // Runtime stride for method array indexing.
+    size_t get_method_stride() const {
+        if (sdk::tdb_dispatch::needs_pre_impl())
+            return sizeof(sdk::tdb67::REMethodDefinition);  // 0x20 (32 bytes, has function ptr + all fields inline)
+        if (sdk::tdb_dispatch::needs_18bit())
+            return sizeof(sdk::tdb69::REMethodDefinition);  // 16 bytes
+        return sizeof(sdk::tdb84::REMethodDefinition);      // 12 bytes
+    }
+
+    // Stride-aware method element access.
+    sdk::REMethodDefinition* get_method_at(uintptr_t base, uint32_t index) const {
+        return reinterpret_cast<sdk::REMethodDefinition*>(base + static_cast<size_t>(index) * get_method_stride());
+    }
+
+    // Runtime stride for field array indexing.
+    size_t get_field_stride() const {
+        if (sdk::tdb_dispatch::needs_pre_impl())
+            return sizeof(sdk::tdb67::REField);  // 0x18 (24 bytes)
+        return sizeof(sdk::tdb84::REField);      // 0x08 (8 bytes, same for tdb69-84)
+    }
+
+    // Runtime stride for module array indexing.
+    // tdb81+ REModule is 0x40 bytes (no methods/instantiations/member_references).
+    // tdb74 and below REModule is 0x58 bytes (has methods/instantiations/member_references).
+    size_t get_module_stride() const {
+        if (sdk::GameIdentity::get().tdb_ver() >= 81)
+            return sizeof(sdk::tdb81::REModule);  // 0x40
+        return sizeof(sdk::tdb74::REModule);  // 0x58
+    }
+
+    // Stride-aware module element access.
+    sdk::REModule* get_module_at(uint32_t index) const {
+        auto base = reinterpret_cast<uintptr_t>(get_modules_ptr());
+        return reinterpret_cast<sdk::REModule*>(base + static_cast<size_t>(index) * get_module_stride());
+    }
+
+    // Runtime stride for type definition array indexing.
+    // Each TDB version struct has the correct sizeof for its variant.
+    size_t get_typedef_stride() const {
+        const auto ver = sdk::GameIdentity::get().tdb_ver();
+        if (ver >= 74) return sizeof(sdk::RETypeDefVersion74);  // 0x50 (has unk_new_tdb74_uint64)
+        if (ver >= 71) return sizeof(sdk::RETypeDefVersion71);  // 0x48
+        if (ver >= 69) return sizeof(sdk::RETypeDefVersion69);  // 0x50 (18-bit layout)
+        return sizeof(sdk::RETypeDefVersion67);                 // 0x78 (pre-impl, all fields on typedef)
+    }
+
+    // ---- Impl/Param stride-aware accessors ----
+    // The stride accessors hardcode sizeof(sdk::tdb84::*). These static_asserts
+    // prove every versioned layout has the same size. If a future TDB version
+    // changes an impl struct size, this will be a compile error — not a silent
+    // stride mismatch at runtime.
+    static_assert(sizeof(sdk::tdb69::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::RETypeImpl)     == sizeof(sdk::tdb84::RETypeImpl),     "RETypeImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::REFieldImpl)    == sizeof(sdk::tdb84::REFieldImpl),    "REFieldImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::REMethodImpl)   == sizeof(sdk::tdb84::REMethodImpl),   "REMethodImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb71::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb73::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb74::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb81::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb82::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+    static_assert(sizeof(sdk::tdb83::REPropertyImpl) == sizeof(sdk::tdb84::REPropertyImpl), "REPropertyImpl size diverged");
+
+    static_assert(sizeof(sdk::tdb69::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb71::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb73::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb74::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb81::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb82::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+    static_assert(sizeof(sdk::tdb83::REParameterDef) == sizeof(sdk::tdb84::REParameterDef), "REParameterDef size diverged");
+
+    // ---- Field offset proof: undispatched macros cast to a single version. ----
+    // If any of these fire, the corresponding macro in RETypeDefDispatch.hpp
+    // needs per-version dispatch instead of a single cast.
+
+    // RMETHIMPL_FIELD always casts to tdb84. Prove all fields match.
+    #define ASSERT_METHIMPL_(ver) \
+        static_assert(offsetof(sdk::ver::REMethodImpl, attributes_id) == offsetof(sdk::tdb84::REMethodImpl, attributes_id)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, vtable_index)  == offsetof(sdk::tdb84::REMethodImpl, vtable_index)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, flags)         == offsetof(sdk::tdb84::REMethodImpl, flags)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, impl_flags)    == offsetof(sdk::tdb84::REMethodImpl, impl_flags)); \
+        static_assert(offsetof(sdk::ver::REMethodImpl, name_offset)   == offsetof(sdk::tdb84::REMethodImpl, name_offset));
+    ASSERT_METHIMPL_(tdb69) ASSERT_METHIMPL_(tdb71) ASSERT_METHIMPL_(tdb73) ASSERT_METHIMPL_(tdb74)
+    ASSERT_METHIMPL_(tdb81) ASSERT_METHIMPL_(tdb82) ASSERT_METHIMPL_(tdb83)
+    #undef ASSERT_METHIMPL_
+
+    // RPROPIMPL_FIELD always casts to tdb84. Prove all fields match.
+    #define ASSERT_PROPIMPL_(ver) \
+        static_assert(offsetof(sdk::ver::REPropertyImpl, flags)         == offsetof(sdk::tdb84::REPropertyImpl, flags)); \
+        static_assert(offsetof(sdk::ver::REPropertyImpl, attributes_id) == offsetof(sdk::tdb84::REPropertyImpl, attributes_id)); \
+        static_assert(offsetof(sdk::ver::REPropertyImpl, name_offset)   == offsetof(sdk::tdb84::REPropertyImpl, name_offset));
+    ASSERT_PROPIMPL_(tdb69) ASSERT_PROPIMPL_(tdb71) ASSERT_PROPIMPL_(tdb73) ASSERT_PROPIMPL_(tdb74)
+    ASSERT_PROPIMPL_(tdb81) ASSERT_PROPIMPL_(tdb82) ASSERT_PROPIMPL_(tdb83)
+    #undef ASSERT_PROPIMPL_
+
+    // REFieldImpl: attributes_id (offset 0) is the only non-bitfield stable field.
+    #define ASSERT_FIELDIMPL_(ver) \
+        static_assert(offsetof(sdk::ver::REFieldImpl, attributes_id) == offsetof(sdk::tdb84::REFieldImpl, attributes_id));
+    ASSERT_FIELDIMPL_(tdb69) ASSERT_FIELDIMPL_(tdb71) ASSERT_FIELDIMPL_(tdb73) ASSERT_FIELDIMPL_(tdb74)
+    ASSERT_FIELDIMPL_(tdb81) ASSERT_FIELDIMPL_(tdb82) ASSERT_FIELDIMPL_(tdb83)
+    #undef ASSERT_FIELDIMPL_
+
+    // REParameterDef: attributes_id and init_data_index are non-bitfield.
+    #define ASSERT_PARAMDEF_(ver) \
+        static_assert(offsetof(sdk::ver::REParameterDef, attributes_id)   == offsetof(sdk::tdb84::REParameterDef, attributes_id)); \
+        static_assert(offsetof(sdk::ver::REParameterDef, init_data_index) == offsetof(sdk::tdb84::REParameterDef, init_data_index));
+    ASSERT_PARAMDEF_(tdb69) ASSERT_PARAMDEF_(tdb71) ASSERT_PARAMDEF_(tdb73) ASSERT_PARAMDEF_(tdb74)
+    ASSERT_PARAMDEF_(tdb81) ASSERT_PARAMDEF_(tdb82) ASSERT_PARAMDEF_(tdb83)
+    #undef ASSERT_PARAMDEF_
+
+    // TIMPL_FIELD casts to tdb82 for tdb_ver < 83. Prove name/namespace offsets match.
+    #define ASSERT_TYPEIMPL_NAME_(ver) \
+        static_assert(offsetof(sdk::ver::RETypeImpl, name_offset)      == offsetof(sdk::tdb82::RETypeImpl, name_offset)); \
+        static_assert(offsetof(sdk::ver::RETypeImpl, namespace_offset) == offsetof(sdk::tdb82::RETypeImpl, namespace_offset));
+    ASSERT_TYPEIMPL_NAME_(tdb69) ASSERT_TYPEIMPL_NAME_(tdb71) ASSERT_TYPEIMPL_NAME_(tdb73)
+    ASSERT_TYPEIMPL_NAME_(tdb74) ASSERT_TYPEIMPL_NAME_(tdb81)
+    #undef ASSERT_TYPEIMPL_NAME_
+
+    // TIMPL_DISPATCH uses field_size. Prove offset is stable across all versions.
+    #define ASSERT_TYPEIMPL_FSIZE_(ver) \
+        static_assert(offsetof(sdk::ver::RETypeImpl, field_size) == offsetof(sdk::tdb84::RETypeImpl, field_size));
+    ASSERT_TYPEIMPL_FSIZE_(tdb69) ASSERT_TYPEIMPL_FSIZE_(tdb71) ASSERT_TYPEIMPL_FSIZE_(tdb73)
+    ASSERT_TYPEIMPL_FSIZE_(tdb74) ASSERT_TYPEIMPL_FSIZE_(tdb81) ASSERT_TYPEIMPL_FSIZE_(tdb82) ASSERT_TYPEIMPL_FSIZE_(tdb83)
+    #undef ASSERT_TYPEIMPL_FSIZE_
+
+    // Bitfield-only types: sizeof proves no repack (can't prove individual field positions).
+    // REMethodDefinition (TMETH_FIELD_71 casts to tdb84 for TDB >= 71)
+    static_assert(sizeof(sdk::tdb71::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb73::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb74::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb81::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb82::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+    static_assert(sizeof(sdk::tdb83::REMethodDefinition) == sizeof(sdk::tdb84::REMethodDefinition), "REMethodDefinition size diverged");
+
+    // REField (TFIELD_FIELD_71 casts to tdb84 for TDB >= 71)
+    static_assert(sizeof(sdk::tdb71::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb73::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb74::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb81::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb82::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+    static_assert(sizeof(sdk::tdb83::REField) == sizeof(sdk::tdb84::REField), "REField size diverged");
+
+    // REProperty (RPROP_FIELD_69 casts to tdb84 for TDB >= 69)
+    static_assert(sizeof(sdk::tdb69::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb71::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb73::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb74::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb81::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb82::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+    static_assert(sizeof(sdk::tdb83::REProperty) == sizeof(sdk::tdb84::REProperty), "REProperty size diverged");
+
+    // RMOD_FIELD casts to tdb74. Prove accessed fields match tdb81 offsets.
+    static_assert(offsetof(sdk::tdb74::REModule, types_start)          == offsetof(sdk::tdb81::REModule, types_start), "REModule.types_start diverged");
+    static_assert(offsetof(sdk::tdb74::REModule, types_count)          == offsetof(sdk::tdb81::REModule, types_count), "REModule.types_count diverged");
+    static_assert(offsetof(sdk::tdb74::REModule, assembly_name_offset) == offsetof(sdk::tdb81::REModule, assembly_name_offset), "REModule.assembly_name_offset diverged");
+    static_assert(offsetof(sdk::tdb74::REModule, module_name_offset)   == offsetof(sdk::tdb81::REModule, module_name_offset),   "REModule.module_name_offset diverged");
+
+    // RETypeImpl: 0x30 across all versions.
+    static constexpr size_t get_type_impl_stride() { return sizeof(sdk::tdb84::RETypeImpl); }
+    auto& get_type_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::RETypeImpl*>(
+            reinterpret_cast<uintptr_t>(get_typesImpl_ptr()) + static_cast<size_t>(index) * get_type_impl_stride());
+    }
+
+    // REFieldImpl: ~12 bytes across all versions.
+    static constexpr size_t get_field_impl_stride() { return sizeof(sdk::tdb84::REFieldImpl); }
+    auto& get_field_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REFieldImpl*>(
+            reinterpret_cast<uintptr_t>(get_fieldsImpl_ptr()) + static_cast<size_t>(index) * get_field_impl_stride());
+    }
+
+    // REMethodImpl: ~12 bytes across all versions.
+    static constexpr size_t get_method_impl_stride() { return sizeof(sdk::tdb84::REMethodImpl); }
+    auto& get_method_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REMethodImpl*>(
+            reinterpret_cast<uintptr_t>(get_methodsImpl_ptr()) + static_cast<size_t>(index) * get_method_impl_stride());
+    }
+
+    // REPropertyImpl: ~8 bytes across all versions.
+    static constexpr size_t get_property_impl_stride() { return sizeof(sdk::tdb84::REPropertyImpl); }
+    auto& get_property_impl_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REPropertyImpl*>(
+            reinterpret_cast<uintptr_t>(get_propertiesImpl_ptr()) + static_cast<size_t>(index) * get_property_impl_stride());
+    }
+
+    // REParameterDef: ~12 bytes across all versions.
+    static constexpr size_t get_param_stride() { return sizeof(sdk::tdb84::REParameterDef); }
+    auto& get_param_at(uint32_t index) const {
+        return *reinterpret_cast<sdk::REParameterDef*>(
+            reinterpret_cast<uintptr_t>(get_params_ptr()) + static_cast<size_t>(index) * get_param_stride());
+    }
+
+    // initData: int32_t array — stable at 4 bytes. Accessor for consistency.
+    int32_t get_init_data_at(uint32_t index) const {
+        return (*get_initData_ptr())[index]; // int32_t stride is always 4
+    }
 };
 } // namespace sdk
 
 namespace sdk {
-struct REModule : public sdk::REModule_ {
-    uint16_t get_major() const {
-        return this->major;
-    }
-
-    uint16_t get_minor() const {
-        return this->minor;
-    }
-
-    uint16_t get_build() const {
-        return this->build;
-    }
-
-    uint16_t get_revision() const {
-        return this->revision;
-    }
+struct REModule {
+    uint16_t get_major() const { return RMOD_FIELD(this, major); }
+    uint16_t get_minor() const { return RMOD_FIELD(this, minor); }
+    uint16_t get_build() const { return RMOD_FIELD(this, build); }
+    uint16_t get_revision() const { return RMOD_FIELD(this, revision); }
 
     const char* get_assembly_name() const;
     const char* get_location() const;
@@ -1412,7 +2295,7 @@ struct REModule : public sdk::REModule_ {
     std::span<uint32_t> get_member_references() const;
 };
 
-struct REField : public sdk::REField_ {
+struct REField {
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_type() const;
     const char* get_name() const;
@@ -1430,7 +2313,7 @@ struct REField : public sdk::REField_ {
     template <typename T> T& get_data(void* object = nullptr, bool is_value_type = false) const { return *(T*)get_data_raw(object); }
 };
 
-struct REMethodDefinition : public sdk::REMethodDefinition_ {
+struct REMethodDefinition {
     sdk::RETypeDefinition* get_declaring_type() const;
     sdk::RETypeDefinition* get_return_type() const;
 
@@ -1578,13 +2461,16 @@ struct REMethodDefinition : public sdk::REMethodDefinition_ {
     uint32_t get_invoke_id() const;
     uint32_t get_num_params() const;
     uint32_t get_param_index() const {
-#if TDB_VER >= 71
-        const auto params_index = (this->params_hi << 13) | this->params_lo;
-#else
-        const auto params_index = this->params;
-#endif
-
-        return params_index;
+        if (sdk::tdb_dispatch::needs_pre_impl()) {
+            // TDB 67 (DMC5): params offset directly on tdb67::REMethodDefinition.
+            return reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(this)->params;
+        }
+        if (sdk::tdb_dispatch::needs_18bit()) {
+            // tdb69: single 'params' field (26 bits)
+            return static_cast<uint32_t>(
+                reinterpret_cast<const sdk::tdb_bits18::REMethodDef69*>(this)->params);
+        }
+        return (TMETH_FIELD_71(this, params_hi) << 13) | TMETH_FIELD_71(this, params_lo);
     }
 
     std::vector<uint32_t> get_param_typeids() const;
@@ -1619,7 +2505,7 @@ T call_native_func_easy(void* obj, sdk::RETypeDefinition* t, std::string_view na
 
 template <typename T, typename... Args> 
 T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) {
-    auto def = utility::re_managed_object::get_type_definition(obj);
+    auto def = obj->get_type_definition();
 
     return call_native_func<T>((void*)obj, def, name, args...);
 }
@@ -1627,7 +2513,7 @@ T call_object_func(::REManagedObject* obj, std::string_view name, Args... args) 
 template <typename T, typename... Args> 
 T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... args) {
     if constexpr (sizeof(T) > sizeof(void*)) {
-        auto def = utility::re_managed_object::get_type_definition(obj);
+        auto def = obj->get_type_definition();
 
         T out{};
         call_native_func<T*>((void*)obj, def, name, &out, sdk::get_thread_context(), obj, args...);
@@ -1635,7 +2521,7 @@ T call_object_func_easy(::REManagedObject* obj, std::string_view name, Args... a
         return out;
     }
 
-    auto def = utility::re_managed_object::get_type_definition(obj);
+    auto def = obj->get_type_definition();
     return call_native_func<T>((void*)obj, def, name, sdk::get_thread_context(), obj, args...);
 }
 
@@ -1653,7 +2539,7 @@ T* get_native_field(void* obj, sdk::RETypeDefinition* t, std::string_view name, 
 
 template<typename T>
 T* get_object_field(::REManagedObject* obj, std::string_view name, bool is_value_type) {
-    auto def = utility::re_managed_object::get_type_definition(obj);
+    auto def = obj->get_type_definition();
 
     return get_native_field<T>((void*)obj, def, name, is_value_type);
 }
@@ -1668,6 +2554,18 @@ T* get_static_field(std::string_view type_name, std::string_view name, bool is_v
     }
 
     return get_native_field<T>((void*)nullptr, t, name, is_value_type);
+}
+
+template<typename T>
+T get_enum_value(std::string_view type_name, std::string_view name) {
+    const auto field = get_static_field<T>(type_name, name, false);
+
+    if (field == nullptr) {
+        // spdlog::error("Cannot find enum value {:s}", name.data());
+        return T{};
+    }
+
+    return *field;
 }
 
 template <typename T>
@@ -1720,7 +2618,7 @@ T* get_managed_singleton() {
     static auto t = []() -> sdk::RETypeDefinition* {
         const auto tdb = sdk::RETypeDB::get();
 
-        for (auto i = 0; i < tdb->numTypes; i++) {
+        for (auto i = 0; i < tdb->get_num_types(); i++) {
             auto t = tdb->get_type(i);
 
             if (t == nullptr) {
@@ -1762,3 +2660,26 @@ T* create_instance(std::string_view type_name, bool simplify) {
     return (T*)t->create_instance_full(simplify);
 }
 } // namespace sdk
+
+// 3-tier declaring_typeid dispatch for REMethodDefinition and REField.
+// These live here (not in RETypeDefDispatch.hpp) because they need full
+// struct definitions from the tdb67/tdb69 namespaces above.
+namespace sdk::tdb_dispatch {
+
+inline uint32_t tmeth_declaring_typeid(const sdk::REMethodDefinition* ptr) {
+    if (needs_pre_impl())
+        return (uint32_t)reinterpret_cast<const sdk::tdb67::REMethodDefinition*>(ptr)->declaring_typeid;
+    if (needs_18bit())
+        return (uint32_t)reinterpret_cast<const sdk::tdb69::REMethodDefinition*>(ptr)->declaring_typeid;
+    return (uint32_t)reinterpret_cast<const sdk::tdb84::REMethodDefinition*>(ptr)->declaring_typeid;
+}
+
+inline uint32_t tfield_declaring_typeid(const sdk::REField* ptr) {
+    if (needs_pre_impl())
+        return (uint32_t)reinterpret_cast<const sdk::tdb67::REField*>(ptr)->declaring_typeid;
+    if (needs_18bit())
+        return (uint32_t)reinterpret_cast<const sdk::tdb69::REField*>(ptr)->declaring_typeid;
+    return (uint32_t)reinterpret_cast<const sdk::tdb84::REField*>(ptr)->declaring_typeid;
+}
+
+} // namespace sdk::tdb_dispatch
