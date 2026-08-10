@@ -1,20 +1,17 @@
 #pragma once
 
-#include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
-#include <iomanip>
 #include <string>
 #include <string_view>
 #include <unordered_set>
-#include <vector>
 
 #include <imgui.h>
 #include <imgui_internal.h>
 
 #include <utility/String.hpp>
+#include <utility/Config.hpp>
 
 namespace reframework::ui {
 enum class TreeStateSource : uint8_t {
@@ -25,6 +22,10 @@ enum class TreeStateSource : uint8_t {
 };
 
 namespace detail {
+static inline constexpr int32_t CONFIG_VERSION{1};
+static inline constexpr std::string_view CONFIG_VERSION_KEY{"Version"};
+static inline constexpr std::string_view OPEN_NODE_PREFIX{"OpenNode_"};
+
 struct TreeState {
     std::unordered_set<uint64_t> open_nodes{};
     std::unordered_set<uint64_t> initialized_nodes{};
@@ -39,46 +40,19 @@ inline uint64_t make_key(TreeStateSource source, uint64_t component) {
     return (component & 0x00FFFFFFFFFFFFFFULL) | (static_cast<uint64_t>(source) << 56);
 }
 
-inline void read_line(std::string_view line) {
-    static constexpr std::string_view PREFIX{"Node="};
-
-    if (!line.starts_with(PREFIX)) {
-        return;
-    }
-
-    uint64_t key{};
-    const auto first = line.data() + PREFIX.size();
-    const auto last = line.data() + line.size();
-    const auto result = std::from_chars(first, last, key, 16);
-
-    if (result.ec == std::errc{} && result.ptr == last) {
-        const auto source_value = static_cast<uint8_t>(key >> 56);
-
-        if (source_value < static_cast<uint8_t>(TreeStateSource::Count)) {
-            g_tree_state.open_nodes.insert(key);
-        }
-    }
-}
-
 inline void save_open_nodes() {
     if (g_tree_state.settings_path.empty()) {
         return;
     }
 
-    std::vector<uint64_t> sorted_nodes{g_tree_state.open_nodes.begin(), g_tree_state.open_nodes.end()};
-    std::ranges::sort(sorted_nodes);
+    utility::Config config{};
+    config.set<int32_t>(CONFIG_VERSION_KEY.data(), CONFIG_VERSION);
 
-    std::ofstream output{g_tree_state.settings_path, std::ios::trunc};
-
-    if (!output) {
-        return;
+    for (const auto key : g_tree_state.open_nodes) {
+        config.set<bool>(std::string{OPEN_NODE_PREFIX} + std::to_string(key), true);
     }
 
-    output << "[Open]\nVersion=1\n";
-
-    for (const auto key : sorted_nodes) {
-        output << "Node=" << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << key << '\n';
-    }
+    config.save(g_tree_state.settings_path.string());
 }
 
 inline void update_open_state(uint64_t key, bool is_open) {
@@ -108,29 +82,29 @@ inline void initialize_tree_state(const std::filesystem::path& settings_path) {
     detail::g_tree_state.open_nodes.clear();
     detail::g_tree_state.initialized_nodes.clear();
 
-    std::ifstream input{settings_path};
-    std::string line{};
-    bool recognized_format{};
-    bool read_any_line{};
+    const utility::Config config{settings_path.string()};
 
-    while (std::getline(input, line)) {
-        read_any_line = true;
-
-        if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
-        }
-
-        if (line == "Version=1") {
-            recognized_format = true;
-        } else if (recognized_format) {
-            detail::read_line(line);
-        }
+    if (config.get<int32_t>(detail::CONFIG_VERSION_KEY.data()).value_or(0) != detail::CONFIG_VERSION) {
+        return;
     }
 
-    input.close();
+    for (const auto& [name, value] : config.get_key_values()) {
+        if (!name.starts_with(detail::OPEN_NODE_PREFIX) || value != "true") {
+            continue;
+        }
 
-    if (read_any_line && !recognized_format) {
-        detail::save_open_nodes();
+        uint64_t key{};
+        const auto first = name.data() + detail::OPEN_NODE_PREFIX.size();
+        const auto last = name.data() + name.size();
+        const auto result = std::from_chars(first, last, key);
+
+        if (result.ec == std::errc{} && result.ptr == last) {
+            const auto source_value = static_cast<uint8_t>(key >> 56);
+
+            if (source_value < static_cast<uint8_t>(TreeStateSource::Count)) {
+                detail::g_tree_state.open_nodes.insert(key);
+            }
+        }
     }
 }
 
