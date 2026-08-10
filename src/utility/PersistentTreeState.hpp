@@ -14,6 +14,8 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <utility/String.hpp>
+
 namespace reframework::ui {
 enum class TreeStateSource : uint8_t {
     Native,
@@ -23,9 +25,6 @@ enum class TreeStateSource : uint8_t {
 };
 
 namespace detail {
-static inline constexpr uint64_t FNV_OFFSET_BASIS{14695981039346656037ull};
-static inline constexpr uint64_t FNV_PRIME{1099511628211ull};
-
 struct TreeState {
     std::unordered_set<uint64_t> open_nodes{};
     std::unordered_set<uint64_t> initialized_nodes{};
@@ -36,34 +35,8 @@ struct TreeState {
 
 inline TreeState g_tree_state{};
 
-inline void hash_bytes(uint64_t& hash, const void* data, size_t size) {
-    const auto* bytes = static_cast<const uint8_t*>(data);
-
-    for (size_t i = 0; i < size; ++i) {
-        hash ^= bytes[i];
-        hash *= FNV_PRIME;
-    }
-
-    hash ^= 0xff;
-    hash *= FNV_PRIME;
-}
-
-inline void hash_string(uint64_t& hash, std::string_view value) {
-    hash_bytes(hash, value.data(), value.size());
-}
-
-inline uint64_t string_component(std::string_view value) {
-    auto hash = FNV_OFFSET_BASIS;
-    hash_string(hash, value);
-    return hash;
-}
-
 inline uint64_t make_key(TreeStateSource source, uint64_t component) {
-    auto hash = FNV_OFFSET_BASIS;
-    const auto source_value = static_cast<uint8_t>(source);
-    hash_bytes(hash, &source_value, sizeof(source_value));
-    hash_bytes(hash, &component, sizeof(component));
-    return (hash & 0x00ffffffffffffffull) | (static_cast<uint64_t>(source_value) << 56);
+    return (component & 0x00FFFFFFFFFFFFFFULL) | (static_cast<uint64_t>(source) << 56);
 }
 
 inline void read_line(std::string_view line) {
@@ -167,7 +140,7 @@ bool persistent_tree_item(
     std::string_view stable_id,
     DrawFunction&& draw_function,
     bool can_persist = true) {
-    const auto component = detail::string_component(stable_id);
+    const auto component = utility::hash(stable_id);
     const auto key = detail::make_key(source, component);
 
     if (can_persist && detail::g_tree_state.initialized_nodes.insert(key).second) {
