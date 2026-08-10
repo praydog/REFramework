@@ -10,7 +10,6 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 
-#include <utility/String.hpp>
 #include <utility/Config.hpp>
 
 namespace reframework::ui {
@@ -114,7 +113,9 @@ bool persistent_tree_item(
     std::string_view stable_id,
     DrawFunction&& draw_function,
     bool can_persist = true) {
-    const auto component = utility::hash(stable_id);
+    auto* window = ImGui::GetCurrentWindow();
+    const auto component = static_cast<uint64_t>(
+        window->GetID(stable_id.data(), stable_id.data() + stable_id.size()));
     const auto key = detail::make_key(source, component);
 
     if (can_persist && detail::g_tree_state.initialized_nodes.insert(key).second) {
