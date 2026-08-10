@@ -479,6 +479,10 @@ bool ScriptState::should_remove_hook(const sol::protected_function_result &resul
         return false;
     }
 
+    if (!result_obj.is<ReCallbackNextAction>()) {
+        return false;
+    }
+
     auto action = result_obj.as<ReCallbackNextAction>();
     return action == ReCallbackNextAction::STOP;
 }
@@ -554,8 +558,25 @@ void ScriptState::on_pre_application_entry(size_t hash) {
         if (range.first != range.second) {
             std::scoped_lock _{ m_execution_mutex };
 
+            // Collect callbacks that requested to be removed so we can erase them after iterating.
+            std::vector<sol::protected_function> to_remove{};
+
             for (auto it = range.first; it != range.second; ++it) {
-                handle_protected_result(it->second());
+                auto result = handle_protected_result(it->second());
+
+                if (should_remove_hook(result)) {
+                    to_remove.emplace_back(it->second);
+                }
+            }
+
+            if (!to_remove.empty()) {
+                for (auto it = m_pre_application_entry_fns.begin(); it != m_pre_application_entry_fns.end();) {
+                    if (it->first == hash && std::find(to_remove.begin(), to_remove.end(), it->second) != to_remove.end()) {
+                        it = m_pre_application_entry_fns.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
             }
         }
     } catch (const std::exception& e) {
@@ -573,8 +594,25 @@ void ScriptState::on_application_entry(size_t hash) {
             if (range.first != range.second) {
                 std::scoped_lock _{ m_execution_mutex };
 
+                // Collect callbacks that requested to be removed so we can erase them after iterating.
+                std::vector<sol::protected_function> to_remove{};
+
                 for (auto it = range.first; it != range.second; ++it) {
-                    handle_protected_result(it->second());
+                    auto result = handle_protected_result(it->second());
+
+                    if (should_remove_hook(result)) {
+                        to_remove.emplace_back(it->second);
+                    }
+                }
+
+                if (!to_remove.empty()) {
+                    for (auto it = m_application_entry_fns.begin(); it != m_application_entry_fns.end();) {
+                        if (it->first == hash && std::find(to_remove.begin(), to_remove.end(), it->second) != to_remove.end()) {
+                            it = m_application_entry_fns.erase(it);
+                        } else {
+                            ++it;
+                        }
+                    }
                 }
             }
         }
