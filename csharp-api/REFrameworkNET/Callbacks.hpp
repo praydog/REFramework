@@ -39,11 +39,6 @@ interface class ICallback {
 
 };
 
-public enum class CallbackAction {
-    Continue = 0,
-    Stop = 1
-};
-
 #define GENERATE_POCKET_CLASS(EVENT_NAME) \
 public ref class EVENT_NAME : public ICallback { \
 public: \
