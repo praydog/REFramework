@@ -1,4 +1,5 @@
 #include "utility/FunctionHookMinHook.hpp"
+#include "utility/PersistentTreeState.hpp"
 #include "utility/String.hpp"
 
 #include "ScriptRunner.hpp"

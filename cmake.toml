@@ -246,6 +246,20 @@ link-libraries = [
     "DirectXTK12"
 ]
 cmake-before="""
+set_source_files_properties(
+    "src/cimgui/cimgui.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+        "igTreeNode_Str=igTreeNode_Str_cimgui_generated;
+         igTreeNode_StrStr=igTreeNode_StrStr_cimgui_generated;
+         igTreeNode_StrStr0=igTreeNode_StrStr0_cimgui_generated;
+         igTreeNodeV_Str=igTreeNodeV_Str_cimgui_generated;
+         igTreeNodeEx_Str=igTreeNodeEx_Str_cimgui_generated;
+         igTreeNodeEx_StrStr=igTreeNodeEx_StrStr_cimgui_generated;
+         igTreeNodeEx_StrStr0=igTreeNodeEx_StrStr0_cimgui_generated;
+         igTreeNodeExV_Str=igTreeNodeExV_Str_cimgui_generated;
+         igCollapsingHeader_TreeNodeFlags=igCollapsingHeader_TreeNodeFlags_cimgui_generated;
+         igCollapsingHeader_BoolPtr=igCollapsingHeader_BoolPtr_cimgui_generated"
+)
 """
 cmake-after="""
 add_custom_command(
