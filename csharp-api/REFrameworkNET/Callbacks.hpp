@@ -70,17 +70,45 @@ public: \
             PostImplementation(); \
         } \
     } \
+    /* Call this inside your callback to unsubscribe it after the current invocation. */ \
+    static void RequestStop() { \
+        s_wantsRemoval = true; \
+    } \
 internal: \
     static void TriggerPre() { \
-        Pre(); \
+        if (Callbacks::Impl::IsUnloading || PreImplementation == nullptr) { \
+            return; \
+        } \
+        auto delegates = PreImplementation->GetInvocationList(); \
+        for each (auto del in delegates) { \
+            auto typedDel = (BaseCallback::Delegate^)del; \
+            s_wantsRemoval = false; \
+            typedDel(); \
+            if (s_wantsRemoval) { \
+                PreImplementation -= typedDel; \
+            } \
+        } \
     } \
     static void TriggerPost() { \
-        Post(); \
+        if (Callbacks::Impl::IsUnloading || PostImplementation == nullptr) { \
+            return; \
+        } \
+        auto delegates = PostImplementation->GetInvocationList(); \
+        for each (auto del in delegates) { \
+            auto typedDel = (BaseCallback::Delegate^)del; \
+            s_wantsRemoval = false; \
+            typedDel(); \
+            if (s_wantsRemoval) { \
+                PostImplementation -= typedDel; \
+            } \
+        } \
     } \
     static BaseCallback::Delegate^ TriggerPreDelegate = gcnew BaseCallback::Delegate(&EVENT_NAME::TriggerPre); \
     static BaseCallback::Delegate^ TriggerPostDelegate = gcnew BaseCallback::Delegate(&EVENT_NAME::TriggerPost); \
     static BaseCallback::Delegate^ PreImplementation; \
     static BaseCallback::Delegate^ PostImplementation; \
+    [System::ThreadStatic] \
+    static bool s_wantsRemoval; \
 }; \
 
 namespace Callbacks {
