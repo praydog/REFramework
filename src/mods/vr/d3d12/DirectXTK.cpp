@@ -1,3 +1,5 @@
+#include <spdlog/spdlog.h>
+
 #include "DirectXTK.hpp"
 
 namespace d3d12 {
@@ -9,6 +11,12 @@ void render_srv_to_rtv(
     D3D12_RESOURCE_STATES src_state, 
     D3D12_RESOURCE_STATES dst_state)
 {
+    if (!src.has_srv() || !dst.has_rtv()) {
+        spdlog::error("[VR] render_srv_to_rtv: missing views (src srv={}, dst rtv={}); skipping draw",
+            src.has_srv(), dst.has_rtv());
+        return;
+    }
+
     const auto dst_desc = dst.texture->GetDesc();
     const auto src_desc = src.texture->GetDesc();
 
@@ -31,8 +39,9 @@ void render_srv_to_rtv(
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Transition.pResource = dst.texture.Get();
 
+    // dst is the resource being transitioned here, so its current state is dst_state, not src_state.
     if (dst_state != D3D12_RESOURCE_STATE_RENDER_TARGET) {
-        barrier.Transition.StateBefore = src_state;
+        barrier.Transition.StateBefore = dst_state;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         command_list->ResourceBarrier(1, &barrier);
