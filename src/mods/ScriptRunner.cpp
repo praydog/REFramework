@@ -663,7 +663,7 @@ bool ScriptState::on_pre_gui_draw_element(REComponent* gui_element, void* contex
 
         auto guard = m_pre_gui_draw_element_fns.acquire_iteration();
         for (auto& fn : m_pre_gui_draw_element_fns.get()) {
-            if (auto result = handle_protected_result(fn(gui_element, context))) {
+            if (auto result = handle_protected_result(fn(gui_element, context)); result.valid()) {
                 auto result_obj = result.get<sol::object>();
 
                 if (!result_obj.is<sol::nil_t>() && result_obj.is<bool>() && result_obj.as<bool>() == false) {
