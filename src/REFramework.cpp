@@ -1076,6 +1076,13 @@ void REFramework::on_frame_d3d12() {
     cmd_ctx->wait(INFINITE);
     {
         std::scoped_lock _{ cmd_ctx->mtx };
+
+        if (!cmd_ctx->is_open) {
+            spdlog::error("[D3D12] Command list for {} is not recording; skipping frame",
+                utility::narrow(cmd_ctx->internal_name));
+            return;
+        }
+
         cmd_ctx->has_commands = true;
 
         // Draw to our render target.
@@ -2356,8 +2363,8 @@ bool REFramework::init_d3d12() {
     for (auto i = 0; i < 9; ++i) {
         auto& ctx = m_d3d12.cmd_ctxs.emplace_back(std::make_unique<d3d12::CommandContext>());
 
-        if (!ctx->setup(L"Framework::m_d3d12.cmd_ctx")) {
-            spdlog::error("[D3D12] Failed to create command context.");
+        if (!ctx->setup((L"Framework::m_d3d12.cmd_ctxs[" + std::to_wstring(i) + L"]").c_str())) {
+            spdlog::error("[D3D12] Failed to create command context {}.", i);
             return false;
         }
     }

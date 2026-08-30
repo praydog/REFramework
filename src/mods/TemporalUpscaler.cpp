@@ -502,8 +502,9 @@ bool TemporalUpscaler::init_upscale_features() {
         out_h = bb_desc.Height;
         out_format = bb_desc.Format;
 
+        uint32_t copier_index = 0;
         for (auto& copier : m_copiers) {
-            copier.setup();
+            copier.setup((L"TemporalUpscaler Copier " + std::to_wstring(copier_index++)).c_str());
         }
     } else {
         auto& hook = g_framework->get_d3d11_hook();
