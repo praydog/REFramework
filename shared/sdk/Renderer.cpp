@@ -1539,10 +1539,6 @@ ID3D12Resource* TargetState::get_native_resource_d3d12() const {
 }
 
 DirectXResource<ID3D12Resource>* Texture::get_d3d12_resource_container() {
-    // DMC5 (TDB <71) uses hardcoded offset; newer games bruteforce-scan.
-    if (sdk::GameIdentity::get().tdb_ver() < 71) {
-        return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + get_s_d3d12_resource_offset());
-    }
     // fall through to bruteforce for TDB >= 71
     static std::optional<size_t> offset = std::nullopt;
 
@@ -1550,7 +1546,7 @@ DirectXResource<ID3D12Resource>* Texture::get_d3d12_resource_container() {
         return *(DirectXResource<ID3D12Resource>**)((uintptr_t)this + *offset);
     }
 
-    static constexpr size_t GET_TYPEINFO_FN_INDEX = 3;
+    size_t GET_TYPEINFO_FN_INDEX = sdk::GameIdentity::get().tdb_ver() <= 67 ? 2 : 3;
 
     spdlog::info("Searching for Texture D3D12Resource offset (via.render.RenderResource bruteforce)");
 
