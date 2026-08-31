@@ -1926,12 +1926,15 @@ sdk::renderer::SceneInfo* layer::Scene::get_z_prepass_scene_info() {
 }
 
 std::optional<size_t> layer::PrepareOutput::get_output_state_offset() {
-    static constexpr size_t GET_TYPEINFO_FN_INDEX = 3;
     static std::optional<size_t> s_output_state_offset = std::nullopt;
 
     if (s_output_state_offset) {
         return *s_output_state_offset;
     }
+
+    // <= DMC5 it's 2.
+    size_t GET_TYPEINFO_FN_INDEX = sdk::GameIdentity::get().tdb_ver() <= 67 ? 2 : 3;
+
     for (size_t offset = 0x10; offset < 0x500; offset += sizeof(void*)) try {
         // Grab vtable.
         const auto ptr = *(uintptr_t*)((uintptr_t)this + offset);

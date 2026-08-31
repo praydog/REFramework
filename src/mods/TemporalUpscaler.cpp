@@ -1353,15 +1353,15 @@ void TemporalUpscaler::finish_release_resources() {
 }
 
 void TemporalUpscaler::update_motion_scale() {
-#if TDB_VER > 67
-    m_motion_scale[0] = (float)get_render_width() / 2.0f;
-    m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
-#else
-    // I have no idea. Would need to take a look at the texture in RenderDoc.
-    // Might need a shader to fix this?
-    m_motion_scale[0] = 0.01f;
-    m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
-#endif
+    if (sdk::GameIdentity::get().tdb_ver() > 67) {
+        m_motion_scale[0] = (float)get_render_width() / 2.0f;
+        m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
+    } else {
+        // I have no idea. Would need to take a look at the texture in RenderDoc.
+        // Might need a shader to fix this?
+        m_motion_scale[0] = 0.01f;
+        m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
+    }
 
     SetMotionScaleX(get_evaluate_id(0), (float)m_motion_scale[0]);
     SetMotionScaleY(get_evaluate_id(0), (float)m_motion_scale[1]);
