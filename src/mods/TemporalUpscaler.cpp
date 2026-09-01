@@ -523,7 +523,7 @@ void TemporalUpscaler::on_early_present() {
                         copier.cmd_list.Get(),
                         state.motion_vectors_ctx,
                         m_motion_vectors_copy,
-                        D3D12_RESOURCE_STATE_COMMON,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
                         D3D12_RESOURCE_STATE_COMMON
                     );
                 }

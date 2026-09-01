@@ -38,17 +38,35 @@ void render_srv_to_rtv(
     scissor_rect.right = (LONG)dst_desc.Width;
     scissor_rect.bottom = (LONG)dst_desc.Height;
 
-    // Transition dst to D3D12_RESOURCE_STATE_RENDER_TARGET
-    D3D12_RESOURCE_BARRIER barrier{};
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Transition.pResource = dst.texture.Get();
+    D3D12_RESOURCE_BARRIER barriers[2]{};
+    uint32_t barrier_count = 0;
 
-    // dst is the resource being transitioned here, so its current state is dst_state, not src_state.
-    if (dst_state != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+    const bool transition_src =
+        (src_state & D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) == 0;
+
+    const bool transition_dst =
+        dst_state != D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+    if (transition_src) {
+        auto& barrier = barriers[barrier_count++];
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.pResource = src.texture.Get();
+        barrier.Transition.StateBefore = src_state;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    }
+
+    if (transition_dst) {
+        auto& barrier = barriers[barrier_count++];
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.pResource = dst.texture.Get();
         barrier.Transition.StateBefore = dst_state;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        command_list->ResourceBarrier(1, &barrier);
+    }
+
+    if (barrier_count > 0) {
+        command_list->ResourceBarrier(barrier_count, barriers);
     }
 
     // Set RTV to backbuffer
@@ -74,11 +92,28 @@ void render_srv_to_rtv(
 
     batch->End();
 
-    // Transition dst to dst_state
-    if (dst_state != D3D12_RESOURCE_STATE_RENDER_TARGET) {
+    barrier_count = 0;
+
+    if (transition_src) {
+        auto& barrier = barriers[barrier_count++];
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.pResource = src.texture.Get();
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        barrier.Transition.StateAfter = src_state;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    }
+
+    if (transition_dst) {
+        auto& barrier = barriers[barrier_count++];
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.pResource = dst.texture.Get();
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.StateAfter = dst_state;
-        command_list->ResourceBarrier(1, &barrier);
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    }
+
+    if (barrier_count > 0) {
+        command_list->ResourceBarrier(barrier_count, barriers);
     }
 }
 
