@@ -1,5 +1,9 @@
 #include <spdlog/spdlog.h>
 
+#include <../../directxtk12-src/Inc/ResourceUploadBatch.h>
+#include <../../directxtk12-src/Inc/RenderTargetState.h>
+
+#include "REFramework.hpp"
 #include "DirectXTK.hpp"
 
 namespace d3d12 {
@@ -76,5 +80,44 @@ void render_srv_to_rtv(
         barrier.Transition.StateAfter = dst_state;
         command_list->ResourceBarrier(1, &barrier);
     }
-} 
+}
+
+std::unique_ptr<DirectX::DX12::SpriteBatch> setup_sprite_batch_pso(
+    DXGI_FORMAT output_format, 
+    std::span<const uint8_t> ps, 
+    std::span<const uint8_t> vs, 
+    std::optional<DirectX::SpriteBatchPipelineStateDescription> pd) 
+{
+    spdlog::info("[D3D12] Setting up sprite batch PSO");
+
+    auto& hook = g_framework->get_d3d12_hook();
+
+    auto device = hook->get_device();
+    auto command_queue = hook->get_command_queue();
+    auto swapchain = hook->get_swap_chain();
+
+    DirectX::ResourceUploadBatch upload{ device };
+    upload.Begin();
+
+    if (!pd) {
+        pd = DirectX::SpriteBatchPipelineStateDescription{DirectX::RenderTargetState{output_format, DXGI_FORMAT_UNKNOWN}};
+    }
+
+    if (ps.size() > 0) {
+        pd->customPixelShader = D3D12_SHADER_BYTECODE{ps.data(), ps.size()};
+    }
+
+    if (vs.size() > 0) {
+        pd->customVertexShader = D3D12_SHADER_BYTECODE{vs.data(), vs.size()};
+    }
+
+    auto batch = std::make_unique<DirectX::DX12::SpriteBatch>(device, upload, *pd);
+
+    auto result = upload.End(command_queue);
+    result.wait();
+
+    spdlog::info("[D3D12] Sprite batch PSO setup complete");
+
+    return batch;
+}
 }

@@ -1654,6 +1654,12 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	)
 
 	add_custom_command(
+	TARGET REFramework PRE_BUILD
+	    COMMAND ${CMAKE_COMMAND} -E echo "Compiling shaders for REFramework..."
+	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}/src/shaders ${CMAKE_SOURCE_DIR}/src/shaders/compile_shaders.bat
+	)
+	
+add_custom_command(
 	    TARGET REFramework PRE_BUILD
 	    COMMAND ${CMAKE_COMMAND} -E echo "Generating commit hash..."
 	    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/MakeCommitHash.bat

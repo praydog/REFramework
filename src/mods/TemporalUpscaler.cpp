@@ -11,6 +11,13 @@
 #include <sdk/SceneManager.hpp>
 #include <sdk/Memory.hpp>
 
+#include "vr/d3d12/DirectXTK.hpp"
+
+#include <../../directxtk12-src/Inc/ResourceUploadBatch.h>
+#include <../../directxtk12-src/Inc/RenderTargetState.h>
+#include "shaders/Compiled/dmc5_velocity_conversion_DMC5VelocityPS.inc"
+#include "shaders/Compiled/dmc5_velocity_conversion_DMC5VelocityVS.inc"
+
 #if TDB_VER >= 82
 #include "sdk/regenny/re9/via/Window.hpp"
 #include "sdk/regenny/re9/via/SceneView.hpp"
@@ -205,6 +212,117 @@ void TemporalUpscaler::on_draw_ui() {
 #endif
 }
 
+void TemporalUpscaler::ensure_motion_vectors_copy(ID3D12Resource* source) {
+    if (source == nullptr) {
+        return;
+    }
+
+    const auto src_desc = source->GetDesc();
+
+    if (m_motion_vectors_copy.texture != nullptr) {
+        const auto dst_desc = m_motion_vectors_copy.texture->GetDesc();
+
+        if (dst_desc.Width == src_desc.Width &&
+            dst_desc.Height == src_desc.Height) {
+            return;
+        }
+
+        m_motion_vectors_copy.reset();
+    }
+
+    spdlog::info(
+        "[TemporalUpscaler] Creating motion vector swizzle texture {}x{}",
+        src_desc.Width,
+        src_desc.Height
+    );
+
+    auto& hook = g_framework->get_d3d12_hook();
+    auto device = hook->get_device();
+
+    D3D12_RESOURCE_DESC desc{};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    desc.Alignment = 0;
+    desc.Width = src_desc.Width;
+    desc.Height = src_desc.Height;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+
+    // Output contains decoded XY motion vectors.
+    desc.Format = DXGI_FORMAT_R16G16_FLOAT;
+
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+    D3D12_HEAP_PROPERTIES heap_props{};
+    heap_props.Type = D3D12_HEAP_TYPE_DEFAULT;
+    heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+    heap_props.CreationNodeMask = 1;
+    heap_props.VisibleNodeMask = 1;
+    
+    ComPtr<ID3D12Resource> resource{};
+
+    const auto result = device->CreateCommittedResource(
+        &heap_props,
+        D3D12_HEAP_FLAG_NONE,
+        &desc,
+        D3D12_RESOURCE_STATE_COMMON,
+        nullptr,
+        IID_PPV_ARGS(&resource)
+    );
+
+    if (FAILED(result) || resource == nullptr) {
+        spdlog::error(
+            "[TemporalUpscaler] Failed to create motion vector swizzle texture: {:x}",
+            (uint32_t)result
+        );
+
+        return;
+    }
+
+    if (!m_motion_vectors_copy.setup(device, resource.Get(),
+        DXGI_FORMAT_R16G16_FLOAT,
+        DXGI_FORMAT_R16G16_FLOAT,
+        L"MotionVectorsDMC5Swizzle"
+    )) 
+    {
+        spdlog::error("[TemporalUpscaler] Failed to setup motion vector swizzle texture");
+        return;
+    }
+
+    spdlog::info(
+        "[TemporalUpscaler] Created motion vector swizzle texture {}x{}",
+        desc.Width,
+        desc.Height
+    );
+}
+
+void TemporalUpscaler::create_dmc5_velocity_conversion() {
+    if (m_dmc5_velocity_conversion_sprite_batch != nullptr) {
+        return;
+    }
+
+    spdlog::info("[TemporalUpscaler] Creating DMC5 velocity conversion sprite batch");
+
+    DirectX::SpriteBatchPipelineStateDescription pd{DirectX::RenderTargetState{DXGI_FORMAT_R16G16_FLOAT, DXGI_FORMAT_UNKNOWN}};
+
+    auto& bd = pd.blendDesc;
+    auto& bdrt = bd.RenderTarget[0];
+
+    bdrt.BlendEnable = FALSE;
+    bdrt.LogicOpEnable = FALSE;
+    bdrt.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+    m_dmc5_velocity_conversion_sprite_batch = d3d12::setup_sprite_batch_pso(
+        DXGI_FORMAT_R16G16_FLOAT,
+        dmc5_velocity_conversion_DMC5VelocityPS, 
+        dmc5_velocity_conversion_DMC5VelocityVS, 
+        pd
+    );
+}
+
 void TemporalUpscaler::on_early_present() {
     m_rendering = true;
 
@@ -382,6 +500,34 @@ void TemporalUpscaler::on_early_present() {
                     continue;
                 }
 
+                if (sdk::GameIdentity::get().tdb_ver() <= 67) {
+                    ensure_motion_vectors_copy(state.motion_vectors.Get());
+                    create_dmc5_velocity_conversion();
+
+                    if (state.motion_vectors_ctx.texture.Get() != state.motion_vectors.Get()) {
+                        state.motion_vectors_ctx.reset();
+
+                        if (!state.motion_vectors_ctx.setup(device, state.motion_vectors.Get(),
+                            DXGI_FORMAT_R16G16B16A16_SNORM,
+                            DXGI_FORMAT_R16G16B16A16_SNORM,
+                            L"MotionVectorsDMC5Original"
+                        ))
+                        {
+                            spdlog::error("[TemporalUpscaler] Failed to setup motion vector original texture");
+                            break;
+                        }
+                    }
+
+                    d3d12::render_srv_to_rtv(
+                        m_dmc5_velocity_conversion_sprite_batch.get(),
+                        copier.cmd_list.Get(),
+                        state.motion_vectors_ctx,
+                        m_motion_vectors_copy,
+                        D3D12_RESOURCE_STATE_COMMON,
+                        D3D12_RESOURCE_STATE_COMMON
+                    );
+                }
+
                 const auto vr_index = is_vr_multipass ? i : frame;
                 const auto index = vr_enabled ? vr_index : i;
 
@@ -393,7 +539,7 @@ void TemporalUpscaler::on_early_present() {
                 params.execute = true;
                 params.reset = false;
                 params.color = state.color.Get();
-                params.motionVector = state.motion_vectors.Get();
+                params.motionVector = sdk::GameIdentity::get().tdb_ver() <= 67 ? m_motion_vectors_copy.texture.Get() : state.motion_vectors.Get();
                 params.depth = state.depth.Get();
                 params.mask = nullptr;
                 params.destination = nullptr;
@@ -407,6 +553,11 @@ void TemporalUpscaler::on_early_present() {
                 params.nearPlane = m_nearz;
                 params.farPlane = m_farz;
                 params.verticalFOV = m_fov;
+
+                if (params.motionVector == nullptr) {
+                    spdlog::error("[TemporalUpscaler] Motion vector resource is null for eye {} (D3D12)", i);
+                    continue;
+                }
 
                 EvaluateUpscaler(&params);
                 //SimpleEvaluate(
@@ -1353,15 +1504,8 @@ void TemporalUpscaler::finish_release_resources() {
 }
 
 void TemporalUpscaler::update_motion_scale() {
-    if (sdk::GameIdentity::get().tdb_ver() > 67) {
-        m_motion_scale[0] = (float)get_render_width() / 2.0f;
-        m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
-    } else {
-        // I have no idea. Would need to take a look at the texture in RenderDoc.
-        // Might need a shader to fix this?
-        m_motion_scale[0] = 0.01f;
-        m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
-    }
+    m_motion_scale[0] = (float)get_render_width() / 2.0f;
+    m_motion_scale[1] = -1.0f * ((float)get_render_height() / 2.0f);
 
     SetMotionScaleX(get_evaluate_id(0), (float)m_motion_scale[0]);
     SetMotionScaleY(get_evaluate_id(0), (float)m_motion_scale[1]);
