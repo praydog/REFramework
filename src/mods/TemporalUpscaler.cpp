@@ -212,22 +212,22 @@ void TemporalUpscaler::on_draw_ui() {
 #endif
 }
 
-void TemporalUpscaler::ensure_motion_vectors_copy(ID3D12Resource* source) {
-    if (source == nullptr) {
+void TemporalUpscaler::ensure_motion_vectors_copy(EyeState& state) {
+    if (state.motion_vectors == nullptr) {
         return;
     }
 
-    const auto src_desc = source->GetDesc();
+    const auto src_desc = state.motion_vectors->GetDesc();
 
-    if (m_motion_vectors_copy.texture != nullptr) {
-        const auto dst_desc = m_motion_vectors_copy.texture->GetDesc();
+    if (state.motion_vectors_dmc5.texture != nullptr) {
+        const auto dst_desc = state.motion_vectors_dmc5.texture->GetDesc();
 
         if (dst_desc.Width == src_desc.Width &&
             dst_desc.Height == src_desc.Height) {
             return;
         }
 
-        m_motion_vectors_copy.reset();
+        state.motion_vectors_dmc5.reset();
     }
 
     spdlog::info(
@@ -282,7 +282,7 @@ void TemporalUpscaler::ensure_motion_vectors_copy(ID3D12Resource* source) {
         return;
     }
 
-    if (!m_motion_vectors_copy.setup(device, resource.Get(),
+    if (!state.motion_vectors_dmc5.setup(device, resource.Get(),
         DXGI_FORMAT_R16G16_FLOAT,
         DXGI_FORMAT_R16G16_FLOAT,
         L"MotionVectorsDMC5Swizzle"
@@ -501,7 +501,7 @@ void TemporalUpscaler::on_early_present() {
                 }
 
                 if (sdk::GameIdentity::get().tdb_ver() <= 67) {
-                    ensure_motion_vectors_copy(state.motion_vectors.Get());
+                    ensure_motion_vectors_copy(state);
                     create_dmc5_velocity_conversion();
 
                     if (state.motion_vectors_ctx.texture.Get() != state.motion_vectors.Get()) {
@@ -522,7 +522,7 @@ void TemporalUpscaler::on_early_present() {
                         m_dmc5_velocity_conversion_sprite_batch.get(),
                         copier.cmd_list.Get(),
                         state.motion_vectors_ctx,
-                        m_motion_vectors_copy,
+                        state.motion_vectors_dmc5,
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
                         D3D12_RESOURCE_STATE_COMMON
                     );
@@ -539,7 +539,7 @@ void TemporalUpscaler::on_early_present() {
                 params.execute = true;
                 params.reset = false;
                 params.color = state.color.Get();
-                params.motionVector = sdk::GameIdentity::get().tdb_ver() <= 67 ? m_motion_vectors_copy.texture.Get() : state.motion_vectors.Get();
+                params.motionVector = sdk::GameIdentity::get().tdb_ver() <= 67 ? state.motion_vectors_dmc5.texture.Get() : state.motion_vectors.Get();
                 params.depth = state.depth.Get();
                 params.mask = nullptr;
                 params.destination = nullptr;

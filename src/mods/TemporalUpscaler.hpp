@@ -96,7 +96,8 @@ public:
 private:
     template <typename T> using ComPtr = Microsoft::WRL::ComPtr<T>;
 
-    void ensure_motion_vectors_copy(ID3D12Resource* source);
+    struct EyeState;
+    void ensure_motion_vectors_copy(EyeState& state);
     void create_dmc5_velocity_conversion();
     bool on_first_frame();
     bool init_upscale_features();
@@ -163,6 +164,10 @@ private:
         sdk::intrusive_ptr<sdk::renderer::Texture> depth_copy{};
 
         d3d12::TextureContext motion_vectors_ctx{};
+
+        // Copy of the motion vectors for when we need to do swizzling
+        // e.g. in DMC5 because it's in format: R = unused/sentinel, G = motion X, B = motion Y, A = unused
+        d3d12::TextureContext motion_vectors_dmc5{};
     };
 
     std::array<EyeState, 2> m_eye_states{};
@@ -180,9 +185,6 @@ private:
     ComPtr<ID3D12Resource> m_blank_big_depth{};
     ComPtr<ID3D12Resource> m_blank_big_color{};
     
-    // Copy of the motion vectors for when we need to do swizzling
-    // e.g. in DMC5 because it's in format: R = unused/sentinel, G = motion X, B = motion Y, A = unused
-    d3d12::TextureContext m_motion_vectors_copy{};
     std::unique_ptr<DirectX::DX12::SpriteBatch> m_dmc5_velocity_conversion_sprite_batch{};
 
     int32_t m_displayed_scene{0}; // 0 = original, 1 = cloned
