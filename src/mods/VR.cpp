@@ -10,7 +10,13 @@
 
 #include <sdk/TDBVer.hpp>
 #include <reframework/API.hpp>
+#include <sdk/GameIdentity.hpp>
 
+#ifdef REFRAMEWORK_UNIVERSAL
+#include "sdk/regenny/re9/via/Window.hpp"
+#include "sdk/regenny/re9/via/SceneView.hpp"
+#include <sdk/ViaDispatch.hpp>
+#else
 #if TDB_VER >= 83
 #include "sdk/regenny/re9/via/Window.hpp"
 #include "sdk/regenny/re9/via/SceneView.hpp"
@@ -39,6 +45,7 @@
 #else
 #include "sdk/regenny/mhrise_tdb71/via/Window.hpp"
 #include "sdk/regenny/mhrise_tdb71/via/SceneView.hpp"
+#endif
 #endif
 #endif
 
@@ -80,7 +87,11 @@ std::unique_ptr<FunctionHook> g_post_effect_draw_hook{};
 std::unique_ptr<FunctionHook> g_wwise_listener_update_hook{};
 //std::unique_ptr<FunctionHook> g_get_sharpness_hook{};
 
+#ifndef REFRAMEWORK_UNIVERSAL
 #if TDB_VER <= 49
+std::optional<regenny::via::Size> g_previous_size{};
+#endif
+#else
 std::optional<regenny::via::Size> g_previous_size{};
 #endif
 
@@ -98,6 +109,8 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
 
     utility::ScopeGuard _{ [&]() { already_inside = false; } };
 
+    const auto& gi = sdk::GameIdentity::get();
+
     if (!g_framework->is_ready()) {
         return;
     }
@@ -110,27 +123,26 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         return;
     }
 
-    auto regenny_view = (regenny::via::SceneView*)scene_view;
-    auto window = regenny_view->window;
+    void* window = sdk::via::sv_window(scene_view);
 
     static auto via_scene_view = sdk::find_type_definition("via.SceneView");
     static auto set_display_type_method = via_scene_view != nullptr ? via_scene_view->get_method("set_DisplayType") : nullptr;
 
     // Force the display to stretch to the window size
     if (set_display_type_method != nullptr) {
-        set_display_type_method->call(sdk::get_thread_context(), regenny_view, via::DisplayType::Fit);
+        set_display_type_method->call(sdk::get_thread_context(), scene_view, via::DisplayType::Fit);
     } else {
-#if not defined(RE7) || TDB_VER <= 49
-        static auto is_sunbreak = utility::get_module_path(utility::get_executable())->find("MHRiseSunbreakDemo") != std::string::npos;
+        if (!gi.is_re7() || gi.tdb_ver() <= 49) {
+            static auto is_sunbreak = utility::get_module_path(utility::get_executable())->find("MHRiseSunbreakDemo") != std::string::npos;
 
-        if (is_sunbreak) {
-            *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
+            if (is_sunbreak) {
+                *(int32_t*)((uintptr_t)scene_view + sdk::via::sv_display_type_offset() + 4) = (int32_t)regenny::via::DisplayType::Fit;
+            } else {
+                sdk::via::sv_display_type(scene_view) = (int32_t)regenny::via::DisplayType::Fit;
+            }
         } else {
-            regenny_view->display_type = regenny::via::DisplayType::Fit;
+            *(int32_t*)((uintptr_t)scene_view + sdk::via::sv_display_type_offset() + 4) = (int32_t)regenny::via::DisplayType::Fit;
         }
-#else
-        *(regenny::via::DisplayType*)((uintptr_t)&regenny_view->display_type + 4) = regenny::via::DisplayType::Fit;
-#endif
     }
 
     auto wanted_width = 0.0f;
@@ -140,15 +152,13 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     if (window != nullptr) {
         static const auto is_gng = utility::get_module_path(utility::get_executable())->find("makaimura_GG_RE.exe") != std::string::npos;
 
-        auto& window_width = is_gng ? *(uint32_t*)((uintptr_t)window + 0x48) : window->width;
-        auto& window_height = is_gng ? *(uint32_t*)((uintptr_t)window + 0x4C) : window->height;
+        auto& window_width = is_gng ? *(uint32_t*)((uintptr_t)window + 0x48) : sdk::via::window_width(window);
+        auto& window_height = is_gng ? *(uint32_t*)((uintptr_t)window + 0x4C) : sdk::via::window_height(window);
 
         if (is_hmd_active()) {
-#if TDB_VER <= 49
             if (!g_previous_size) {
-                g_previous_size = regenny::via::Size{ (float)window->width, (float)window->height };
+                g_previous_size = regenny::via::Size{ (float)sdk::via::window_width(window), (float)sdk::via::window_height(window) };
             }
-#endif
 
             if (!TemporalUpscaler::get()->activated()) {
                 if (!is_using_multipass()) {
@@ -195,29 +205,21 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
         } else {
             m_backbuffer_inconsistency = false;
 
-#if TDB_VER > 49
-            window_width = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x88) : (uint32_t)window->borderless_size.w;
-            window_height = is_gng ? (uint32_t)*(float*)((uintptr_t)window + 0x8C) : (uint32_t)window->borderless_size.h;
-#else
-            if (g_previous_size) {
-                window->width = (uint32_t)g_previous_size->w;
-                window->height = (uint32_t)g_previous_size->h;
-
-                g_previous_size = std::nullopt;
-            }
-#endif
+            window_width = (uint32_t)g_previous_size->w;
+            window_height = (uint32_t)g_previous_size->h;
+            g_previous_size = std::nullopt;
         }
 
         wanted_width = (float)window_width;
         wanted_height = (float)window_height;
 
         // Might be usable in other games too
-#if defined(SF6) || TDB_VER >= 73
-        if (!is_gng) {
-            window->borderless_size.w = (float)window_width;
-            window->borderless_size.h = (float)window_height;
+        if (gi.is_sf6() || gi.tdb_ver() >= 69) {
+            if (!is_gng) {
+                sdk::via::window_borderless_w(window) = (float)window_width;
+                sdk::via::window_borderless_h(window) = (float)window_height;
+            }
         }
-#endif
     }
 
     //auto out = original_func(scene_view, result);
@@ -229,25 +231,23 @@ void VR::on_view_get_size(REManagedObject* scene_view, float* result) {
     // spoof the size to the HMD's size
     if (!TemporalUpscaler::get()->activated()) {
         if (!is_using_multipass()) {
-    #if TDB_VER < 73
-            result[0] = wanted_width;
-            result[1] = wanted_height;
-    #else
-            // Stupid optimizations cause the game to not use the result variant of this function
-            // but rather update the current scene view's size directly.
-            regenny_view->size.w = wanted_width;
-            regenny_view->size.h = wanted_height;
-    #endif
+            if (gi.tdb_ver() < 73) {
+                result[0] = wanted_width;
+                result[1] = wanted_height;
+            } else {
+                // Stupid optimizations cause the game to not use the result variant of this function
+                // but rather update the current scene view's size directly.
+                sdk::via::sv_size_w(scene_view) = wanted_width;
+                sdk::via::sv_size_h(scene_view) = wanted_height;
+            }
         } else {
-    #if TDB_VER < 73
-            result[0] = wanted_width - 1.0f;
-            result[1] = wanted_height - 1.0f;
-    #else
-            // Stupid optimizations cause the game to not use the result variant of this function
-            // but rather update the current scene view's size directly.
-            regenny_view->size.w = wanted_width - 1.0f;
-            regenny_view->size.h = wanted_height - 1.0f;
-    #endif
+            if (gi.tdb_ver() < 73) {
+                result[0] = wanted_width - 1.0f;
+                result[1] = wanted_height - 1.0f;
+            } else {
+                sdk::via::sv_size_w(scene_view) = wanted_width - 1.0f;
+                sdk::via::sv_size_h(scene_view) = wanted_height - 1.0f;
+            }
         }
     }
 }
@@ -314,11 +314,11 @@ Matrix4x4f* VR::gui_camera_get_projection_matrix_hook(REManagedObject* camera, M
 
     // Get the projection matrix for the correct eye
     // For some reason we need to flip the projection matrix here?
-#if TDB_VER > 49
-    *result = vr->get_current_projection_matrix(false);
-#else
-    *result = vr->get_current_projection_matrix(true);
-#endif
+    if (sdk::GameIdentity::get().tdb_ver() > 49) {
+        *result = vr->get_current_projection_matrix(false);
+    } else {
+        *result = vr->get_current_projection_matrix(true);
+    }
 
     return result;
 }
@@ -475,11 +475,14 @@ bool VR::on_pre_overlay_layer_draw(sdk::renderer::layer::Overlay* layer, void* r
     // NOT RE3
     // for some reason RE3 has weird issues with the overlay rendering
     // causing double vision
-#if (TDB_VER < 70 and not defined(RE3)) or (TDB_VER >= 70 and (not defined(RE3) and not defined(RE2) and not defined(RE7) and not defined(RE4) and not defined(SF6)))
-    if (m_allow_engine_overlays->value()) {
-        return true;
+    {
+        const auto& gi = sdk::GameIdentity::get();
+        if ((gi.tdb_ver() < 70 && !gi.is_re3()) || (gi.tdb_ver() >= 70 && !gi.is_re3() && !gi.is_re2() && !gi.is_re7() && !gi.is_re4() && !gi.is_sf6())) {
+            if (m_allow_engine_overlays->value()) {
+                return true;
+            }
+        }
     }
-#endif
 
     return false;
 }
@@ -501,7 +504,7 @@ bool VR::on_pre_post_effect_layer_draw(sdk::renderer::layer::PostEffect* layer, 
     }
     
     static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
-    auto render_output_component = utility::re_component::find(camera, render_output_type);
+    auto render_output_component = camera->find(render_output_type);
 
     if (render_output_component == nullptr) {
         return true;
@@ -759,21 +762,15 @@ void VR::wwise_listener_update_hook(void* listener) {
 
     std::scoped_lock _{mod->m_wwise_mtx};
 
-#if defined(RE2) || defined(RE3)
-    const auto skip_camera_set = FirstPerson::get()->will_be_used();
-#else
-    const auto skip_camera_set = false;
-#endif
+    const auto& gi = sdk::GameIdentity::get();
+
+    const auto skip_camera_set = (gi.is_re2() || gi.is_re3()) ? FirstPerson::get()->will_be_used() : false;
 
     if (!skip_camera_set) {
         mod->update_audio_camera();
     }
 
-#if TDB_VER > 49
-    constexpr auto CAMERA_OFFSET = 0x50;
-#else
-    constexpr auto CAMERA_OFFSET = 0x58;
-#endif
+    const auto CAMERA_OFFSET = gi.tdb_ver() > 49 ? 0x50 : 0x58;
 
     auto& listener_camera = *(::REManagedObject**)((uintptr_t)listener + CAMERA_OFFSET);
     bool changed = false;
@@ -1352,26 +1349,26 @@ std::optional<std::string> VR::hijack_resolution() {
 }
 
 std::optional<std::string> VR::hijack_input() {
-#if defined(RE2) || defined(RE3)
-    spdlog::info("[VR] Hijacking InputSystem");
+    if (sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3()) {
+        spdlog::info("[VR] Hijacking InputSystem");
 
-    // We're going to hook InputSystem.update so we can
-    // override the analog stick values with the VR controller's
-    auto func = sdk::find_native_method(game_namespace("InputSystem"), "update");
+        // We're going to hook InputSystem.update so we can
+        // override the analog stick values with the VR controller's
+        auto func = sdk::find_native_method(game_namespace("InputSystem"), "update");
 
-    if (func == nullptr) {
-        return "VR init failed: InputSystem.update function not found.";
+        if (func == nullptr) {
+            return "VR init failed: InputSystem.update function not found.";
+        }
+
+        spdlog::info("InputSystem.update: {:x}", (uintptr_t)func);
+
+        // Hook the native function
+        g_input_hook = std::make_unique<FunctionHook>(func, inputsystem_update_hook);
+
+        if (!g_input_hook->create()) {
+            return "VR init failed: InputSystem.update native function hook failed.";
+        }
     }
-
-    spdlog::info("InputSystem.update: {:x}", (uintptr_t)func);
-
-    // Hook the native function
-    g_input_hook = std::make_unique<FunctionHook>(func, inputsystem_update_hook);
-
-    if (!g_input_hook->create()) {
-        return "VR init failed: InputSystem.update native function hook failed.";
-    }
-#endif
 
     return std::nullopt;
 }
@@ -1412,74 +1409,71 @@ std::optional<std::string> VR::hijack_camera() {
 }
 
 std::optional<std::string> VR::hijack_wwise_listeners() {
-#ifndef RE4
-#ifndef SF6
-#if TDB_VER < 73
-    spdlog::info("[VR] Hijacking WwiseListener");
+    const auto& gi = sdk::GameIdentity::get();
+    if (!gi.is_re4() && !gi.is_sf6() && gi.tdb_ver() < 73) {
+        spdlog::info("[VR] Hijacking WwiseListener");
 
-    const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
+        const auto t = sdk::find_type_definition("via.wwise.WwiseListener");
 
-    if (t == nullptr) {
-        return "VR init failed: via.wwise.WwiseListener type not found.";
-    }
+        if (t == nullptr) {
+            return "VR init failed: via.wwise.WwiseListener type not found.";
+        }
 
-    const auto update_method = t->get_method("update");
+        const auto update_method = t->get_method("update");
 
-    if (update_method == nullptr) {
-        return "VR init failed: via.wwise.WwiseListener.update method not found.";
-    }
+        if (update_method == nullptr) {
+            return "VR init failed: via.wwise.WwiseListener.update method not found.";
+        }
 
-    const auto func_wrapper = update_method->get_function();
+        const auto func_wrapper = update_method->get_function();
 
-    if (func_wrapper == nullptr) {
-        return "VR init failed: via.wwise.WwiseListener.update native function not found.";
-    }
+        if (func_wrapper == nullptr) {
+            return "VR init failed: via.wwise.WwiseListener.update native function not found.";
+        }
     
-    spdlog::info("via.wwise.WwiseListener.update: {:x}", (uintptr_t)func_wrapper);
+        spdlog::info("via.wwise.WwiseListener.update: {:x}", (uintptr_t)func_wrapper);
     
-    // Use hde to disassemble the method and find the first jmp, which jmps to the real function
-    // in the vtable
-    const auto jmp = utility::scan_disasm((uintptr_t)func_wrapper, 10, "48 FF");
+        // Use hde to disassemble the method and find the first jmp, which jmps to the real function
+        // in the vtable
+        const auto jmp = utility::scan_disasm((uintptr_t)func_wrapper, 10, "48 FF");
 
-    if (!jmp) {
-        return "VR init failed: could not find jmp opcode in via.wwise.WwiseListener.update native function.";
-    }
+        if (!jmp) {
+            return "VR init failed: could not find jmp opcode in via.wwise.WwiseListener.update native function.";
+        }
 
-    const auto vtable_index = *(uint8_t*)(*jmp + 3) / sizeof(void*);
-    spdlog::info("via.wwise.WwiseListener.update vtable index: {}", vtable_index);
-    spdlog::info("Attempting to create fake via.wwise.WwiseListener instance");
+        const auto vtable_index = *(uint8_t*)(*jmp + 3) / sizeof(void*);
+        spdlog::info("via.wwise.WwiseListener.update vtable index: {}", vtable_index);
+        spdlog::info("Attempting to create fake via.wwise.WwiseListener instance");
 
-    const void* fake_obj = t->create_instance_full();
+        const void* fake_obj = t->create_instance_full();
 
-    if (fake_obj == nullptr) {
-        return "VR init failed: Failed to create fake via.wwise.WwiseListener instance.";
-    }
+        if (fake_obj == nullptr) {
+            return "VR init failed: Failed to create fake via.wwise.WwiseListener instance.";
+        }
     
-    spdlog::info("Attempting to read vtable from fake via.wwise.WwiseListener instance");
-    auto obj_vtable = *(void***)fake_obj;
+        spdlog::info("Attempting to read vtable from fake via.wwise.WwiseListener instance");
+        auto obj_vtable = *(void***)fake_obj;
 
-    if (obj_vtable == nullptr) {
-        return "VR init failed: via.wwise.WwiseListener vtable not found.";
+        if (obj_vtable == nullptr) {
+            return "VR init failed: via.wwise.WwiseListener vtable not found.";
+        }
+
+        spdlog::info("via.wwise.WwiseListener vtable: {:x}", (uintptr_t)obj_vtable - g_framework->get_module());
+
+        auto update_native = obj_vtable[vtable_index];
+
+        if (update_native == 0) {
+            return "VR init failed: via.wwise.WwiseListener update native not found.";
+        }
+
+        spdlog::info("via.wwise.WwiseListener.update: {:x}", (uintptr_t)update_native);
+
+        g_wwise_listener_update_hook = std::make_unique<FunctionHook>(update_native, wwise_listener_update_hook);
+
+        if (!g_wwise_listener_update_hook->create()) {
+            return "VR init failed: via.wwise.WwiseListener update native function hook failed.";
+        }
     }
-
-    spdlog::info("via.wwise.WwiseListener vtable: {:x}", (uintptr_t)obj_vtable - g_framework->get_module());
-
-    auto update_native = obj_vtable[vtable_index];
-
-    if (update_native == 0) {
-        return "VR init failed: via.wwise.WwiseListener update native not found.";
-    }
-
-    spdlog::info("via.wwise.WwiseListener.update: {:x}", (uintptr_t)update_native);
-
-    g_wwise_listener_update_hook = std::make_unique<FunctionHook>(update_native, wwise_listener_update_hook);
-
-    if (!g_wwise_listener_update_hook->create()) {
-        return "VR init failed: via.wwise.WwiseListener update native function hook failed.";
-    }
-#endif
-#endif
-#endif
 
     return std::nullopt;
 }
@@ -1615,42 +1609,40 @@ void VR::update_hmd_state() {
     // because the game logic thread does not run in sync with the rendering thread
     // This will massively improve HMD rotation smoothness for the user
     // if this is not done, the left eye will jitter a lot
-#if defined(RE2) || defined(RE3)
-    const auto cameras = get_cameras();
+    if (sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3()) {
+        const auto cameras = get_cameras();
 
-    for (auto camera : cameras) {
-        if (camera == nullptr) {
-            continue;
-        }
+        for (auto camera : cameras) {
+            if (camera == nullptr) {
+                continue;
+            }
 
-        if (camera->ownerGameObject != nullptr && camera->ownerGameObject->transform != nullptr) {
-            if (camera == cameras[0]) {
-                FirstPerson::get()->on_update_transform(camera->ownerGameObject->transform);
-            } else if (cameras[0] != nullptr && cameras[0]->ownerGameObject != nullptr && cameras[0]->ownerGameObject->transform != nullptr) {
-                auto transform0 = cameras[0]->ownerGameObject->transform;
-                auto transform1 = camera->ownerGameObject->transform;
+            if (camera->get_game_object() != nullptr && camera->get_game_object()->get_transform() != nullptr) {
+                if (camera == cameras[0]) {
+                    FirstPerson::get()->on_update_transform(camera->get_game_object()->get_transform());
+                } else if (cameras[0] != nullptr && cameras[0]->get_game_object() != nullptr && cameras[0]->get_game_object()->get_transform() != nullptr) {
+                    auto transform0 = cameras[0]->get_game_object()->get_transform();
+                    auto transform1 = camera->get_game_object()->get_transform();
 
-                const auto camera_joint = utility::re_transform::get_joint(*transform1, 0);
+                    const auto camera_joint = utility::re_transform::get_joint(*transform1, 0);
 
-                if (camera_joint == nullptr) {
-                    continue;
+                    if (camera_joint == nullptr) {
+                        continue;
+                    }
+
+                    auto& fp = FirstPerson::get();
+
+                    const auto mat = fp->get_last_camera_matrix();
+                    const auto pos = mat[3];
+
+                    transform1->get_world_transform() = transform0->get_world_transform();
+
+                    sdk::set_joint_position(camera_joint, pos);
+                    sdk::set_joint_rotation(camera_joint, mat);
                 }
-
-                auto& fp = FirstPerson::get();
-
-                const auto mat = fp->get_last_camera_matrix();
-                const auto pos = mat[3];
-
-                //transform1->angles = transform0->angles;
-                //transform1->position = transform0->position;
-                transform1->worldTransform = transform0->worldTransform;
-
-                sdk::set_joint_position(camera_joint, pos);
-                sdk::set_joint_rotation(camera_joint, mat);
             }
         }
     }
-#endif
 }
 
 void VR::update_action_states() {
@@ -1741,17 +1733,16 @@ void VR::update_camera() {
         // Disable lens distortion
         set_lens_distortion(false);
 
-    #if defined(RE2) || defined(RE3)
-        if (FirstPerson::get()->will_be_used()) {
+        if ((sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3()) && FirstPerson::get()->will_be_used()) {
             m_needs_camera_restore = false;
 
-            auto camera_object = utility::re_component::get_game_object(camera);
+            auto camera_object = camera->get_game_object();
 
-            if (camera_object == nullptr || camera_object->transform == nullptr) {
+            if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
                 return;
             }
 
-            auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+            auto camera_joint = utility::re_transform::get_joint(*camera_object->get_transform(), 0);
 
             if (camera_joint == nullptr) {
                 return;
@@ -1764,7 +1755,6 @@ void VR::update_camera() {
 
             return;
         }
-    #endif
 
         auto projection_matrix = is_using_multipass() ? get_projection_matrix(0) : get_current_projection_matrix(true);
 
@@ -1811,15 +1801,15 @@ void VR::update_camera_origin() {
             return;
         }
 
-        auto camera_object = utility::re_component::get_game_object(camera);
+        auto camera_object = camera->get_game_object();
 
-        if (camera_object == nullptr || camera_object->transform == nullptr) {
+        if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
             spdlog::error("VR: Failed to get camera game object or transform!");
             m_needs_camera_restore = false;
             return;
         }
 
-        auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+        auto camera_joint = utility::re_transform::get_joint(*camera_object->get_transform(), 0);
 
         if (camera_joint == nullptr) {
             spdlog::error("VR: Failed to get camera joint!");
@@ -1919,13 +1909,13 @@ void VR::update_audio_camera() {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    auto camera_object = camera->get_game_object();
 
-    if (camera_object == nullptr || camera_object->transform == nullptr) {
+    if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
         return;
     }
 
-    auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+    auto camera_joint = utility::re_transform::get_joint(*camera_object->get_transform(), 0);
 
     if (camera_joint == nullptr) {
         return;
@@ -1961,13 +1951,13 @@ void VR::update_render_matrix() {
             return;
         }
 
-        auto camera_object = utility::re_component::get_game_object(camera);
+        auto camera_object = camera->get_game_object();
 
-        if (camera_object == nullptr || camera_object->transform == nullptr) {
+        if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
             return;
         }
 
-        auto camera_joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+        auto camera_joint = utility::re_transform::get_joint(*camera_object->get_transform(), 0);
 
         if (camera_joint == nullptr) {
             return;
@@ -1983,12 +1973,10 @@ void VR::restore_audio_camera() {
         return;
     }
 
-#if defined(RE2) || defined(RE3)
-    if (FirstPerson::get()->will_be_used()) {
+    if ((sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3()) && FirstPerson::get()->will_be_used()) {
         m_needs_audio_restore = false;
         return;
     }
-#endif
 
     auto camera = sdk::get_primary_camera();
 
@@ -1997,16 +1985,16 @@ void VR::restore_audio_camera() {
         return;
     }
 
-    auto camera_object = utility::re_component::get_game_object(camera);
+    auto camera_object = camera->get_game_object();
 
-    if (camera_object == nullptr || camera_object->transform == nullptr) {
+    if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
         m_needs_audio_restore = false;
         return;
     }
 
-    //camera_object->transform->worldTransform = m_original_camera_matrix;
+    //camera_object->get_transform()->worldTransform = m_original_camera_matrix;
 
-    auto joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+    auto joint = utility::re_transform::get_joint(*camera_object->get_transform(), 0);
 
     if (joint == nullptr) {
         m_needs_audio_restore = false;
@@ -2026,12 +2014,10 @@ void VR::restore_camera() {
         return;
     }
 
-#if defined(RE2) || defined(RE3)
-    if (FirstPerson::get()->will_be_used()) {
+    if ((sdk::GameIdentity::get().is_re2() || sdk::GameIdentity::get().is_re3()) && FirstPerson::get()->will_be_used()) {
         m_needs_camera_restore = false;
         return;
     }
-#endif
 
     auto cameras = get_cameras();
 
@@ -2045,16 +2031,16 @@ void VR::restore_camera() {
             return;
         }
 
-        auto camera_object = utility::re_component::get_game_object(camera);
+        auto camera_object = camera->get_game_object();
 
-        if (camera_object == nullptr || camera_object->transform == nullptr) {
+        if (camera_object == nullptr || camera_object->get_transform() == nullptr) {
             m_needs_camera_restore = false;
             return;
         }
 
-        //camera_object->transform->worldTransform = m_original_camera_matrix;
+        //camera_object->get_transform()->get_world_transform() = m_original_camera_matrix;
 
-        auto joint = utility::re_transform::get_joint(*camera_object->transform, 0);
+        auto joint = utility::re_transform::get_joint(*camera_object->get_transform(), 0);
 
         if (joint == nullptr) {
             m_needs_camera_restore = false;
@@ -2064,8 +2050,6 @@ void VR::restore_camera() {
         sdk::set_joint_rotation(joint, m_original_camera_rotation);
         sdk::set_joint_position(joint, m_original_camera_position);
     }
-
-
     m_needs_camera_restore = false;
 }
 
@@ -2076,28 +2060,28 @@ void VR::set_lens_distortion(bool value) {
         return;
     }
 
-#ifdef RE7
-    auto camera = sdk::get_primary_camera();
+    if (sdk::GameIdentity::get().is_re7()) {
+        auto camera = sdk::get_primary_camera();
 
-    if (camera == nullptr) {
-        return;
-    }
+        if (camera == nullptr) {
+            return;
+        }
 
-    static auto lens_distortion_tdef = sdk::find_type_definition(game_namespace("LensDistortionController"));
-    static auto lens_distortion_t = lens_distortion_tdef->get_type();
+        static auto lens_distortion_tdef = sdk::find_type_definition(game_namespace("LensDistortionController"));
+        static auto lens_distortion_t = lens_distortion_tdef->get_type();
 
-    auto lens_distortion_component = utility::re_component::find(camera, lens_distortion_t);
+        auto lens_distortion_component = camera->find(lens_distortion_t);
 
-    if (lens_distortion_component != nullptr) {
-        // Get "LensDistortion" field
-        auto lens_distortion = *sdk::get_object_field<REManagedObject*>(lens_distortion_component, "LensDistortion");
+        if (lens_distortion_component != nullptr) {
+            // Get "LensDistortion" field
+            auto lens_distortion = *sdk::get_object_field<REManagedObject*>(lens_distortion_component, "LensDistortion");
 
-        if (lens_distortion != nullptr) {
-            // Call "set_Enabled" method
-            sdk::call_object_func<void*>(lens_distortion, "set_Enabled", sdk::get_thread_context(), lens_distortion, value);
+            if (lens_distortion != nullptr) {
+                // Call "set_Enabled" method
+                sdk::call_object_func<void*>(lens_distortion, "set_Enabled", sdk::get_thread_context(), lens_distortion, value);
+            }
         }
     }
-#endif
 }
 
 void VR::disable_bad_effects() {
@@ -2217,20 +2201,20 @@ void VR::disable_bad_effects() {
     }
 
     if (m_force_vsync_settings->value() && get_vsync_method != nullptr && set_vsync_method != nullptr) {
-#ifndef MHRISE
-        const auto vsync = get_vsync_method->call<bool>(context, render_config);
+        if (!sdk::GameIdentity::get().is_mhrise()) {
+            const auto vsync = get_vsync_method->call<bool>(context, render_config);
 
-        // Disable vsync
-        if (vsync) {
+            // Disable vsync
+            if (vsync) {
+                set_vsync_method->call<void*>(context, render_config, false);
+                spdlog::info("[VR] VSync disabled");
+            }
+        } else {
+            // We are only calling set_vsync instead of checking with get_vsync in MHRise
+            // because get_VSync has some insane code protection on it for some reason
+            // which would increase frametimes to 15+
             set_vsync_method->call<void*>(context, render_config, false);
-            spdlog::info("[VR] VSync disabled");
         }
-#else
-        // We are only calling set_vsync instead of checking with get_vsync in MHRise
-        // because get_VSync has some insane code protection on it for some reason
-        // which would increase frametimes to 15+
-        set_vsync_method->call<void*>(context, render_config, false);
-#endif
     }
 
     if (m_force_volumetrics_settings->value() && get_transparent_buffer_quality_method != nullptr && set_transparent_buffer_quality_method != nullptr) {
@@ -2307,45 +2291,45 @@ void VR::disable_bad_effects() {
         }
     }
 
-#ifdef RE7
-    auto camera = sdk::get_primary_camera();
+    if (sdk::GameIdentity::get().is_re7()) {
+        auto camera = sdk::get_primary_camera();
 
-    if (camera == nullptr) {
-        return;
-    }
+        if (camera == nullptr) {
+            return;
+        }
 
-    auto camera_game_object = utility::re_component::get_game_object(camera);
+        auto camera_game_object = camera->get_game_object();
 
-    if (camera_game_object == nullptr) {
-        return;
-    }
+        if (camera_game_object == nullptr) {
+            return;
+        }
     
-    auto camera_transform = camera_game_object->transform;
+        auto camera_transform = camera_game_object->get_transform();
 
-    if (camera_transform == nullptr) {
-        return;
-    }
+        if (camera_transform == nullptr) {
+            return;
+        }
 
-    auto get_type = [](std::string name) {
-        auto tdef = sdk::find_type_definition(name);
-        return tdef->get_type();
-    };
+        auto get_type = [](std::string name) {
+            auto tdef = sdk::find_type_definition(name);
+            return tdef->get_type();
+        };
 
-    static auto effect_player_t = get_type("via.effect.EffectPlayer");
-    static auto hide_effect_for_vr_t = get_type(game_namespace("EPVStandard.HideEffectForVR"));
+        static auto effect_player_t = get_type("via.effect.EffectPlayer");
+        static auto hide_effect_for_vr_t = get_type(game_namespace("EPVStandard.HideEffectForVR"));
 
-    // Do not draw the game object if it is hidden for VR (this was there for the original PSVR release i guess)
-    for (auto child = camera_transform->child; child != nullptr; child = child->child) {
-        if (utility::re_component::find(child, effect_player_t) != nullptr) {
-            if (utility::re_component::find(child, hide_effect_for_vr_t) != nullptr) {
-                auto game_object = child->ownerGameObject;
+        // Do not draw the game object if it is hidden for VR (this was there for the original PSVR release i guess)
+        for (auto child = camera_transform->get_child(); child != nullptr; child = child->get_child()) {
+            if (child->find(effect_player_t) != nullptr) {
+                if (child->find(hide_effect_for_vr_t) != nullptr) {
+                    auto game_object = child->get_game_object();
 
-                game_object->shouldDraw = false;
-                //sdk::call_object_func<void*>(game_object, "set_Draw", sdk::get_thread_context(), game_object, false);
+                    game_object->set_shouldDraw(false);
+                    //sdk::call_object_func<void*>(game_object, "set_Draw", sdk::get_thread_context(), game_object, false);
+                }
             }
         }
     }
-#endif
 }
 
 void VR::fix_temporal_effects() {
@@ -2357,7 +2341,7 @@ void VR::fix_temporal_effects() {
     }
     
     static auto render_output_type = sdk::find_type_definition("via.render.RenderOutput")->get_type();
-    auto render_output_component = utility::re_component::find(camera, render_output_type);
+    auto render_output_component = camera->find(render_output_type);
 
     if (render_output_component == nullptr) {
         return;
@@ -2712,12 +2696,13 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         return true;
     }
 
-    auto game_object = utility::re_component::get_game_object(gui_element);
+    auto game_object = gui_element->get_game_object();
 
-    if (game_object != nullptr && game_object->transform != nullptr) {
+    if (game_object != nullptr && game_object->get_transform() != nullptr) {
         auto context = sdk::get_thread_context();
+        const auto& gi = sdk::GameIdentity::get();
 
-        const auto name = utility::re_game_object::get_name(game_object);
+        const auto name = game_object->get_name();
         const auto name_hash = utility::hash(name);
 
         switch (name_hash) {
@@ -2736,35 +2721,38 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
         case "sm42_020_keystrokeDevice01A_gimmick"_fnv: // this one is the keypad in the locker room...
             return true;
 
-#if defined(RE2) || defined(RE3)
         // the weird buggy overlay in the inventory
         case "GuiBack"_fnv:
-            return false;
-#endif
+            if (gi.is_re2() || gi.is_re3()) {
+                return false;
+            }
+            break;
 
-#if defined(RE4)
         case "Gui_ui2510"_fnv: // Black bars in cutscenes
-            return false;
-#endif
+            if (gi.is_re4()) {
+                return false;
+            }
+            break;
 
-#if defined(RE9)
         case "Gui_ui0440"_fnv: // Black bars in cutscenes
-            game_object->shouldDraw = false;
-            return false;
-#endif
+            if (gi.is_re9()) {
+                game_object->set_shouldDraw(false);
+                return false;
+            }
+            break;
 
-#if TDB_VER >= 73
         case "ui0199"_fnv: // weird black bars in Kunitsu-Gami
-            return false;
-#endif
+            if (gi.tdb_ver() >= 73) {
+                return false;
+            }
+            break;
 
         default:
             break;
         };
 
         // Certain UI elements we want to remove when in VR (FirstPerson enabled)
-#if defined(RE2) || defined(RE3)
-        if (std::chrono::steady_clock::now() - m_last_crosshair_hide > std::chrono::seconds(1)) {
+        if ((gi.is_re2() || gi.is_re3()) && std::chrono::steady_clock::now() - m_last_crosshair_hide > std::chrono::seconds(1)) {
             auto& fp = FirstPerson::get();
 
             if (fp->is_enabled() && fp->will_be_used()) {
@@ -2782,14 +2770,13 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 }
             }
         }
-#endif
 
-#ifdef RE7
-        if (name_hash == "HUD"_fnv) { // not a hero
-            // Stops HUD element from being stuck to the screen
-            sdk::call_object_func<REComponent*>(gui_element, "set_RenderTarget", context, gui_element, nullptr);
+        if (gi.is_re7()) {
+            if (name_hash == "HUD"_fnv) { // not a hero
+                // Stops HUD element from being stuck to the screen
+                sdk::call_object_func<REComponent*>(gui_element, "set_RenderTarget", context, gui_element, nullptr);
+            }
         }
-#endif
 
         //spdlog::info("VR: on_pre_gui_draw_element: {}", name);
         //spdlog::info("VR: on_pre_gui_draw_element: {} {:x}", name, (uintptr_t)game_object);
@@ -2814,19 +2801,17 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 // we don't want to mess with any game object that has a mesh
                 // because it might be something physical in the game world
                 // that the player can interact with
-                if (utility::re_component::find(game_object->transform, via_render_mesh_typedef->get_type()) != nullptr) {
+                if (game_object->get_transform()->find(via_render_mesh_typedef->get_type()) != nullptr) {
                     return true;
                 }
 
-#ifdef RE7
                 static auto ui_world_pos_attach_typedef = sdk::find_type_definition("app.UIWorldPosAttach");
-#endif
 
                 auto ui_scale = m_ui_scale_option->value();
                 const auto world_ui_scale = m_world_ui_scale_option->value();
 
                 auto& restore_data = g_elements_to_reset.emplace_back(std::make_unique<GUIRestoreData>());
-                auto original_game_object_pos = sdk::get_transform_position(game_object->transform);
+                auto original_game_object_pos = sdk::get_transform_position(game_object->get_transform());
 
                 restore_data->element = gui_element;
                 restore_data->view = view;
@@ -2849,7 +2834,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                 // Go through the children until we hit a blur filter
                 // And then remove it
                 /*for (auto child = sdk::call_object_func<REComponent*>(view, "get_Child", sdk::get_thread_context(), view); child != nullptr; child = sdk::call_object_func<REComponent*>(child, "get_Child", sdk::get_thread_context(), child)) {
-                    if (utility::re_managed_object::is_a(child, "via.gui.BlurFilter")) {
+                    if (child->is_a("via.gui.BlurFilter")) {
                         // Call remove()
                         sdk::call_object_func<void*>(child, "remove", sdk::get_thread_context(), child);
                         break;
@@ -2860,10 +2845,10 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
 
                 // Set the gui element's position to be in front of the camera
                 if (camera != nullptr) {
-                    auto camera_object = utility::re_component::get_game_object(camera);
+                    auto camera_object = camera->get_game_object();
 
-                    if (camera_object != nullptr && camera_object->transform != nullptr) {
-                        auto& gui_matrix = game_object->transform->worldTransform;
+                    if (camera_object != nullptr && camera_object->get_transform() != nullptr) {
+                        auto& gui_matrix = game_object->get_transform()->get_world_transform();
                         auto child = sdk::call_object_func<REManagedObject*>(view, "get_Child", context, view);
 
                         auto fix_2d_position = [&](const Vector4f& target_position, 
@@ -2893,8 +2878,8 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             // LESSON: DO NOT CALL THESE METHODS ON THE TRANSFORM!
                             // THEY CAUSE SOME STRANGE BUGS WHEN THE GUI ELEMENT HAS A PARENT TRANSFORM!
                             // THE GUI RENDERING FUNCTIONS PERFORM ON THE WORLD MATRIX, SO THIS IS NOT NECESSARY.
-                            //sdk::set_transform_position(game_object->transform, new_pos);
-                            //sdk::set_transform_rotation(game_object->transform, look_rot);
+                            //sdk::set_transform_position(game_object->get_transform(), new_pos);
+                            //sdk::set_transform_rotation(game_object->get_transform(), look_rot);
                             
                             const auto scaled_ui_scale = *custom_ui_scale * 0.01f;
                             const auto distance = glm::length(delta);
@@ -2910,7 +2895,7 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     return;
                                 }
 
-                                const auto t = utility::re_managed_object::get_type_definition(object);
+                                const auto t = object->get_type_definition();
 
                                 if (t == nullptr || !t->is_a(transform_object_type)) {
                                     return;
@@ -2934,30 +2919,30 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                             }
 
                             // Fix for other kinds of world pos attach elements.
-#ifdef RE7
-                            if (name_hash == "InteractOperationCursor"_fnv) {
-                                auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
+                            if (gi.is_re7()) {
+                                if (name_hash == "InteractOperationCursor"_fnv) {
+                                    auto world_pos_attach_comp = game_object->get_transform()->find(ui_world_pos_attach_typedef->get_type());
 
-                                // Fix the world position of the gui element
-                                if (world_pos_attach_comp != nullptr) {
-                                    auto target_cache = sdk::get_object_field<::REManagedObject*>(world_pos_attach_comp, "_TargetGUIElem");
+                                    // Fix the world position of the gui element
+                                    if (world_pos_attach_comp != nullptr) {
+                                        auto target_cache = sdk::get_object_field<::REManagedObject*>(world_pos_attach_comp, "_TargetGUIElem");
 
-                                    if (target_cache != nullptr && *target_cache != nullptr) {
-                                        auto element = sdk::get_object_field<::REManagedObject*>(*target_cache, "_Element");
+                                        if (target_cache != nullptr && *target_cache != nullptr) {
+                                            auto element = sdk::get_object_field<::REManagedObject*>(*target_cache, "_Element");
 
-                                        if (element != nullptr && *element != nullptr) {
-                                            Vector3f zero_size{ 0.0f, 0.0f, 0.0f };
-                                            sdk::call_object_func<void*>(*element, "set_Position", context, *element, &zero_size);
+                                            if (element != nullptr && *element != nullptr) {
+                                                Vector3f zero_size{ 0.0f, 0.0f, 0.0f };
+                                                sdk::call_object_func<void*>(*element, "set_Position", context, *element, &zero_size);
+                                            }
                                         }
                                     }
                                 }
                             }
-#endif
 
                             gui_matrix = glm::scale(gui_matrix, Vector3f{ scale, scale, scale });
                         };
 
-                        auto camera_transform = camera_object->transform;
+                        auto camera_transform = camera_object->get_transform();
 
                         const auto& camera_matrix = m_original_camera_matrix;
                         const auto& camera_position = camera_matrix[3];
@@ -3101,15 +3086,15 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         
                             fix_2d_position(original_game_object_pos);
                         } else if(gui_driver_typedef != nullptr) { // RE8
-                            auto interact_icon_comp = utility::re_component::find(game_object->transform, gui_driver_typedef->get_type());
+                            auto interact_icon_comp = game_object->get_transform()->find(gui_driver_typedef->get_type());
 
                             if (interact_icon_comp != nullptr) {
                                 auto interact_icon_object = sdk::call_object_func<REGameObject*>(interact_icon_comp, "get_attachTarget", context, interact_icon_comp);
 
-                                if (interact_icon_object != nullptr && interact_icon_object->transform != nullptr) {
+                                if (interact_icon_object != nullptr && interact_icon_object->get_transform() != nullptr) {
                                     // call get_Position on the object
                                     Vector4f interact_icon_position{};
-                                    sdk::call_object_func<Vector4f*>(interact_icon_object->transform, "get_Position", &interact_icon_position, context, interact_icon_object->transform);
+                                    sdk::call_object_func<Vector4f*>(interact_icon_object->get_transform(), "get_Position", &interact_icon_position, context, interact_icon_object->get_transform());
 
                                     fix_2d_position(interact_icon_position);
                                 }
@@ -3121,14 +3106,14 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                                     continue;
                                 }
 
-                                auto element_comp = utility::re_component::find(game_object->transform, element_type->get_type());
+                                auto element_comp = game_object->get_transform()->find(element_type->get_type());
 
                                 if (element_comp == nullptr) {
                                     continue;
                                 }
 
-                                static auto get_parent_method = sdk::get_object_method(game_object->transform, "get_Parent");
-                                auto parent = get_parent_method->call<::RETransform*>(context, game_object->transform);
+                                static auto get_parent_method = sdk::get_object_method(game_object->get_transform(), "get_Parent");
+                                auto parent = get_parent_method->call<::RETransform*>(context, game_object->get_transform());
 
                                 if (parent != nullptr) {
                                     Vector4f offset{};
@@ -3200,16 +3185,16 @@ bool VR::on_pre_gui_draw_element(REComponent* gui_element, void* primitive_conte
                         }
 
                         // ... RE7
-#ifdef RE7
-                        auto world_pos_attach_comp = utility::re_component::find(game_object->transform, ui_world_pos_attach_typedef->get_type());
+                        if (gi.is_re7()) {
+                            auto world_pos_attach_comp = game_object->get_transform()->find(ui_world_pos_attach_typedef->get_type());
 
-                        // Fix the world position of the gui element
-                        if (world_pos_attach_comp != nullptr) {
-                            const auto& target_pos = *sdk::get_object_field<Vector4f>(world_pos_attach_comp, "_NowTargetPos");
+                            // Fix the world position of the gui element
+                            if (world_pos_attach_comp != nullptr) {
+                                const auto& target_pos = *sdk::get_object_field<Vector4f>(world_pos_attach_comp, "_NowTargetPos");
                             
-                            fix_2d_position(target_pos);
+                                fix_2d_position(target_pos);
+                            }
                         }
-#endif
                     }
                 }
             }
@@ -3234,12 +3219,12 @@ void VR::on_gui_draw_element(REComponent* gui_element, void* primitive_context) 
         sdk::call_object_func<void*>(data->view, "set_Overlay", context, data->view, data->overlay);
         sdk::call_object_func<void*>(data->view, "set_Detonemap", context, data->view, data->detonemap);
         
-        auto game_object = utility::re_component::get_game_object(data->element);
+        auto game_object = data->element->get_game_object();
 
-        if (game_object != nullptr && game_object->transform != nullptr) {
-            //sdk::set_transform_position(game_object->transform, data->original_position);
+        if (game_object != nullptr && game_object->get_transform() != nullptr) {
+            //sdk::set_transform_position(game_object->get_transform(), data->original_position);
 
-            auto& gui_matrix = game_object->transform->worldTransform;
+            auto& gui_matrix = game_object->get_transform()->get_world_transform();
             gui_matrix[3] = data->original_position;
         }
     }
@@ -3321,8 +3306,8 @@ void VR::on_pre_begin_rendering(void* entry) {
         if (pad != nullptr) {
             // Move direction
             // It's not a Vector2f because via.vec2 is not actually 8 bytes, we don't want stack corruption to occur.
-            const auto axis_l = (Vector2f)*utility::re_managed_object::get_field<Vector3f*>(pad, "AxisL");
-            const auto axis_r = (Vector2f)*utility::re_managed_object::get_field<Vector3f*>(pad, "AxisR");
+            const auto axis_l = (Vector2f)*pad->get_reflection_property<Vector3f*>("AxisL");
+            const auto axis_r = (Vector2f)*pad->get_reflection_property<Vector3f*>("AxisR");
 
             // Lerp the standing origin back to HMD position
             // if the user is moving
@@ -3593,16 +3578,19 @@ void VR::on_end_rendering(void* entry) {
                 "EndDynamics",
                 "EndPhysics",
                 "RenderDynamics",
-#if TDB_VER < 73
-                "RenderLandscape",
-#endif
                 "DevelopRenderer",
                 "DrawWidget"
             };
 
             for (auto& entry : entries_to_remove) {
                 chain.erase(std::remove_if(chain.begin(), chain.end(), [&](auto& func) {
-                    return entry == func->description;
+                    return entry == func->get_description();
+                }), chain.end());
+            }
+
+            if (sdk::GameIdentity::get().tdb_ver() < 73) {
+                chain.erase(std::remove_if(chain.begin(), chain.end(), [](auto& func) {
+                    return func->get_description() == std::string_view{"RenderLandscape"};
                 }), chain.end());
             }
         }
@@ -3755,29 +3743,30 @@ void VR::on_update_hid(void* entry) {
         return;
     }
 
-#if not defined(RE2) and not defined(RE3)
-    this->openvr_input_to_re_engine();
-#endif
-
-#ifdef RE8
-    if (get_runtime()->handle_pause) {
-        auto padman = sdk::get_managed_singleton<::REManagedObject>(game_namespace("HIDPadManager"));
-
-        if (padman != nullptr) {
-            auto merged_pad = sdk::call_object_func_easy<::REManagedObject*>(padman, "get_mergedPad");
-
-            if (merged_pad != nullptr) {
-                auto device = sdk::get_object_field<::REManagedObject*>(merged_pad, "Device");
-
-                if (device != nullptr && *device != nullptr) {
-                    sdk::call_object_func_easy<void*>(*device, "set_Button", via::hid::GamePadButton::CRight);
-                }
-            }
+    {
+        const auto& gi = sdk::GameIdentity::get();
+        if (!gi.is_re2() && !gi.is_re3()) {
+            this->openvr_input_to_re_engine();
         }
 
-        get_runtime()->handle_pause = false;
+        if (gi.is_re8() && get_runtime()->handle_pause) {
+            auto padman = sdk::get_managed_singleton<::REManagedObject>(game_namespace("HIDPadManager"));
+
+            if (padman != nullptr) {
+                auto merged_pad = sdk::call_object_func_easy<::REManagedObject*>(padman, "get_mergedPad");
+
+                if (merged_pad != nullptr) {
+                    auto device = sdk::get_object_field<::REManagedObject*>(merged_pad, "Device");
+
+                    if (device != nullptr && *device != nullptr) {
+                        sdk::call_object_func_easy<void*>(*device, "set_Button", via::hid::GamePadButton::CRight);
+                    }
+                }
+            }
+
+            get_runtime()->handle_pause = false;
+        }
     }
-#endif
 }
 
 void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
@@ -3785,16 +3774,15 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         return;
     }
 
+    const auto& gi = sdk::GameIdentity::get();
     static auto gui_master_type = sdk::find_type_definition(game_namespace("gui.GUIMaster"));
     static auto gui_master_get_instance = gui_master_type->get_method("get_Instance");
     static auto gui_master_get_input = gui_master_type->get_method("get_Input");
     static auto gui_master_input_type = gui_master_get_input->get_return_type();
 
     // ??????
-#ifdef RE2
     static auto input_set_is_trigger_move_up_d = gui_master_input_type->get_method("set_IsTriggerMoveUpD");
     static auto input_set_is_trigger_move_down_d = gui_master_input_type->get_method("set_IsTriggerMoveDownD");
-#endif
 
     auto gui_master = gui_master_get_instance->call<::REManagedObject*>(sdk::get_thread_context());
     auto gui_input = gui_master != nullptr ? 
@@ -3859,30 +3847,26 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
 
     
     
-#if defined(RE2) || defined(RE3) || defined(RE8)
-    if (is_toggle_flashlight_down && !m_was_flashlight_toggle_down) {            
-        ManualFlashlight::g_manual_flashlight-> toggle_flashlight();
-    }    
-
-    m_was_flashlight_toggle_down = is_toggle_flashlight_down;
-#endif
-
-
-#if defined(RE2) || defined(RE3)
-    const auto is_firstperson_toggle_down = is_action_active(m_action_re2_firstperson_toggle, m_left_joystick) || is_action_active(m_action_re2_firstperson_toggle, m_right_joystick);
-
-    if (is_firstperson_toggle_down && !m_was_firstperson_toggle_down) {
-        FirstPerson::get()->toggle();
+    if ((gi.is_re2() || gi.is_re3() || gi.is_re8()) && is_toggle_flashlight_down && !m_was_flashlight_toggle_down) {
+        ManualFlashlight::g_manual_flashlight->toggle_flashlight();
     }
 
-    m_was_firstperson_toggle_down = is_firstperson_toggle_down;
-#endif
+    if (gi.is_re2() || gi.is_re3() || gi.is_re8()) {
+        m_was_flashlight_toggle_down = is_toggle_flashlight_down;
+    }
 
-#if defined(RE2) || defined(RE3)
-    const auto is_gripping_weapon = FirstPerson::get()->was_gripping_weapon();
-#else
-    const auto is_gripping_weapon = false;
-#endif
+
+    if (gi.is_re2() || gi.is_re3()) {
+        const auto is_firstperson_toggle_down = is_action_active(m_action_re2_firstperson_toggle, m_left_joystick) || is_action_active(m_action_re2_firstperson_toggle, m_right_joystick);
+
+        if (is_firstperson_toggle_down && !m_was_firstperson_toggle_down) {
+            FirstPerson::get()->toggle();
+        }
+
+        m_was_firstperson_toggle_down = is_firstperson_toggle_down;
+    }
+
+    const auto is_gripping_weapon = (gi.is_re2() || gi.is_re3()) ? FirstPerson::get()->was_gripping_weapon() : false;
 
     // Current actual button bits used by the game
     auto& button_bits_down = *sdk::get_object_field<uint64_t>(button_bits_obj, "Down");
@@ -4025,15 +4009,15 @@ void VR::openvr_input_to_re2_re3(REManagedObject* input_system) {
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_LEFT, is_dpad_left_down);
 
         // well this was really annoying to figure out
-#ifdef RE2
-        if (is_dpad_up_down && gui_input != nullptr) {
-            input_set_is_trigger_move_up_d->call<void*>(ctx, gui_input, true);
-        }
+        if (gi.is_re2()) {
+            if (is_dpad_up_down && gui_input != nullptr) {
+                input_set_is_trigger_move_up_d->call<void*>(ctx, gui_input, true);
+            }
 
-        if (is_dpad_down_down && gui_input != nullptr) {
-            input_set_is_trigger_move_down_d->call<void*>(ctx, gui_input, true);
+            if (is_dpad_down_down && gui_input != nullptr) {
+                input_set_is_trigger_move_down_d->call<void*>(ctx, gui_input, true);
+            }
         }
-#endif
     } else {
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_UP, left_axis.y > 0.9f);
         set_button_state(app::ropeway::InputDefine::Kind::SHORTCUT_RIGHT, left_axis.x > 0.9f);

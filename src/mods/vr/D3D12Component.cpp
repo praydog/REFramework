@@ -49,22 +49,37 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     // TODO: Correct this for the upscaler...?
     if (!m_backbuffer_is_8bit && (!vr->is_using_multipass() || (vr->m_multipass.eye_textures[0] == nullptr || vr->m_multipass.eye_textures[1] == nullptr))) {
         auto& commands = m_backbuffer_copy_commands[backbuffer_index % m_backbuffer_copy_commands.size()];
-        auto command_list = commands.cmd_list.Get();
         commands.wait(INFINITE);
 
-        // Copy current backbuffer into our copy so we can use it as an SRV.
-        commands.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
+        // render_srv_to_rtv records straight into the list, bypassing CommandContext's own guards, so
+        // the whole pass has to be skipped when the list could not be reopened. Recording anyway is
+        // COMMAND_LIST_CLOSED for every call DirectXTK makes.
+        if (!commands.is_open) {
+            spdlog::error("[VR] {}: command list is not recording; skipping backbuffer conversion",
+                utility::narrow(commands.internal_name));
+        } else {
+            // Copy current backbuffer into our copy so we can use it as an SRV.
+            commands.copy(backbuffer.Get(), m_backbuffer_copy.texture.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT);
 
-        float clear_color[4]{0.0f, 0.0f, 0.0f, 0.0f};
-        commands.clear_rtv(m_converted_eye_tex, clear_color, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            float clear_color[4]{0.0f, 0.0f, 0.0f, 0.0f};
+            commands.clear_rtv(m_converted_eye_tex, clear_color, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-        // Convert the backbuffer to 8-bit.
-        render_srv_to_rtv(command_list, m_backbuffer_copy, m_converted_eye_tex, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            // Convert the backbuffer to 8-bit.
+            render_srv_to_rtv(commands.cmd_list.Get(), m_backbuffer_copy, m_converted_eye_tex,
+                D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-        commands.execute();
+            commands.execute();
+        }
     }
 
     auto eye_texture = m_backbuffer_is_8bit ? backbuffer : m_converted_eye_tex.texture;
+
+    // The real backbuffer sits in PRESENT, but m_converted_eye_tex is created in (and always restored to)
+    // PIXEL_SHADER_RESOURCE by the conversion pass above. Handing PRESENT to the runtime copies would emit
+    // a transition barrier with a bogus before-state.
+    const auto eye_texture_state = m_backbuffer_is_8bit
+        ? D3D12_RESOURCE_STATE_PRESENT
+        : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
     auto runtime = vr->get_runtime();
 
@@ -98,13 +113,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
     if (frame_count % 2 == vr->m_left_eye_interval && !is_multipass) {
         // OpenXR texture
         if (runtime->is_openxr() && vr->m_openxr->ready()) {
-            m_openxr.copy(0, eye_texture.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
+            m_openxr.copy(0, eye_texture.Get(), nullptr, eye_texture_state);
         }
 
         // OpenVR texture
         // Copy the back buffer to the left eye texture (m_left_eye_tex0 holds the intermediate frame).
         if (runtime->is_openvr()) {
-            m_openvr.copy_left(eye_texture.Get());
+            m_openvr.copy_left(eye_texture.Get(), eye_texture_state);
 
             vr::D3D12TextureData_t left {
                 m_openvr.get_left().texture.Get(),
@@ -142,13 +157,13 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     if (ctx0.texture.Get() != vr->m_multipass.eye_textures[0].Get()) {
                         ctx0.reset();
                         const auto desc = vr->m_multipass.eye_textures[0]->GetDesc();
-                        ctx0.setup(device, vr->m_multipass.eye_textures[0].Get(), desc.Format, desc.Format);
+                        ctx0.setup(device, vr->m_multipass.eye_textures[0].Get(), desc.Format, desc.Format, L"VR Multipass Eye Context 0");
                     }
 
                     if (ctx1.texture.Get() != vr->m_multipass.eye_textures[1].Get()) {
                         ctx1.reset();
                         const auto desc = vr->m_multipass.eye_textures[1]->GetDesc();
-                        ctx1.setup(device, vr->m_multipass.eye_textures[1].Get(), desc.Format, desc.Format);
+                        ctx1.setup(device, vr->m_multipass.eye_textures[1].Get(), desc.Format, desc.Format, L"VR Multipass Eye Context 1");
                     }
 
                     if (m_backbuffer_is_8bit) {
@@ -160,16 +175,26 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                             m_openxr.copy(1, vr->m_multipass.eye_textures[1].Get(), nullptr, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
                         }
                     } else {
-                        auto copy0fn = [&](d3d12::CommandContext& ctx, d3d12::TextureContext& dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
+                        // Both record into the list directly, so they must respect its open state.
+                        auto copy_eye_fn = [&](uint32_t eye, d3d12::CommandContext& ctx, d3d12::TextureContext& dst,
+                                D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
+                            if (!ctx.is_open) {
+                                spdlog::error("[VR] {}: command list is not recording; skipping eye {} conversion",
+                                    utility::narrow(ctx.internal_name), eye);
+                                return;
+                            }
+
                             const float clear_color[4]{0.0f, 0.0f, 0.0f, 0.0f};
                             ctx.clear_rtv(dst, clear_color, dst_state);
-                            render_srv_to_rtv(ctx.cmd_list.Get(), vr->m_multipass.eye_contexts[0], dst, src_state, dst_state);
+                            render_srv_to_rtv(ctx.cmd_list.Get(), vr->m_multipass.eye_contexts[eye], dst, src_state, dst_state);
+                        };
+
+                        auto copy0fn = [&](d3d12::CommandContext& ctx, d3d12::TextureContext& dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
+                            copy_eye_fn(0, ctx, dst, src_state, dst_state);
                         };
 
                         auto copy1fn = [&](d3d12::CommandContext& ctx, d3d12::TextureContext& dst, D3D12_RESOURCE_STATES src_state, D3D12_RESOURCE_STATES dst_state) {
-                            const float clear_color[4]{0.0f, 0.0f, 0.0f, 0.0f};
-                            ctx.clear_rtv(dst, clear_color, dst_state);
-                            render_srv_to_rtv(ctx.cmd_list.Get(), vr->m_multipass.eye_contexts[1], dst, src_state, dst_state);
+                            copy_eye_fn(1, ctx, dst, src_state, dst_state);
                         };
 
                         if (!TemporalUpscaler::get()->ready()) {
@@ -182,14 +207,14 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     }
                 } else {
                     // just copy the backbuffer to both eyes as a fallback
-                    m_openxr.copy(0, eye_texture.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
-                    m_openxr.copy(1, eye_texture.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
+                    m_openxr.copy(0, eye_texture.Get(), nullptr, eye_texture_state);
+                    m_openxr.copy(1, eye_texture.Get(), nullptr, eye_texture_state);
                 }
 
                 vr->m_multipass.eye_textures[0].Reset();
                 vr->m_multipass.eye_textures[1].Reset();
             } else {
-                m_openxr.copy(1, eye_texture.Get(), nullptr, D3D12_RESOURCE_STATE_PRESENT);
+                m_openxr.copy(1, eye_texture.Get(), nullptr, eye_texture_state);
             }
         }
 
@@ -207,11 +232,11 @@ vr::EVRCompositorError D3D12Component::on_frame(VR* vr) {
                     }
                 } else {
                     // just copy the backbuffer to both eyes as a fallback
-                    m_openvr.copy_left(eye_texture.Get());
-                    m_openvr.copy_right(eye_texture.Get());
+                    m_openvr.copy_left(eye_texture.Get(), eye_texture_state);
+                    m_openvr.copy_right(eye_texture.Get(), eye_texture_state);
                 }
             } else {
-                m_openvr.copy_right(eye_texture.Get());
+                m_openvr.copy_right(eye_texture.Get(), eye_texture_state);
             }
 
             vr::D3D12TextureData_t right {
@@ -443,21 +468,9 @@ void D3D12Component::setup() {
             return;
         }
 
-        if (!m_backbuffer_copy.setup(device, backbuffer_copy.Get(), std::nullopt, std::nullopt)) {
-            spdlog::error("[VR] Error setting up backbuffer copy texture RTV/SRV.");
-        }
-    }
+        backbuffer_copy->SetName(L"VR Backbuffer Copy Texture");
 
-    // Create copy of backbuffer to use as SRV to convert from HDR to 8bit
-    if (!m_backbuffer_is_8bit) {
-        ComPtr<ID3D12Resource> backbuffer_copy{};
-        if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &backbuffer_srv_desc, D3D12_RESOURCE_STATE_PRESENT, nullptr,
-                IID_PPV_ARGS(backbuffer_copy.GetAddressOf())))) {
-            spdlog::error("[VR] Failed to create backbuffer copy.");
-            return;
-        }
-
-        if (!m_backbuffer_copy.setup(device, backbuffer_copy.Get(), std::nullopt, std::nullopt)) {
+        if (!m_backbuffer_copy.setup(device, backbuffer_copy.Get(), std::nullopt, std::nullopt, L"VR Backbuffer Copy")) {
             spdlog::error("[VR] Error setting up backbuffer copy texture RTV/SRV.");
         }
     }
@@ -498,12 +511,17 @@ void D3D12Component::setup() {
             return;
         }
 
-        if (!m_converted_eye_tex.setup(device, eye_tex.Get(), std::nullopt, std::nullopt)) {
+        eye_tex->SetName(L"VR Converted Eye Texture");
+
+        if (!m_converted_eye_tex.setup(device, eye_tex.Get(), std::nullopt, std::nullopt, L"VR Converted Eye Texture")) {
             spdlog::error("[VR] Error setting up converted eye texture RTV/SRV.");
         }
     }
 
+    uint32_t left_eye_index = 0;
     for (auto& ctx : m_openvr.left_eye_tex) {
+        const auto name = L"VR OpenVR Left Eye Texture " + std::to_wstring(left_eye_index++);
+
         ComPtr<ID3D12Resource> left_eye_tex{};
         if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
                 IID_PPV_ARGS(left_eye_tex.GetAddressOf())))) {
@@ -511,13 +529,16 @@ void D3D12Component::setup() {
             return;
         }
 
-        left_eye_tex->SetName(L"OpenVR Left Eye Texture");
-        if (!ctx.setup(device, left_eye_tex.Get(), std::nullopt, std::nullopt)) {
+        left_eye_tex->SetName(name.c_str());
+        if (!ctx.setup(device, left_eye_tex.Get(), std::nullopt, std::nullopt, name.c_str())) {
             spdlog::error("[VR] Error setting up left eye texture RTV/SRV.");
         }
     }
 
+    uint32_t right_eye_index = 0;
     for (auto& ctx : m_openvr.right_eye_tex) {
+        const auto name = L"VR OpenVR Right Eye Texture " + std::to_wstring(right_eye_index++);
+
         ComPtr<ID3D12Resource> right_eye_tex{};
         if (FAILED(device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &rt_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
                 IID_PPV_ARGS(right_eye_tex.GetAddressOf())))) {
@@ -525,18 +546,20 @@ void D3D12Component::setup() {
             return;
         }
 
-        right_eye_tex->SetName(L"OpenVR Right Eye Texture");
-        if (!ctx.setup(device, right_eye_tex.Get(), std::nullopt, std::nullopt)) {
+        right_eye_tex->SetName(name.c_str());
+        if (!ctx.setup(device, right_eye_tex.Get(), std::nullopt, std::nullopt, name.c_str())) {
             spdlog::error("[VR] Error setting up right eye texture RTV/SRV.");
         }
     }
 
+    uint32_t generic_copier_index = 0;
     for (auto& copier : m_generic_copiers) {
-        copier.setup(L"Generic Copier");
+        copier.setup((L"VR Generic Copier " + std::to_wstring(generic_copier_index++)).c_str());
     }
-    
+
+    uint32_t backbuffer_copy_index = 0;
     for (auto& commands : m_backbuffer_copy_commands) {
-        commands.setup(L"Backbuffer Copy Commands");
+        commands.setup((L"VR Backbuffer Copy Commands " + std::to_wstring(backbuffer_copy_index++)).c_str());
     }
 
     setup_sprite_batch_pso(rt_desc.Format);
@@ -735,36 +758,14 @@ std::optional<std::string> D3D12Component::OpenXR::create_swapchains() {
             return "Failed to enumerate swapchain images after texture creation.";
         }
 
+        // Build the contexts straight from the enumerated images. Acquiring/waiting/releasing every
+        // image here only served to learn the index xrEnumerateSwapchainImages already gave us in
+        // order, and doing it outside a frame makes the runtime record into its own command list
+        // while that list is closed (COMMAND_LIST_CLOSED, 2 per image).
         for (uint32_t j = 0; j < image_count; ++j) {
-            uint32_t real_index{};
-            XrSwapchainImageAcquireInfo acquire_info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
-
-            result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &real_index);
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] Failed to acquire swapchain image.");
-                return "Failed to acquire swapchain image.";
-            }
-
-            XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
-            result = xrWaitSwapchainImage(swapchain.handle, &wait_info);
-
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] Failed to wait for swapchain image.");
-                return "Failed to wait for swapchain image.";
-            }
-
-            ctx.texture_contexts[real_index] = std::make_unique<d3d12::TextureContext>();
-            ctx.texture_contexts[real_index]->setup(device, ctx.textures[real_index].texture, swapchain_format, swapchain_format, (std::wstring{L"OpenXR Swapchain "} + std::to_wstring(i) + L" " + std::to_wstring(real_index)).c_str());
-
-            XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-            result = xrReleaseSwapchainImage(swapchain.handle, &release_info);
-
-            if (result != XR_SUCCESS) {
-                spdlog::error("[VR] Failed to release swapchain image.");
-                return "Failed to release swapchain image.";
-            }
-
-            //ctx.texture_contexts[j]->texture = ctx.textures[j].texture;
+            ctx.texture_contexts[j] = std::make_unique<d3d12::TextureContext>();
+            ctx.texture_contexts[j]->setup(device, ctx.textures[j].texture, swapchain_format, swapchain_format,
+                (std::wstring{L"OpenXR Swapchain "} + std::to_wstring(i) + L" " + std::to_wstring(j)).c_str());
         }
     }
 

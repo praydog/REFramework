@@ -19,13 +19,13 @@ void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, s
             //*(int32_t*)((uint8_t*)camera + PRIORITY_OFFSET) = *(int32_t*)((uint8_t*)get_old_camera_counterpart(camera) + PRIORITY_OFFSET) + 1; // causes the game to NOT use the new camera as the main camera
             *(int32_t*)((uint8_t*)camera + PRIORITY_OFFSET) = -1;
 
-            if (camera->referenceCount == 1) {
+            if (camera->get_ref_count() == 1) {
                 cameras_to_remove.push_back(camera);
                 spdlog::info("Removing camera {:x}", (uintptr_t)camera);
             } else {
                 static const auto game_object_t = sdk::find_type_definition("via.GameObject");
                 static const auto get_Valid = game_object_t != nullptr ? game_object_t->get_method("get_Valid") : nullptr;
-                auto owner = utility::re_component::get_game_object(camera);
+                auto owner = camera->get_game_object();
 
                 // if the owning game object was destroyed then well... destroy the camera
                 if (owner == nullptr || (get_Valid != nullptr && !get_Valid->call<bool>(sdk::get_thread_context(), owner))) {
@@ -53,7 +53,7 @@ void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, s
                 return pair.second == camera;
             });
 
-            utility::re_managed_object::release(camera);
+            camera->release();
         }
     }
 
@@ -61,11 +61,11 @@ void CameraDuplicator::on_pre_application_entry(void* entry, const char* name, s
         if (!VR::get()->is_hmd_active() || VR::get()->get_rendering_technique() != VR::RenderingTechnique::MULTIPASS) {
             std::scoped_lock _{ m_camera_mutex };
             for (auto camera : m_new_cameras) {
-                auto game_object = utility::re_component::get_game_object((REComponent*)camera);
+                auto game_object = ((REComponent*)camera)->get_game_object();
 
                 if (game_object != nullptr) {
-                    game_object->shouldDraw = false;
-                    game_object->shouldUpdate = false;
+                    game_object->set_shouldDraw(false);
+                    game_object->set_shouldUpdate(false);
                 }
             }
 
@@ -179,13 +179,13 @@ void CameraDuplicator::clone_camera() {
         spdlog::info("Existing camera had a clone destroyed, re-cloning it");
     }
 
-    const auto camera_gameobject = utility::re_component::get_game_object((REComponent*)main_camera);
+    const auto camera_gameobject = ((REComponent*)main_camera)->get_game_object();
 
     if (camera_gameobject == nullptr) {
         return;
     }
 
-    const auto current_main_camera_name = utility::re_string::get_view(camera_gameobject->name);
+    const auto current_main_camera_name = utility::re_string::get_view(camera_gameobject->get_name_field());
 
     const auto existing_cameras = get_all_cameras();
 
@@ -201,19 +201,19 @@ void CameraDuplicator::clone_camera() {
             continue;
         }
 
-        const auto gameobject = utility::re_component::get_game_object((REComponent*)camera);
+        const auto gameobject = ((REComponent*)camera)->get_game_object();
 
         if (gameobject == nullptr) {
             continue;
         }
 
         if (!m_seen_cameras.contains((RECamera*)camera)) {
-            utility::re_managed_object::add_ref(camera);
+            camera->add_ref();
             m_seen_cameras.insert((RECamera*)camera);
             m_old_cameras.insert((RECamera*)camera);
         }
 
-        const auto name = utility::re_string::get_view(gameobject->name);
+        const auto name = utility::re_string::get_view(gameobject->get_name_field());
 
         if (name == current_main_camera_name) {
             ++num_main_cameras;
@@ -222,7 +222,7 @@ void CameraDuplicator::clone_camera() {
 
     spdlog::info("Found {} main cameras", num_main_cameras);
 
-    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)main_camera);
+    const auto old_camera_gameobject = ((REComponent*)main_camera)->get_game_object();
 
     if (old_camera_gameobject == nullptr) {
         return;
@@ -243,22 +243,22 @@ void CameraDuplicator::clone_camera() {
     // Create new gameobject
     const auto adjusted_name = std::wstring{current_main_camera_name} + L" (Clone)";
     const auto new_camera_gameobject = (::REGameObject*)create_gameobject_fn->call<sdk::ManagedObject*>(sdk::get_thread_context(), sdk::VM::create_managed_string(adjusted_name));
-    new_camera_gameobject->shouldDraw = false;
-    new_camera_gameobject->shouldUpdate = false;
-    //utility::re_managed_object::add_ref(new_camera_gameobject);
+    new_camera_gameobject->set_shouldDraw(false);
+    new_camera_gameobject->set_shouldUpdate(false);
+    //new_camera_gameobject->add_ref();
 
     spdlog::info("Created new gameobject @ 0x{:x}", (uintptr_t)new_camera_gameobject);
 
     // Parent new gameobject to old gameobject
-    const auto new_transform = new_camera_gameobject->transform;
-    const auto old_transform = old_camera_gameobject->transform;
+    const auto new_transform = new_camera_gameobject->get_transform();
+    const auto old_transform = old_camera_gameobject->get_transform();
 
     if (new_transform != nullptr && old_transform != nullptr) {
         sdk::call_object_func_easy<void*>(new_transform, "setParent(via.Transform, System.Boolean)", old_transform, false);
         spdlog::info("Parented new camera to old camera");
     }
 
-    REComponent* component = old_camera_gameobject->transform->childComponent;
+    REComponent* component = old_camera_gameobject->get_transform()->get_child_component();
 
     std::unordered_set<std::string> illegal_components {
         "via.render.ExperimentalRayTrace",
@@ -283,12 +283,12 @@ void CameraDuplicator::clone_camera() {
     }
 
     while (component != nullptr) {
-        const auto tdef = utility::re_managed_object::get_type_definition(component);
+        const auto tdef = component->get_type_definition();
         const auto runtime_type = tdef->get_runtime_type();
 
         if (illegal_components.contains(tdef->get_full_name())) {
             spdlog::info("Skipping illegal component {}", tdef->get_full_name());
-            component = component->childComponent;
+            component = component->get_child_component();
             continue;
         }
 
@@ -298,7 +298,7 @@ void CameraDuplicator::clone_camera() {
         // snow is for MHRise, app is for most of the other games
         if (full_name.starts_with("app.") || full_name.starts_with("snow.")) {
             spdlog::info("Skipping app component {}", tdef->get_full_name());
-            component = component->childComponent;
+            component = component->get_child_component();
             continue;
         }
 
@@ -316,15 +316,15 @@ void CameraDuplicator::clone_camera() {
             //*(int32_t*)((uint8_t*)new_comp + PRIORITY_OFFSET) = *(int32_t*)((uint8_t*)get_old_camera_counterpart((RECamera*)new_comp) + PRIORITY_OFFSET) + 1; // causes the game to NOT use the new camera as the main camera
             *(int32_t*)((uint8_t*)new_comp + PRIORITY_OFFSET) = -1;
 
-            utility::re_managed_object::add_ref(new_comp);
+            new_comp->add_ref();
         }
 
         spdlog::info("Created new component {} @ 0x{:x}", tdef->get_full_name(), (uintptr_t)new_comp);
 
-        component = component->childComponent;
+        component = component->get_child_component();
     }
 
-    new_camera_gameobject->shouldDraw = true; // YES draw by default, this is the counterpart to the main camera
+    new_camera_gameobject->set_shouldDraw(true); // YES draw by default, this is the counterpart to the main camera
 
     m_called_activate = true;
     m_identified_new_cameras = true;
@@ -401,26 +401,26 @@ void CameraDuplicator::copy_camera_properties() {
         return;
     }
 
-    const auto old_camera_gameobject = utility::re_component::get_game_object((REComponent*)old_camera);
-    const auto new_camera_gameobject = utility::re_component::get_game_object((REComponent*)new_camera);
+    const auto old_camera_gameobject = ((REComponent*)old_camera)->get_game_object();
+    const auto new_camera_gameobject = ((REComponent*)new_camera)->get_game_object();
 
     if (old_camera_gameobject == nullptr || new_camera_gameobject == nullptr) {
         return;
     }
 
     for (auto camera : m_new_cameras) {
-        const auto camera_gameobject = utility::re_component::get_game_object((REComponent*)camera);
+        const auto camera_gameobject = ((REComponent*)camera)->get_game_object();
 
         if (camera_gameobject == nullptr) {
             continue;
         }
 
-        camera_gameobject->shouldDraw = camera_gameobject == new_camera_gameobject;
-        camera_gameobject->shouldUpdate = false;
+        camera_gameobject->set_shouldDraw(camera_gameobject == new_camera_gameobject);
+        camera_gameobject->set_shouldUpdate(false);
     }
 
     // Do not allow the camera components to update. We will do the update ourselves via the copying of properties
-    new_camera_gameobject->shouldUpdate = false;
+    new_camera_gameobject->set_shouldUpdate(false);
 
     // If a new camera is created, we need to reset the property jobs as components may be different
     if ((RECamera*)old_camera != m_last_primary_camera) {
@@ -474,15 +474,15 @@ void CameraDuplicator::copy_camera_properties() {
             continue;
         }
 
-        const auto old_component = utility::re_component::find<REComponent>(old_camera_gameobject->transform, descriptor.name);
-        const auto new_component = utility::re_component::find<REComponent>(new_camera_gameobject->transform, descriptor.name);
+        const auto old_component = old_camera_gameobject->get_transform()->find<REComponent>(descriptor.name);
+        const auto new_component = new_camera_gameobject->get_transform()->find<REComponent>(descriptor.name);
 
         if (old_component == nullptr || new_component == nullptr) {
             continue;
         }
 
-        const auto t1 = utility::re_managed_object::get_type_definition(old_component);
-        const auto t2 = utility::re_managed_object::get_type_definition(new_component);
+        const auto t1 = old_component->get_type_definition();
+        const auto t2 = new_component->get_type_definition();
 
         const auto t_name_fnv = utility::hash(t1->get_full_name());
 
@@ -574,7 +574,7 @@ void CameraDuplicator::copy_camera_properties() {
                 const auto color_correct_new = get_color_correct->call<::REManagedObject*>(ctx, new_component);
 
                 if (color_correct_old != nullptr && color_correct_new != nullptr) {
-                    static auto color_t = utility::re_managed_object::get_type_definition(color_correct_old);
+                    static auto color_t = color_correct_old->get_type_definition();
                     static auto get_enabled = color_t->get_method("get_Enabled");
 
                     if (get_enabled != nullptr) {

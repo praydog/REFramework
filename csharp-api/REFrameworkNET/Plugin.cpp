@@ -21,8 +21,20 @@ using namespace System;
 using namespace System::Runtime;
 
 extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFrameworkPluginInitializeParam* param) {
+    HWND prev = GetForegroundWindow();
+
     // Create a console
     AllocConsole();
+
+    HWND console = GetConsoleWindow();
+
+    ShowWindow(console, SW_HIDE);
+    ShowWindow(console, SW_SHOWNOACTIVATE);
+
+    if (prev)
+    {
+        SetForegroundWindow(prev);
+    }
 
     return REFrameworkNET::PluginManager::Entry(param);
 }

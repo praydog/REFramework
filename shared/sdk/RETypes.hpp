@@ -53,9 +53,7 @@ private:
     void refresh_map();
 
     TypeList* m_raw_types{ nullptr };
-#if TDB_VER >= 69
     RETypeImpl** m_raw_type_impls{ nullptr };
-#endif
 
     // Class name to object like "app.foo.bar" -> 0xDEADBEEF
     std::unordered_map<std::string, REType*> m_type_map;

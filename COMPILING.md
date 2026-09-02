@@ -31,7 +31,7 @@ git submodule update --init --recursive
 #### Command line
 
 ```
-cmake -S . -B build ./build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build ./build -G "Visual Studio 18 2026" -A x64 -DCMAKE_BUILD_TYPE=Release
 cmake --build ./build --config Release
 ```
 

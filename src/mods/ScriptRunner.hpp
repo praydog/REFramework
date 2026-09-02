@@ -426,10 +426,11 @@ private:
     bool m_checked_scene_once{false};
     bool m_scene_okay{false};
     bool m_has_any_transform_updates{false};
-    bool m_console_spawned{false};
     bool m_needs_first_reset{true};
     bool m_last_online_match_state{false};
     bool m_attempted_hook_battle_rule{false};
+    bool m_console_startup_checked{false};
+    int m_console_startup_delay_frames{2};
     std::optional<uint8_t> m_last_battle_type{};
     const ModToggle::Ptr m_log_to_disk{ ModToggle::create(generate_name("LogToDisk"), false) };
 
@@ -470,6 +471,8 @@ private:
         ModSlider::create(generate_name("GarbageCollectionMajorMultiplier"), 1.0f, 1000.0f, 100.0f)
     };
 
+    const ModToggle::Ptr m_open_debug_console_at_startup{ ModToggle::create(generate_name("OpenDebugConsoleAtStartup"), false) };
+
     ValueList m_options{
         *m_log_to_disk,
         *m_gc_handler,
@@ -477,7 +480,8 @@ private:
         *m_gc_mode,
         *m_gc_budget,
         *m_gc_minor_multiplier,
-        *m_gc_major_multiplier
+        *m_gc_major_multiplier,
+        *m_open_debug_console_at_startup
     };
 
     // Resets the ScriptState and runs autorun scripts again.

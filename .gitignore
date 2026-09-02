@@ -8,6 +8,7 @@ build64_re3/
 build64_re4/
 build64_re8/
 build64_dmc5
+build64_vs2026/
 src/sdk/generated
 cmake-build*
 .idea/

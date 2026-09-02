@@ -23,7 +23,7 @@ Example game folder: G:\SteamLibrary\steamapps\common\RESIDENT EVIL 2 BIOHAZARD 
 Supports both DirectX 11 and DirectX 12.
 
 ## Included Mods
-* Lua Scripting API & Plugin System (All games, check out the [Wiki](https://cursey.github.io/reframework-book/))
+* Lua Scripting API & Plugin System (All games, check out the [Wiki](https://refdocs.praydog.com))
 * VR
   * Generic 6DOF VR support for all games
   * Motion controls for RE2/RE3/RE7/RE8

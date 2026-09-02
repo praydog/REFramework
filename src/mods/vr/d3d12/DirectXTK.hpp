@@ -1,5 +1,7 @@
 #pragma once
 
+#include <span>
+
 #include <../../directxtk12-src/Inc/SpriteBatch.h>
 
 #include "TextureContext.hpp"
@@ -12,4 +14,10 @@ void render_srv_to_rtv(
     const d3d12::TextureContext& dst, 
     D3D12_RESOURCE_STATES src_state, 
     D3D12_RESOURCE_STATES dst_state);
+
+std::unique_ptr<DirectX::DX12::SpriteBatch> setup_sprite_batch_pso(
+    DXGI_FORMAT output_format, 
+    std::span<const uint8_t> ps, 
+    std::span<const uint8_t> vs, 
+    std::optional<DirectX::SpriteBatchPipelineStateDescription> pd);
 }
