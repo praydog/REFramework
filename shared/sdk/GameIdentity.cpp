@@ -247,7 +247,7 @@ void GameIdentity::derive_engine_params() {
         break;
 
     case GameID::DD2:
-        m_tdb_ver          = 73;
+        m_tdb_ver          = 83;
         m_type_index_bits  = 19;
         m_field_bits       = 19;
         m_reengine_packed  = true;

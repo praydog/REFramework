@@ -1536,6 +1536,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/utility/ImGui.cpp"
 		"src/utility/ImGui.hpp"
 		"src/utility/PersistentTreeState.hpp"
+		"src/utility/SafeCallbackVector.hpp"
 	)
 
 	add_library(REFramework SHARED)
