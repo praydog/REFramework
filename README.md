@@ -58,10 +58,13 @@ Supports both DirectX 11 and DirectX 12.
 * Monster Hunter Wilds
 * Monster Hunter Stories 3
 * Dragon's Dogma 2
-* Ghosts 'n Goblins Resurrection (Using `RE8` build)
-* Apollo Justice: Ace Attorney Trilogy (Using `DD2` build)
-* Kunitsu-Gami: Path of the Goddess (Using `DD2` build)
-* Onimusha 2: Samurai's Destiny (Using `MHWILDS` build)
+* Dead Rising Deluxe Remaster
+* Ghosts 'n Goblins Resurrection
+* Apollo Justice: Ace Attorney Trilogy
+* Kunitsu-Gami: Path of the Goddess
+* Onimusha 2: Samurai's Destiny
+* Onimusha: Way of the Sword
+* Mega Man Star Force Legacy Collection
 
 ## Thanks
 [SkacikPL](https://github.com/SkacikPL) for originally creating the Manual Flashlight mod.

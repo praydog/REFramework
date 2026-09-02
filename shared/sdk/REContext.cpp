@@ -710,25 +710,40 @@ namespace sdk {
 
     ::SystemString* VM::create_managed_string(std::wstring_view str) {
         static auto empty_string = *sdk::get_static_field<REManagedObject*>("System.String", "Empty");
-        static std::vector<uint8_t> huge_string_data{};
-
-        if (huge_string_data.empty()) {
-            huge_string_data.resize(REManagedObject::runtime_size() + 4 + 2048);
-            memset(&huge_string_data[0], 0, huge_string_data.size());
-
-            auto huge_string = (SystemString*)&huge_string_data[0];
-            memcpy(huge_string, empty_string, REManagedObject::runtime_size());
-        }
 
         const auto str_len = str.length();
-        auto huge_string = (SystemString*)&huge_string_data[0];
-        huge_string->size = (int32_t)str_len;
+        
+        static const auto clone_exists = sdk::find_type_definition("System.String")->get_method("Clone") != nullptr;
+        static const auto padleft_exists = sdk::find_type_definition("System.String")->get_method("PadLeft") != nullptr;
 
-        auto out = (SystemString*)sdk::invoke_object_func(huge_string, "Clone", {}).ptr;
+        if (clone_exists) {
+            static std::vector<uint8_t> huge_string_data{};
 
-        memcpy(out->data, str.data(), str_len * sizeof(wchar_t));
+            if (huge_string_data.empty()) {
+                huge_string_data.resize(REManagedObject::runtime_size() + 4 + 2048);
+                memset(&huge_string_data[0], 0, huge_string_data.size());
 
-        return out;
+                auto huge_string = (SystemString*)&huge_string_data[0];
+                memcpy(huge_string, empty_string, REManagedObject::runtime_size());
+            }
+
+            auto huge_string = (SystemString*)&huge_string_data[0];
+            huge_string->size = (int32_t)str_len;
+
+            auto out = (SystemString*)sdk::invoke_object_func(huge_string, "Clone", {}).ptr;
+            memcpy(out->data, str.data(), str_len * sizeof(wchar_t));
+            return out;
+        } else if (padleft_exists) {
+            static auto padleft_method = sdk::find_type_definition("System.String")->get_method("PadLeft");
+            auto out = padleft_method->call<SystemString*>(sdk::get_thread_context(), empty_string, str_len, L' ');
+
+            memcpy(out->data, str.data(), str_len * sizeof(wchar_t));
+            return out;
+        } else {
+            spdlog::error("[VM::create_managed_string] Unable to find Clone or PadLeft method on System.String. This is unexpected.");
+        }
+
+        return nullptr;
     }
 
     sdk::SystemArray* VM::create_managed_array(::REManagedObject* runtime_type, uint32_t length) {
