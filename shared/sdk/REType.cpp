@@ -10,8 +10,9 @@ using namespace utility::re_type_accessor;
 #include "GameIdentity.hpp"
 
 size_t REType::runtime_size() {
+    // TODO: Automatically determine this, the maintenance is a footgun.
     static const auto size = []() -> size_t {
-        if (sdk::GameIdentity::get().is_mhwilds() || sdk::GameIdentity::get().is_re9()) return 0x68;
+        if (sdk::GameIdentity::get().is_mhwilds() || sdk::GameIdentity::get().is_re9() || sdk::GameIdentity::get().is_dd2()) return 0x68;
         return 0x60;
     }();
     return size;
