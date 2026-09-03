@@ -830,16 +830,94 @@ namespace sdk {
                 return (vm_create_managed_array_no_rank)start;
             }();
 
-            if (alternative == nullptr) {
-                return nullptr;
+            if (alternative != nullptr) {
+                static auto runtime_type_t = sdk::find_type_definition("System.RuntimeType");
+                static auto get_TypeHandle = runtime_type_t->get_method("get_TypeHandle");
+                //auto type_handle = get_TypeHandle->call<::REManagedObject*>(sdk::get_thread_context(), runtime_type);
+                auto type_handle = (sdk::RETypeDefinition*)get_TypeHandle->invoke(runtime_type).ptr;
+
+                return alternative(sdk::get_thread_context(), type_handle, length, false);
             }
 
-            static auto runtime_type_t = sdk::find_type_definition("System.RuntimeType");
-            static auto get_TypeHandle = runtime_type_t->get_method("get_TypeHandle");
-            //auto type_handle = get_TypeHandle->call<::REManagedObject*>(sdk::get_thread_context(), runtime_type);
-            auto type_handle = (sdk::RETypeDefinition*)get_TypeHandle->invoke(runtime_type).ptr;
+            static auto alternative2 = []() -> vm_create_managed_array_no_rank {
+                spdlog::info("[VM::create_managed_array] Searching for alternative method 2...");
 
-            return alternative(sdk::get_thread_context(), type_handle, length, false);
+                const auto game = utility::get_executable();
+                const auto via_scene_manager = sdk::find_type_definition("via.SceneManager");
+                const auto via_scene_manager_get_scenes = via_scene_manager->get_method("get_Scenes");
+
+                if (via_scene_manager_get_scenes == nullptr || via_scene_manager_get_scenes->get_function() == nullptr) {
+                    spdlog::error("[VM::create_managed_array] Unable to find via.SceneManager.get_Scenes.");
+                    return nullptr;
+                }
+
+                const auto tdb = sdk::RETypeDB::get();
+                const auto tdefs = tdb->get_type(0); // The first one is the pointer to the type array.
+
+                // Now disassemble all the code in get_Scenes (via exhaustive disassembly)
+                // and look for any function calls in them that contain a reference to the type array (tdefs).
+                // get_Scenes only calls 3 functions, memcpy, a managed throw, and create_managed array.
+                // We can disambiguate by checking which one contains a reference to the type array.
+                std::optional<uintptr_t> found_func{std::nullopt};
+
+                utility::exhaustive_decode((uint8_t*)via_scene_manager_get_scenes->get_function(), 1000, [&](utility::ExhaustionContext& ctx) -> utility::ExhaustionResult {
+                    if (found_func.has_value()) {
+                        return utility::ExhaustionResult::BREAK;
+                    }
+
+                    if (std::string_view{ctx.instrux.Mnemonic} == "CALL") {
+                        const auto dst = utility::calculate_absolute(ctx.addr + 1);
+
+                        utility::exhaustive_decode((uint8_t*)dst, 1000, [&](utility::ExhaustionContext& ctx2) -> utility::ExhaustionResult {
+                            // If this is a call just step over. Only care about the main function body.
+                            if (std::string_view{ctx2.instrux.Mnemonic} == "CALL") {
+                                return utility::ExhaustionResult::STEP_OVER;
+                            }
+
+                            const auto ref = utility::resolve_displacement(ctx2.addr, &ctx2.instrux);
+
+                            if (!ref) {
+                                return utility::ExhaustionResult::CONTINUE;
+                            }
+
+                            try {
+                                if (*ref == (uintptr_t)tdefs || *(uintptr_t*)*ref == (uintptr_t)tdefs) {
+                                    found_func = dst;
+                                    spdlog::info("[VM::create_managed_array] Found alternative method 2 at {:x}", dst);
+                                    return utility::ExhaustionResult::BREAK;
+                                }
+                            } catch (...) {
+
+                            }
+
+                            return utility::ExhaustionResult::CONTINUE;
+                        });
+
+                        // Don't actually go inside the function, we do it above.
+                        return utility::ExhaustionResult::STEP_OVER;
+                    }
+
+                    return utility::ExhaustionResult::CONTINUE;
+                });
+
+                if (!found_func.has_value()) {
+                    spdlog::error("[VM::create_managed_array] Unable to find alternative method 2.");
+                    return nullptr;
+                }
+
+                return (vm_create_managed_array_no_rank)*found_func;
+            }();
+
+            if (alternative2 != nullptr) {
+                static auto runtime_type_t = sdk::find_type_definition("System.RuntimeType");
+                static auto get_TypeHandle = runtime_type_t->get_method("get_TypeHandle");
+                auto type_handle = (sdk::RETypeDefinition*)get_TypeHandle->invoke(runtime_type).ptr;
+
+                return alternative2(sdk::get_thread_context(), type_handle, length, false);
+            }
+
+            spdlog::error("[VM::create_managed_array] Unable to find System.Array.CreateInstance method. This is unexpected.");
+            return nullptr;
         }
 
         return create_instance_method->call<sdk::SystemArray*>(sdk::get_thread_context(), runtime_type, length);
