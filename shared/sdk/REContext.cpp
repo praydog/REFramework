@@ -865,7 +865,10 @@ namespace sdk {
                         return utility::ExhaustionResult::BREAK;
                     }
 
-                    if (std::string_view{ctx.instrux.Mnemonic} == "CALL") {
+                    const auto is_call_1 = std::string_view{ctx.instrux.Mnemonic} == "CALL";
+                    const auto is_direct_call = is_call_1 && *(uint8_t*)ctx.addr == 0xE8;
+
+                    if (is_call_1 && is_direct_call) {
                         const auto dst = utility::calculate_absolute(ctx.addr + 1);
 
                         utility::exhaustive_decode((uint8_t*)dst, 1000, [&](utility::ExhaustionContext& ctx2) -> utility::ExhaustionResult {
@@ -876,7 +879,7 @@ namespace sdk {
 
                             const auto ref = utility::resolve_displacement(ctx2.addr, &ctx2.instrux);
 
-                            if (!ref) {
+                            if (!ref || IsBadReadPtr((void*)*ref, sizeof(void*))) {
                                 return utility::ExhaustionResult::CONTINUE;
                             }
 
@@ -894,6 +897,10 @@ namespace sdk {
                         });
 
                         // Don't actually go inside the function, we do it above.
+                        return utility::ExhaustionResult::STEP_OVER;
+                    }
+
+                    if (is_call_1) {
                         return utility::ExhaustionResult::STEP_OVER;
                     }
 
