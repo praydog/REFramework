@@ -1332,6 +1332,9 @@ std::vector<void*>& build_args(sol::variadic_args va) {
         if (lua_isboolean(l, i)) {
             auto b = lua_toboolean(l, i);
             args.push_back((void*)(intptr_t)b);
+        } else if (lua_type(l, i) == LUA_TSTRING) {
+            auto s = lua_tostring(l, i);
+            args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
         } else if (lua_isinteger(l, i)) {
             auto n = (intptr_t)lua_tointeger(l, i);
             args.push_back((void*)n);
@@ -1339,9 +1342,6 @@ std::vector<void*>& build_args(sol::variadic_args va) {
             auto f = lua_tonumber(l, i);
             auto n = *(intptr_t*)&f;
             args.push_back((void*)n);
-        } else if (lua_isstring(l, i)) {
-            auto s = lua_tostring(l, i);
-            args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
         } else if (arg.is<Vector2f>()) {
             auto& v = arg.as<Vector2f&>();
             args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
