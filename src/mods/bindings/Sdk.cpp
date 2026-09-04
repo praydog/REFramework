@@ -1542,6 +1542,45 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
         ::api::sdk::call_native_func_direct(lua_obj, fn, args);
         return;
     }
+
+    // System.Int32 -> object
+    if (auto set_method = type_def->get_method("Set"); set_method != nullptr) {
+        static auto system_int32 = sdk::find_type_definition("System.Int32");
+        const auto params = set_method->get_param_types();
+
+        if (params.size() == 2 && params[0] == system_int32) {
+            if (type_def->is_array()) {
+                const auto arr = static_cast<::sdk::SystemArray*>(obj);
+                const auto i = index.as<int32_t>();
+                if (i < 0 || (size_t)i >= arr->get_size()) {
+                    throw sol::error("Array index out of range: " + std::to_string(i));
+                }
+
+                // Reject type-confused raw writes (a string into a value element
+                // would store the managed string's pointer bits). Dispatch on the
+                // real Lua type: is<const char*>/is<double> are true for both.
+                const auto elem_type = params[1];
+
+                if (elem_type != nullptr) {
+                    const auto lua_t = assign.get_type();
+                    const auto is_string = lua_t == sol::type::string;
+                    const auto is_number = lua_t == sol::type::number || lua_t == sol::type::boolean;
+
+                    if (elem_type->is_value_type() && is_string) {
+                        throw sol::error("Cannot assign a string to a " + elem_type->get_full_name() + " element");
+                    }
+
+                    if (!elem_type->is_value_type() && is_number) {
+                        throw sol::error("Cannot assign a number to a " + elem_type->get_full_name() + " element");
+                    }
+                }
+            }
+
+            ::api::sdk::call_native_func_direct(lua_obj, set_method, args);
+            return;
+        }
+    }
+
     throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
 }
 
