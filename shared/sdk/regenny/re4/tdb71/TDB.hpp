@@ -1,33 +1,33 @@
 #pragma once
 namespace regenny::tdb71 {
-struct TypeDefinition;
-}
-namespace regenny::tdb71 {
-struct TypeImpl;
-}
-namespace regenny::tdb71 {
 struct FieldImpl;
-}
-namespace regenny::tdb71 {
-struct MethodDefinition;
 }
 namespace regenny::tdb71 {
 struct Field;
 }
 namespace regenny::tdb71 {
-struct AttributeDef;
-}
-namespace regenny::tdb71 {
-struct MethodImpl;
-}
-namespace regenny::tdb71 {
-struct Property;
+struct TypeDefinition;
 }
 namespace regenny::tdb71 {
 struct PropertyImpl;
 }
 namespace regenny::tdb71 {
+struct TypeImpl;
+}
+namespace regenny::tdb71 {
+struct Property;
+}
+namespace regenny::tdb71 {
+struct MethodDefinition;
+}
+namespace regenny::tdb71 {
+struct MethodImpl;
+}
+namespace regenny::tdb71 {
 struct ParameterDef;
+}
+namespace regenny::tdb71 {
+struct AttributeDef;
 }
 namespace regenny::tdb71 {
 #pragma pack(push, 1)

@@ -7,9 +7,10 @@ std::shared_ptr<BackBufferRenderer>& BackBufferRenderer::get() {
 
 std::optional<std::string> BackBufferRenderer::on_initialize_d3d_thread() {
     if (g_framework->is_dx12()) {
+        uint32_t context_index = 0;
         for (auto& context : m_d3d12.command_contexts) {
             context = std::make_unique<d3d12::CommandContext>();
-            context->setup(L"BackBufferRenderer D3D12 Command Context");
+            context->setup((L"BackBufferRenderer D3D12 Command Context " + std::to_wstring(context_index++)).c_str());
         }
 
         auto swapchain = g_framework->get_d3d12_hook()->get_swap_chain();
@@ -49,10 +50,13 @@ void BackBufferRenderer::render_d3d12() {
         return;
     }
 
+    uint32_t context_index = 0;
     for (auto& ctx : m_d3d12.command_contexts) {
+        const auto index = context_index++;
+
         if (ctx == nullptr) {
             ctx = std::make_unique<d3d12::CommandContext>();
-            ctx->setup(L"BackBufferRenderer D3D12 Command Context");
+            ctx->setup((L"BackBufferRenderer D3D12 Command Context " + std::to_wstring(index)).c_str());
         }
     }
 
@@ -70,7 +74,7 @@ void BackBufferRenderer::render_d3d12() {
             m_d3d12.backbuffers[i].reset();
 
             m_d3d12.backbuffers[i] = std::make_unique<d3d12::TextureContext>();
-            if (!m_d3d12.backbuffers[i]->setup(device, backbuffer.Get(), std::nullopt, std::nullopt, L"BackBufferRenderer Backbuffer")) {
+            if (!m_d3d12.backbuffers[i]->setup(device, backbuffer.Get(), std::nullopt, std::nullopt, (L"BackBufferRenderer Backbuffer " + std::to_wstring(i)).c_str())) {
                 spdlog::error("[BackBufferRenderer] Failed to setup backbuffer {}", i);
                 m_d3d12.backbuffers[i].reset();
                 continue;
@@ -91,6 +95,14 @@ void BackBufferRenderer::render_d3d12() {
     auto& command_context = m_d3d12.command_contexts[bb_index % m_d3d12.command_contexts.size()];
 
     command_context->wait(2000);
+
+    // Everything below records straight into the list, so bail rather than emit
+    // COMMAND_LIST_CLOSED for every call when the list could not be reopened.
+    if (!command_context->is_open) {
+        spdlog::error("[BackBufferRenderer] Command list for {} is not recording; skipping frame",
+            utility::narrow(command_context->internal_name));
+        return;
+    }
 
     auto& cmd_list = command_context->cmd_list;
 
