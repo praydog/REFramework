@@ -897,7 +897,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
         const wchar_t *patch_version_string = L"/Environment/Package/PatchVersion:";
         const wchar_t *re_chunk_string = L"re_chunk_";
         
-        auto load_patch_func = utility::find_function_with_string_refs(game, patch_version_string, re_chunk_string);
+        auto load_patch_func = utility::find_function_with_string_refs(game, patch_version_string, re_chunk_string, false, true);
         if (load_patch_func) {
             // Find the lea that loads re_chunk string
             auto where_compare_str = utility::find_string_reference_in_path(*load_patch_func, re_chunk_string, false);
