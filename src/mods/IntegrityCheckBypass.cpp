@@ -2,6 +2,7 @@
 #include <shared_mutex>
 #include <iomanip>
 #include <regex>
+#include <fstream>
 
 #include <asmjit/asmjit.h>
 #include <asmjit/x86/x86assembler.h>
@@ -661,12 +662,63 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
+std::optional<uint16_t> get_pak_flags(const std::filesystem::path& path) {
+    std::ifstream f{path, std::ios::binary};
+
+    if (!f) {
+        return std::nullopt;
+    }
+
+    std::array<uint8_t, 8> header{};
+
+    if (!f.read(reinterpret_cast<char*>(header.data()), header.size())) {
+        return std::nullopt;
+    }
+
+    if (std::memcmp(header.data(), "KPKA", 4) != 0) {
+        return std::nullopt;
+    }
+
+    uint16_t flags{};
+    std::memcpy(&flags, header.data() + 6, sizeof(flags));
+
+    return flags;
+}
+
 void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context) {
     const auto return_address = *reinterpret_cast<uintptr_t*>(context.rsp);
     auto pak_name_wstr = reinterpret_cast<const wchar_t*>(context.rdx);
 
     spdlog::info("[IntegrityCheckBypass]: pak_load_check_function called from: 0x{:X}", return_address);
     spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name_wstr));
+
+    spdlog::info("[IntegrityCheckBypass]: PakLoad entry");
+    spdlog::info("  caller: 0x{:X}", return_address);
+    spdlog::info("  rcx: 0x{:X}", context.rcx);
+    spdlog::info("  rdx: 0x{:X}", context.rdx);
+    spdlog::info("  r8 : 0x{:X}", context.r8);
+    spdlog::info("  r9 : 0x{:X}", context.r9);
+
+    const auto exe = utility::get_executable();
+    const auto exe_path = utility::get_module_pathw(exe);
+
+    if (!exe_path) {
+        return;
+    }
+
+    const auto pak_path = std::filesystem::path(*exe_path).parent_path() / pak_name_wstr;
+
+    if (auto flags = get_pak_flags(pak_path)) {
+        s_pak_flags_value = static_cast<uint8_t>(*flags);
+
+        spdlog::info(
+            "[IntegrityCheckBypass]: {} flags from disk: 0x{:X}",
+            utility::narrow(pak_name_wstr),
+            *flags
+        );
+    } else {
+        spdlog::warn("[IntegrityCheckBypass]: Could not read flags from {}!", utility::narrow(pak_name_wstr));
+    }
 }
 
 void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
@@ -682,27 +734,6 @@ void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
     spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at {} to {}",
         current_patch_version, disasm_utils::register_name(reg), file_count_result);
     disasm_utils::set_register_value(context, reg, (uint64_t)file_count_result);
-}
-
-void IntegrityCheckBypass::pak_store_flags_hook(safetyhook::Context& context) {
-    spdlog::info("[IntegrityCheckBypass]: pak_store_flags_hook called!");
-
-    s_pak_flags_value = std::nullopt;
-
-    if (s_pak_load_check_insn.Operands[0].Type == ND_OP_REG) {
-        s_pak_flags_value = disasm_utils::get_register_value<std::uint8_t>(context, s_pak_load_check_insn.Operands[0].Info.Register.Reg);
-    } else if (s_pak_load_check_insn.Operands[0].Type == ND_OP_MEM) {
-        auto base_reg_value = disasm_utils::get_register_value<uintptr_t>(context, s_pak_load_check_insn.Operands[0].Info.Memory.Base);
-        auto displacement = s_pak_load_check_insn.Operands[0].Info.Memory.Disp;
-
-        s_pak_flags_value = *(std::uint8_t*)(base_reg_value + displacement);
-    }
-
-    if (s_pak_flags_value) {
-        spdlog::info("[IntegrityCheckBypass]: Stored pak flags value: 0x{:X}", *s_pak_flags_value);
-    } else {
-        spdlog::error("[IntegrityCheckBypass]: Failed to store pak flags value, unknown operand type {}!", s_pak_load_check_insn.Operands[0].Type);
-    }
 }
 
 // This allows unencrypted paks to load.
@@ -737,10 +768,7 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
         pak_flags = static_cast<PakFlags>(*s_pak_flags_value);
         spdlog::info("[IntegrityCheckBypass]: Using stored pak flags value: 0x{:X}", *s_pak_flags_value);
     } else {
-        pak_flags = s_sha3_reg_index != -1
-            ? disasm_utils::get_register_value<PakFlags>(context, s_sha3_reg_index)
-            : (PakFlags)context.r8; // fallback to R8
-        SPDLOG_INFO("[IntegrityCheckBypass]: Using {} for pak_flags", disasm_utils::register_name(s_sha3_reg_index));
+        spdlog::warn("[IntegrityCheckBypass]: No stored pak flags value...");
     }
 
     if ((pak_flags & PakFlags::ENCRYPTED) != 0) {
@@ -1009,61 +1037,6 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
             spdlog::info("[IntegrityCheckBypass]: NOP'd out conditional jump!");
         } else {
             spdlog::warn("[IntegrityCheckBypass]: Previous instruction is not a conditional branch, cannot NOP it!");
-        }
-    }
-
-    if (!previous_instructions_start.empty()) {
-        // reverse
-        std::reverse(previous_instructions_start.begin(), previous_instructions_start.end());
-
-        // go forward until we find a test insn
-        for (auto& insn : previous_instructions_start) {
-            if (std::string_view(insn.instrux.Mnemonic).contains("TEST")) {
-                spdlog::info("[IntegrityCheckBypass]: Found test instruction at 0x{:X}", insn.addr);
-                // Check if the first operand is a register
-                if (insn.instrux.Operands[0].Type == ND_OP_REG && insn.instrux.Operands[0].Info.Register.Type == ND_REG_GPR) {
-                    // Avoid false positive, check if it ANDs with 0x8 or 0x20 or 0x40, which are the flags for pak encryption and compression
-                    bool is_correct_test = false;
-                    if (insn.instrux.Operands[1].Type == ND_OP_IMM && (insn.instrux.Operands[1].Info.Immediate.Imm == 0x8 || insn.instrux.Operands[1].Info.Immediate.Imm == 0x20 || insn.instrux.Operands[1].Info.Immediate.Imm == 0x40)) {
-                        spdlog::info("[IntegrityCheckBypass]: Found test instruction with correct immediate value, likely the one checking pak flags!");
-                        is_correct_test = true;
-                    } else {
-                        spdlog::warn("[IntegrityCheckBypass]: Found test instruction but with unexpected immediate value 0x{:X}, this may not be the correct instruction!", insn.instrux.Operands[1].Info.Immediate.Imm);
-                    }
-                    if (!is_correct_test) {
-                        continue;
-                    }
-                    s_sha3_reg_index = insn.instrux.Operands[0].Info.Register.Reg;
-                    spdlog::info("[IntegrityCheckBypass]: sha3_reg_index set to {}", s_sha3_reg_index);
-                    break;
-                } else {
-                    spdlog::error("[IntegrityCheckBypass]: First operand of test instruction is not a register!");
-                }
-            }
-        }
-
-        if (s_sha3_reg_index == -1) {
-            spdlog::error("[IntegrityCheckBypass]: Could not determine sha3_reg_index!");
-
-            if (gi.tdb_ver() >= 83) {
-            // A safe way is to store the flags value by ourself, because sometimes the compiled code stores it in stack only
-            spdlog::info("[IntegrityCheckBypass]: Attempting to do a safe fallback to get the pak_flags");
-            
-            for (auto &insn: previous_instructions_start) {
-                if (insn.instrux.Instruction == ND_INS_TEST && insn.instrux.Operands[1].Type == ND_OP_IMM) {
-                    auto imm_value = insn.instrux.Operands[1].Info.Immediate.Imm;
-
-                    if (imm_value == 0x40 || imm_value == 0x20 || imm_value == 0x4) {
-                        // Hook at this address
-                        s_patch_store_flags_hook = safetyhook::create_mid((void*)insn.addr, &IntegrityCheckBypass::pak_store_flags_hook);
-                        s_pak_load_check_insn = insn.instrux;
-
-                        spdlog::info("[IntegrityCheckBypass]: Created pak_store_flags_hook at 0x{:X} to store pak_flags for fallback!", insn.addr);
-                        break;
-                    }
-                }
-            }
-            }
         }
     }
 }

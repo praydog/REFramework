@@ -63,7 +63,6 @@ private:
     static inline safetyhook::MidHook s_pak_load_check_function_hook;
     static inline safetyhook::MidHook s_patch_version_hook;
     static inline std::optional<uintptr_t> s_sha3_code_end{};
-    static inline int32_t s_sha3_reg_index{-1};
     static inline int32_t s_patch_version_reg_index{-1};
     static inline int s_patch_count;
     static inline bool s_patch_count_checked;
@@ -92,7 +91,6 @@ private:
 
     static void* rtl_exit_user_process_hook(uint32_t code);
     static inline std::unique_ptr<FunctionHookMinHook> s_rtl_exit_user_process_hook{};
-    static void pak_store_flags_hook(safetyhook::Context& context);
 
 #ifdef REFRAMEWORK_UNIVERSAL
     // All members present in monolithic build
