@@ -268,10 +268,30 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     return Mod::on_initialize();
 }
 
+static bool s_auto_assigned = false;
+static std::unordered_set<std::wstring> s_seen_pak_families{};
+
 void IntegrityCheckBypass::on_frame() {
     const auto& gi = sdk::GameIdentity::get();
 
     re9_heartbeat_bypass();
+
+    {
+        static bool s_reported_no_match = false;
+
+        if (!s_reported_no_match && !s_seen_pak_families.empty() && !s_auto_assigned
+            && !m_custom_pak_in_directory_paths.empty()) {
+            s_reported_no_match = true;
+
+            spdlog::error("[IntegrityCheckBypass]: {} custom pak(s) were cached but NONE were injected - "
+                "no archive family matched the auto-assign suffix. Families seen this run:",
+                m_custom_pak_in_directory_paths.size());
+
+            for (const auto& family : s_seen_pak_families) {
+                spdlog::error("[IntegrityCheckBypass]:   {}", utility::narrow(family));
+            }
+        }
+    }
 
     if (gi.is_re3()) {
         if (m_bypass_integrity_checks != nullptr) {
@@ -874,7 +894,8 @@ void* IntegrityCheckBypass::pak_load_patch_load_function(uintptr_t* pak_slots, c
         ++next_free_patch_index;
     }
 
-    static bool s_auto_assigned = false;
+    s_seen_pak_families.emplace(base_path);
+
     bool did_auto_assign = false;
 
     for (auto str : IntegrityCheckBypass::get_shared_instance()->m_custom_pak_in_directory_paths) {
@@ -927,6 +948,12 @@ void* IntegrityCheckBypass::pak_load_patch_load_function(uintptr_t* pak_slots, c
         const wchar_t* native_name = native_name_str.c_str();
 
         auto fake_pak = sdk::memory::allocate(0x300);
+        bool use_virtual_alloc = false;
+        if (fake_pak == nullptr) {
+            spdlog::warn("[IntegrityCheckBypass]: Attempting to allocate using VirtualAlloc, as sdk::memory::allocate failed.");
+            fake_pak = VirtualAlloc(nullptr, 0x300, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+            use_virtual_alloc = true;
+        }
         memcpy(fake_pak, pristine_pak_struct.data(), pristine_pak_struct.size()); // Struct is pristine post-ctor. Removes need to know ctor addr.
 
         if (event_handle_offset != 0) {
@@ -962,7 +989,12 @@ void* IntegrityCheckBypass::pak_load_patch_load_function(uintptr_t* pak_slots, c
         if (!pak_load_check_function(reinterpret_cast<void*>(slots[pak_array_i]), native_name, 0, 1, 0, patch_index, 0)) {
             --num_paks;
             slots[pak_array_i] = 0; // engine clears the slot on failure before destroying
-            sdk::memory::deallocate(fake_pak);
+
+            if (use_virtual_alloc) {
+                VirtualFree(fake_pak, 0, MEM_RELEASE);
+            } else {
+                sdk::memory::deallocate(fake_pak);
+            }
 
             spdlog::warn("[IntegrityCheckBypass]: pak_load_check_function_hook returned false for string: {}", utility::narrow(str));
         } else {
@@ -1001,21 +1033,6 @@ void* IntegrityCheckBypass::pak_load_patch_load_function(uintptr_t* pak_slots, c
     }
 
     return res;
-}
-
-void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
-    // THEY STORE PATCH VERSION INSIDE SOMEWHERE NOW! And only load until that patch version then dont load no more paks
-    spdlog::info("[IntegrityCheckBypass]: patch_version_hook called!");
-
-    const auto reg = s_patch_version_reg_index != -1 ? s_patch_version_reg_index : NDR_RAX; // fallback to RAX
-    uint64_t current_patch_version = disasm_utils::get_register_value(context, reg);
-
-    // Scan for amount of paks. Get exe directory. To be honest set this to 9999 is okay, but i feel like it might take a long time
-    int file_count_result = std::max<int>(scan_patch_files_count(), current_patch_version);
-
-    spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at {} to {}",
-        current_patch_version, disasm_utils::register_name(reg), file_count_result);
-    //disasm_utils::set_register_value(context, reg, (uint64_t)file_count_result);
 }
 
 // This allows unencrypted paks to load.
@@ -1176,125 +1193,34 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
     spdlog::info("[IntegrityCheckBypass]: Created sha3_rsa_code_midhook!");
 
     const auto& gi = sdk::GameIdentity::get();
+
+    // Enable the pak loading directory pipeline
     if (gi.tdb_ver() >= 81) {
-    // Find function start may
-    auto pak_load_check_start = utility::find_function_start_unwind(*pak_load_fn);
+        // Find function start may
+        auto pak_load_check_start = utility::find_function_start_unwind(*pak_load_fn);
 
-    if (pak_load_check_start) {
-        spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
-        s_pak_load_check_function_hook = safetyhook::create_inline((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
+        if (pak_load_check_start) {
+            spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
+            s_pak_load_check_function_hook = safetyhook::create_inline((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
 
-        find_try_hook_via_file_load_win32_create_file(*pak_load_check_start);
-    } else {
-        spdlog::error("[IntegrityCheckBypass]: Could not find pak_load_check_function start!");
-    }
-
-    auto patch_version_start = utility::scan(game, "48 89 ? 24 ? 48 85 FF 0F 84 ? ? ? ? 66 83 3F 72 0F 85 ? ? ? ? 66 BA 72 00");
-
-    if (patch_version_start) {
-        // Before patching, decode the instruction at patch_version_start to find the source register of the MOV instruction
-        auto move_instruction = utility::decode_one((std::uint8_t*)*patch_version_start);
-
-        // Get the source register of the MOV instruction
-        if (move_instruction && move_instruction->Instruction == ND_INS_MOV && move_instruction->Operands[1].Type == ND_OP_REG) {
-            s_patch_version_reg_index = move_instruction->Operands[1].Info.Register.Reg;
-            spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {}", s_patch_version_reg_index);
+            find_try_hook_via_file_load_win32_create_file(*pak_load_check_start);
         } else {
-            spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index through");
+            spdlog::error("[IntegrityCheckBypass]: Could not find pak_load_check_function start!");
         }
-    }
 
-    if (gi.tdb_ver() >= 82) {
-    if (!patch_version_start) {
-        // Method 2
         const wchar_t *patch_version_string = L"/Environment/Package/PatchVersion:";
         const wchar_t *re_chunk_string = L"re_chunk_";
         
         auto load_patch_func = utility::find_function_with_string_refs(game, patch_version_string, re_chunk_string, false, true);
         if (load_patch_func) {
-            // Find the lea that loads re_chunk string
-            auto where_compare_str = utility::find_string_reference_in_path(*load_patch_func, re_chunk_string, false);
-            if (where_compare_str) {
-                s_pak_load_patch_load_hook = safetyhook::create_inline((void*)*load_patch_func, &IntegrityCheckBypass::pak_load_patch_load_function);
+            s_pak_load_patch_load_hook = safetyhook::create_inline((void*)*load_patch_func, &IntegrityCheckBypass::pak_load_patch_load_function);
 
-                spdlog::info("[IntegrityCheckBypass]: Found reference to re_chunk string at 0x{:X}, assuming this is the start of using patch version", where_compare_str->addr);
-                patch_version_start = where_compare_str->addr;
-
-                bool found_reg = false;
-
-                // No reliable way to detect the patch version register, rather then finding the last loop point of the function
-                auto bounds = utility::determine_function_bounds(*load_patch_func);
-                if (bounds) {
-                    auto blocks = utility::collect_linear_blocks(bounds->start, bounds->end);
-                    for (auto rite = blocks.rbegin(); rite != blocks.rend(); ++rite) {
-                        auto& block = *rite;
-
-                        auto first_instruction = utility::decode_one((uint8_t*)block.start);
-                        auto second_instruction = first_instruction ? utility::decode_one((uint8_t*)(block.start + first_instruction->Length)) : std::nullopt;
-                        
-                        if (!first_instruction || !second_instruction) {
-                            continue;
-                        }
-
-                        auto total_length = first_instruction->Length + second_instruction->Length;
-                        if (block.start + total_length > block.end) {
-                            continue;
-                        }
-
-                        if (first_instruction->Instruction == ND_INS_INC && second_instruction->Instruction == ND_INS_CMP
-                            && first_instruction->Operands[0].Type == ND_OP_REG && second_instruction->Operands[0].Type == ND_OP_REG
-                            && second_instruction->Operands[1].Type == ND_OP_REG) {
-                            // Iterate further to confirm a branch exists
-                            auto next_instruction = utility::decode_one((uint8_t*)(block.start + total_length));
-                            bool branch_found = false;
-
-                            while (next_instruction) {
-                                if (next_instruction->BranchInfo.IsBranch && next_instruction->BranchInfo.IsConditional) {
-                                    branch_found = true;
-                                    break;
-                                }
-                                total_length += next_instruction->Length;
-                                if (block.start + total_length > block.end) {
-                                    break;
-                                }
-                                next_instruction = utility::decode_one((uint8_t*)(block.start + total_length));
-                            }
-
-                            if (branch_found) {
-                                spdlog::info("[IntegrityCheckBypass]: Found loop at 0x{:X}, assuming patch version check loops back here", block.start);
-
-                                // Get the register being compared in the CMP instruction
-                                auto inc_register = first_instruction->Operands[0].Info.Register.Reg;
-                                auto cmp_op0_register = second_instruction->Operands[0].Info.Register.Reg;
-                                auto cmp_op1_register = second_instruction->Operands[1].Info.Register.Reg;
-
-                                if (inc_register == cmp_op0_register) {
-                                    s_patch_version_reg_index = cmp_op1_register;
-                                } else {
-                                    s_patch_version_reg_index = cmp_op0_register;
-                                }
-
-                                spdlog::info("[IntegrityCheckBypass]: patch_version_reg_index set to {} (fallback method)", s_patch_version_reg_index);
-
-                                found_reg = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                if (!found_reg) {
-                    spdlog::error("[IntegrityCheckBypass]: Could not determine patch_version_reg_index through fallback method either!");
-                }
+            if (s_pak_load_patch_load_hook) {
+                spdlog::info("[IntegrityCheckBypass]: Found pak_load_patch_load_function @ 0x{:X}, hook!", (uintptr_t)*load_patch_func);
+            } else {
+                spdlog::error("[IntegrityCheckBypass]: Could not create hook for pak_load_patch_load_function!");
             }
         }
-    }
-    }
-
-    if (patch_version_start) {
-        spdlog::info("[IntegrityCheckBypass]: Created patch_version_hook to 0x{:X}, hook!", (uintptr_t)*patch_version_start);
-        s_patch_version_hook = safetyhook::create_mid((void*)*patch_version_start, &IntegrityCheckBypass::patch_version_hook);
-    }
     }
 
     auto previous_instructions = utility::get_disassembly_behind(*s_sha3_code_end);
@@ -2867,47 +2793,6 @@ void IntegrityCheckBypass::correct_pak_load_path(safetyhook::Context& context, i
             return;
         }
     }
-
-    // No longer necessary because we directly insert our loaded paks into the list.
-#if 0
-    auto path_ptr = disasm_utils::get_register_value<wchar_t*>(context, register_index);
-    if (path_ptr != nullptr) {
-        std::wstring_view path_view(path_ptr);
-        if (path_view.ends_with(PAK_EXTENSION_NAME_W)) {
-            spdlog::info("[IntegrityCheckBypass]: Attempting to load PAK file: {}", utility::narrow(path_view));
-            std::wstring filename_copy = std::filesystem::path(path_view).filename().wstring();
-            auto patch_num_opt = extract_patch_num_from_path(filename_copy);
-
-            if (patch_num_opt) {
-                int patch_num = *patch_num_opt;
-                if (patch_num > s_base_directory_patch_count) {
-                    auto custom_directory_pak_index = patch_num - s_base_directory_patch_count - 1;
-                    if (custom_directory_pak_index < m_custom_pak_in_directory_paths.size()) {
-                        auto &pak_path = m_custom_pak_in_directory_paths[custom_directory_pak_index];
-                        spdlog::info("[IntegrityCheckBypass]: Redirecting load of {} to custom pak at path: {}", utility::narrow(filename_copy), utility::narrow(pak_path));
-                    
-                        disasm_utils::set_register_value(context, register_index, pak_path.c_str());    auto path_ptr = disasm_utils::get_register_value<wchar_t*>(context, NDR_RCX);
-                        std::wstring_view path_view(path_ptr);
-                        auto pak_name_wstr = std::filesystem::path(pak_path).filename().wstring();
-                        if (auto flags = get_pak_flags(pak_path)) {
-                            s_pak_flags_value = static_cast<uint8_t>(*flags);
-
-                            spdlog::info(
-                                "[IntegrityCheckBypass]: {} flags from disk: 0x{:X}",
-                                utility::narrow(pak_name_wstr),
-                                *flags
-                            );
-                        } else {
-                            spdlog::warn("[IntegrityCheckBypass]: Could not read flags from {}!", utility::narrow(pak_name_wstr));
-                        }
-                    } else {
-                        spdlog::error("[IntegrityCheckBypass]: Patch number {} is out of range for PAK directory's PAK! (index {})", patch_num, custom_directory_pak_index);
-                    }
-                }
-            }
-        }
-    }
-#endif
 }
 
 void IntegrityCheckBypass::directstorage_open_pak_hook(safetyhook::Context& context) {
