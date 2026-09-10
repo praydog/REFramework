@@ -47,6 +47,10 @@ void* allocate(size_t size, bool zero_memory) {
         return fn;
     }();
 
+    if (allocate_fn == nullptr) {
+        return nullptr; // nope
+    }
+
     auto result = allocate_fn(size);
 
     if (zero_memory && result != nullptr) {
@@ -138,6 +142,10 @@ void deallocate(void* ptr) {
 
         return fn;
     }();
+
+    if (deallocate_fn == nullptr) {
+        return; // nope
+    }
 
     deallocate_fn(ptr);
 }
