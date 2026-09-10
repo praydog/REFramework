@@ -3,6 +3,10 @@
 #include <memory>
 #include <string_view>
 #include <regex>
+#include <array>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "Mod.hpp"
 #include "utility/Patch.hpp"
@@ -128,6 +132,25 @@ private:
     static inline std::vector<safetyhook::MidHook> s_before_create_file_w_hooks{};
     static inline safetyhook::MidHook s_directstorage_open_pak_hook{};
     static inline int s_base_directory_patch_count{0};
+
+    constexpr static size_t PRISTINE_PAK_STRUCT_SIZE = 0x300;
+    static inline std::array<uint8_t, PRISTINE_PAK_STRUCT_SIZE> s_pristine_pak_struct{};
+
+    struct PakRebase {
+        size_t offset;
+        size_t delta_from_base;
+    };
+
+    static inline std::vector<PakRebase> s_pak_rebase_offsets{};
+    static inline uintptr_t* s_pak_array_start{nullptr};
+    static inline size_t s_pak_array_len{0};
+    static inline size_t s_event_handle_offset{0};
+    static inline size_t s_event_handle_offset_2{0};
+
+    static inline std::unordered_map<std::wstring, std::wstring> s_injected_name_to_real_path{};
+
+    static inline bool s_auto_assigned{false};
+    static inline std::unordered_set<std::wstring> s_seen_pak_families{};
 
     std::vector<std::wstring> m_custom_pak_in_directory_paths{};
     bool m_custom_pak_in_directory_paths_cached{ false };

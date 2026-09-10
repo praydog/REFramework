@@ -268,9 +268,6 @@ std::optional<std::string> IntegrityCheckBypass::on_initialize() {
     return Mod::on_initialize();
 }
 
-static bool s_auto_assigned = false;
-static std::unordered_set<std::wstring> s_seen_pak_families{};
-
 void IntegrityCheckBypass::on_frame() {
     const auto& gi = sdk::GameIdentity::get();
 
@@ -720,21 +717,6 @@ std::optional<uint16_t> get_pak_flags(const std::filesystem::path& path) try {
 
 #pragma region PAK_LOADING
 
-// Copy pristine pak struct before we run the original function, so we can use it to create new pak structs for our custom paks.
-constexpr size_t PRISTINE_PAK_STRUCT_SIZE = 0x300; // little bit over what the alloc actually is because we dont know what the size is
-static std::array<uint8_t, PRISTINE_PAK_STRUCT_SIZE> pristine_pak_struct{};
-
-static uintptr_t* pak_array_start = nullptr;
-static size_t event_handle_offset = 0;
-static size_t event_handle_offset_2 = 0;
-static size_t pak_array_len = 0;
-struct Rebase {
-    size_t offset;
-    size_t delta_from_base;
-};
-static std::vector<Rebase> rebase_offsets{};
-static std::unordered_map<std::wstring, std::wstring> s_injected_name_to_real_path{};
-
 bool IntegrityCheckBypass::pak_load_check_function(void* pak_struct, const wchar_t* pak_name_wstr, uintptr_t a3, uintptr_t is_mount, uintptr_t a5, uintptr_t a6, uintptr_t a7) {
     const auto return_address = (uintptr_t)_ReturnAddress();
 
@@ -765,7 +747,7 @@ bool IntegrityCheckBypass::pak_load_check_function(void* pak_struct, const wchar
     std::filesystem::path pak_path{pak_name_wstr};
 
     if (pak_path.filename() == L"re_chunk_000.pak") {
-        memcpy(pristine_pak_struct.data(), pak_struct, pristine_pak_struct.size());
+        memcpy(s_pristine_pak_struct.data(), pak_struct, s_pristine_pak_struct.size());
 
         //spdlog::info("[IntegrityCheckBypass]: Found pak_ctor at 0x{:X}", (uintptr_t)pak_ctor);
 
@@ -790,8 +772,8 @@ bool IntegrityCheckBypass::pak_load_check_function(void* pak_struct, const wchar
                 // It's guaranteed to be memset to 0, bar the first one which is our struct for re_chunk_000.pak.
                 if (num_nullptrs >= 100) {
                     spdlog::info("[IntegrityCheckBypass]: Found pak_struct on stack at index {} with {} nullptrs after it.", i, num_nullptrs);
-                    pak_array_start = &stack[i];
-                    pak_array_len = num_nullptrs + 1;
+                    s_pak_array_start = &stack[i];
+                    s_pak_array_len = num_nullptrs + 1;
                     break;
                 }
             }
@@ -799,8 +781,8 @@ bool IntegrityCheckBypass::pak_load_check_function(void* pak_struct, const wchar
 
         // Sweep the pristine object looking for a CreateEvent-ish looking handle;
         // Skipping vtable.
-        for (size_t i = sizeof(void*); i < std::min(pristine_pak_struct.size(), static_cast<size_t>(0x200)); i += sizeof(void*)) {
-            const auto ptr = *reinterpret_cast<uintptr_t*>(pristine_pak_struct.data() + i);
+        for (size_t i = sizeof(void*); i < std::min(s_pristine_pak_struct.size(), static_cast<size_t>(0x200)); i += sizeof(void*)) {
+            const auto ptr = *reinterpret_cast<uintptr_t*>(s_pristine_pak_struct.data() + i);
 
             if (ptr == 0 || ptr == (uintptr_t)INVALID_HANDLE_VALUE || ptr == 0xFFFFFFFF) {
                 continue;
@@ -813,24 +795,24 @@ bool IntegrityCheckBypass::pak_load_check_function(void* pak_struct, const wchar
 
             DWORD handle_flags = 0;
             if (GetHandleInformation((HANDLE)ptr, &handle_flags)) {
-                if (event_handle_offset == 0) {
-                    event_handle_offset = i;
-                    spdlog::info("[IntegrityCheckBypass]: Found event handle at offset 0x{:X}", event_handle_offset);
-                } else if (event_handle_offset_2 == 0) {
-                    event_handle_offset_2 = i;
-                    spdlog::info("[IntegrityCheckBypass]: Found second event handle at offset 0x{:X}", event_handle_offset_2);
+                if (s_event_handle_offset == 0) {
+                    s_event_handle_offset = i;
+                    spdlog::info("[IntegrityCheckBypass]: Found event handle at offset 0x{:X}", s_event_handle_offset);
+                } else if (s_event_handle_offset_2 == 0) {
+                    s_event_handle_offset_2 = i;
+                    spdlog::info("[IntegrityCheckBypass]: Found second event handle at offset 0x{:X}", s_event_handle_offset_2);
                     break;
                 }
             }
         }
 
         // Detect self-referential pointers in the pak struct
-        for (size_t i = 0; i < pristine_pak_struct.size(); i += sizeof(void*)) {
+        for (size_t i = 0; i < s_pristine_pak_struct.size(); i += sizeof(void*)) {
             auto v = *reinterpret_cast<uintptr_t*>((uintptr_t)pak_struct + i);
 
             // interior/self-referential pointer -> rebase into the clone
-            if (v >= (uintptr_t)pak_struct && v < (uintptr_t)pak_struct + pristine_pak_struct.size()) {
-                rebase_offsets.emplace_back(Rebase{ .offset = i, .delta_from_base = v - (uintptr_t)pak_struct });
+            if (v >= (uintptr_t)pak_struct && v < (uintptr_t)pak_struct + s_pristine_pak_struct.size()) {
+                s_pak_rebase_offsets.emplace_back(PakRebase{ .offset = i, .delta_from_base = v - (uintptr_t)pak_struct });
                 spdlog::info("[IntegrityCheckBypass]: Detected self-referential pointer at offset 0x{:X} (points to 0x{:X})", i, v);
                 continue;
             }
@@ -900,7 +882,7 @@ void* IntegrityCheckBypass::pak_load_patch_load_function(uintptr_t* pak_slots, c
 
     for (auto str : IntegrityCheckBypass::get_shared_instance()->m_custom_pak_in_directory_paths) {
     //for (auto str : std::array<std::wstring, 2>{L"re_chunk_001.pak", L"re_chunk_002.pak"}) {
-        //auto fake_pak = VirtualAlloc(nullptr, pristine_pak_struct.size(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        //auto fake_pak = VirtualAlloc(nullptr, s_pristine_pak_struct.size(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         const auto mod_filename = std::filesystem::path(str).filename().wstring();
         const auto patch_marker = mod_filename.rfind(L".patch_");
 
@@ -954,20 +936,20 @@ void* IntegrityCheckBypass::pak_load_patch_load_function(uintptr_t* pak_slots, c
             fake_pak = VirtualAlloc(nullptr, 0x300, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
             use_virtual_alloc = true;
         }
-        memcpy(fake_pak, pristine_pak_struct.data(), pristine_pak_struct.size()); // Struct is pristine post-ctor. Removes need to know ctor addr.
+        memcpy(fake_pak, s_pristine_pak_struct.data(), s_pristine_pak_struct.size()); // Struct is pristine post-ctor. Removes need to know ctor addr.
 
-        if (event_handle_offset != 0) {
-            *reinterpret_cast<HANDLE*>((uintptr_t)fake_pak + event_handle_offset) = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        if (s_event_handle_offset != 0) {
+            *reinterpret_cast<HANDLE*>((uintptr_t)fake_pak + s_event_handle_offset) = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         }
 
-        if (event_handle_offset_2 != 0) {
-            *reinterpret_cast<HANDLE*>((uintptr_t)fake_pak + event_handle_offset_2) = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        if (s_event_handle_offset_2 != 0) {
+            *reinterpret_cast<HANDLE*>((uintptr_t)fake_pak + s_event_handle_offset_2) = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         }
 
         const auto fake_base = (uintptr_t)fake_pak;
 
         // Fix up any self-referential pointers in the pak_struct, so that they point to the new fake_pak instead of the original pak_struct.
-        for (auto& rebase : rebase_offsets) {
+        for (auto& rebase : s_pak_rebase_offsets) {
             auto v = reinterpret_cast<uintptr_t*>(fake_base + rebase.offset);
             *v = (uintptr_t)fake_base + rebase.delta_from_base; // rebase to the new fake_pak
             spdlog::info("[IntegrityCheckBypass]: Rebased pointer at offset 0x{:X} from 0x{:X} to 0x{:X}", rebase.offset, *v, (uintptr_t)fake_base + rebase.delta_from_base);
