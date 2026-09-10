@@ -55,12 +55,14 @@ private:
     static inline uint32_t s_last_non_zero_corruption{ 8 }; // What I've seen it default to
 
     static void sha3_rsa_code_midhook(safetyhook::Context& context);
-    static void pak_load_check_function(safetyhook::Context& context);
+    static bool pak_load_check_function(void* pak_struct, const wchar_t* pak_name, uintptr_t a3, uintptr_t a4, uintptr_t a5, uintptr_t a6, uintptr_t a7);
+    static void* pak_load_patch_load_function(uintptr_t* pak_slots, const wchar_t* base_path, int32_t first_slot_index, int32_t load_flags);
     static void patch_version_hook(safetyhook::Context& context);
     static int scan_patch_files_count();
     static void restore_unencrypted_paks();
     static inline safetyhook::MidHook s_sha3_rsa_code_midhook;
-    static inline safetyhook::MidHook s_pak_load_check_function_hook;
+    static inline safetyhook::InlineHook s_pak_load_check_function_hook;
+    static inline safetyhook::InlineHook s_pak_load_patch_load_hook;
     static inline safetyhook::MidHook s_patch_version_hook;
     static inline std::optional<uintptr_t> s_sha3_code_end{};
     static inline int32_t s_patch_version_reg_index{-1};

@@ -1,8 +1,12 @@
+#include <unordered_map>
+#include <cwchar>
+#include <algorithm>
 #include <unordered_set>
 #include <shared_mutex>
 #include <iomanip>
 #include <regex>
 #include <fstream>
+#include <immintrin.h>
 
 #include <asmjit/asmjit.h>
 #include <asmjit/x86/x86assembler.h>
@@ -11,6 +15,9 @@
 #include "utility/Scan.hpp"
 #include "utility/Emulation.hpp"
 #include <bdshemu.h>
+
+// Windows.h arrives via the utility headers above; TlHelp32 requires it to come first.
+#include <TlHelp32.h>
 
 #include "sdk/RETypeDB.hpp"
 #include <sdk/GameIdentity.hpp>
@@ -662,7 +669,7 @@ void IntegrityCheckBypass::init_anti_debug_watcher() {
     });
 }
 
-std::optional<uint16_t> get_pak_flags(const std::filesystem::path& path) {
+std::optional<uint16_t> get_pak_flags(const std::filesystem::path& path) try {
     std::ifstream f{path, std::ios::binary};
 
     if (!f) {
@@ -683,32 +690,141 @@ std::optional<uint16_t> get_pak_flags(const std::filesystem::path& path) {
     std::memcpy(&flags, header.data() + 6, sizeof(flags));
 
     return flags;
+} catch (const std::exception& e) {
+    spdlog::error("[IntegrityCheckBypass]: Exception in get_pak_flags: {}", e.what());
+    return std::nullopt;
+} catch (...) {
+    spdlog::error("[IntegrityCheckBypass]: Unknown exception in get_pak_flags!");
+    return std::nullopt;
 }
 
-void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context) {
-    const auto return_address = *reinterpret_cast<uintptr_t*>(context.rsp);
-    auto pak_name_wstr = reinterpret_cast<const wchar_t*>(context.rdx);
+#pragma region PAK_LOADING
+
+// Copy pristine pak struct before we run the original function, so we can use it to create new pak structs for our custom paks.
+constexpr size_t PRISTINE_PAK_STRUCT_SIZE = 0x300; // little bit over what the alloc actually is because we dont know what the size is
+static std::array<uint8_t, PRISTINE_PAK_STRUCT_SIZE> pristine_pak_struct{};
+
+static uintptr_t* pak_array_start = nullptr;
+static size_t event_handle_offset = 0;
+static size_t event_handle_offset_2 = 0;
+static size_t pak_array_len = 0;
+struct Rebase {
+    size_t offset;
+    size_t delta_from_base;
+};
+static std::vector<Rebase> rebase_offsets{};
+static std::unordered_map<std::wstring, std::wstring> s_injected_name_to_real_path{};
+
+bool IntegrityCheckBypass::pak_load_check_function(void* pak_struct, const wchar_t* pak_name_wstr, uintptr_t a3, uintptr_t is_mount, uintptr_t a5, uintptr_t a6, uintptr_t a7) {
+    const auto return_address = (uintptr_t)_ReturnAddress();
 
     spdlog::info("[IntegrityCheckBypass]: pak_load_check_function called from: 0x{:X}", return_address);
-    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name_wstr));
 
+    if (pak_name_wstr == nullptr) {
+        spdlog::warn("[IntegrityCheckBypass]: pak_name_wstr is nullptr!");
+        return s_pak_load_check_function_hook.call<bool>(pak_struct, pak_name_wstr, a3, is_mount, a5, a6, a7);
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Pak name: {}", utility::narrow(pak_name_wstr));
     spdlog::info("[IntegrityCheckBypass]: PakLoad entry");
-    spdlog::info("  caller: 0x{:X}", return_address);
-    spdlog::info("  rcx: 0x{:X}", context.rcx);
-    spdlog::info("  rdx: 0x{:X}", context.rdx);
-    spdlog::info("  r8 : 0x{:X}", context.r8);
-    spdlog::info("  r9 : 0x{:X}", context.r9);
+    spdlog::info("  pak_struct: 0x{:X}", reinterpret_cast<uintptr_t>(pak_struct));
+    spdlog::info("  pak_name_wstr: {}", utility::narrow(pak_name_wstr));
+    spdlog::info("  a3: 0x{:X}", a3);
+    spdlog::info("  is_mount: 0x{:X}", is_mount);
+    spdlog::info("  a5: 0x{:X}", a5);
+    spdlog::info("  a6: 0x{:X}", a6);
+    spdlog::info("  a7: 0x{:X}", a7);
 
     const auto exe = utility::get_executable();
     const auto exe_path = utility::get_module_pathw(exe);
 
     if (!exe_path) {
-        return;
+        return s_pak_load_check_function_hook.call<bool>(pak_struct, pak_name_wstr, a3, is_mount, a5, a6, a7);;
     }
 
-    const auto pak_path = std::filesystem::path(*exe_path).parent_path() / pak_name_wstr;
+    std::filesystem::path pak_path{pak_name_wstr};
 
-    if (auto flags = get_pak_flags(pak_path)) {
+    if (pak_path.filename() == L"re_chunk_000.pak") {
+        memcpy(pristine_pak_struct.data(), pak_struct, pristine_pak_struct.size());
+
+        //spdlog::info("[IntegrityCheckBypass]: Found pak_ctor at 0x{:X}", (uintptr_t)pak_ctor);
+
+        // First find where pak_struct is pointed to on the stack next to a bunch of nullptrs.
+        // This means that's the start of the pak array.
+        auto stack = reinterpret_cast<uintptr_t*>(_AddressOfReturnAddress()); // Approximation of stack start
+
+        for (int i = 0; i < 0x5000; ++i) {
+            if (stack[i] == reinterpret_cast<uintptr_t>(pak_struct)) {
+                size_t num_nullptrs = 0;
+
+                for (size_t j = i + 1; j < i + 1000; ++j) {
+                    if (stack[j] == 0) {
+                        ++num_nullptrs;
+                    } else {
+                        break;
+                    }
+                }
+
+                // The pak array is 505 elements long (at time of writing; automatically determined via num_nullptrs)
+                // So if we find 100 nullptrs after the pak_struct, we can assume this is the start of the array.
+                // It's guaranteed to be memset to 0, bar the first one which is our struct for re_chunk_000.pak.
+                if (num_nullptrs >= 100) {
+                    spdlog::info("[IntegrityCheckBypass]: Found pak_struct on stack at index {} with {} nullptrs after it.", i, num_nullptrs);
+                    pak_array_start = &stack[i];
+                    pak_array_len = num_nullptrs + 1;
+                    break;
+                }
+            }
+        }
+
+        // Sweep the pristine object looking for a CreateEvent-ish looking handle;
+        // Skipping vtable.
+        for (size_t i = sizeof(void*); i < std::min(pristine_pak_struct.size(), static_cast<size_t>(0x200)); i += sizeof(void*)) {
+            const auto ptr = *reinterpret_cast<uintptr_t*>(pristine_pak_struct.data() + i);
+
+            if (ptr == 0 || ptr == (uintptr_t)INVALID_HANDLE_VALUE || ptr == 0xFFFFFFFF) {
+                continue;
+            }
+
+            // If it lies within a module, it's not a handle
+            if (utility::get_module_within((uintptr_t)ptr).has_value()) {
+                continue;
+            }
+
+            DWORD handle_flags = 0;
+            if (GetHandleInformation((HANDLE)ptr, &handle_flags)) {
+                if (event_handle_offset == 0) {
+                    event_handle_offset = i;
+                    spdlog::info("[IntegrityCheckBypass]: Found event handle at offset 0x{:X}", event_handle_offset);
+                } else if (event_handle_offset_2 == 0) {
+                    event_handle_offset_2 = i;
+                    spdlog::info("[IntegrityCheckBypass]: Found second event handle at offset 0x{:X}", event_handle_offset_2);
+                    break;
+                }
+            }
+        }
+
+        // Detect self-referential pointers in the pak struct
+        for (size_t i = 0; i < pristine_pak_struct.size(); i += sizeof(void*)) {
+            auto v = *reinterpret_cast<uintptr_t*>((uintptr_t)pak_struct + i);
+
+            // interior/self-referential pointer -> rebase into the clone
+            if (v >= (uintptr_t)pak_struct && v < (uintptr_t)pak_struct + pristine_pak_struct.size()) {
+                rebase_offsets.emplace_back(Rebase{ .offset = i, .delta_from_base = v - (uintptr_t)pak_struct });
+                spdlog::info("[IntegrityCheckBypass]: Detected self-referential pointer at offset 0x{:X} (points to 0x{:X})", i, v);
+                continue;
+            }
+        }
+    }
+
+    // Injected paks are opened under their native-form name, so resolve flags from the real file.
+    auto flags_path = pak_path;
+
+    if (const auto it = s_injected_name_to_real_path.find(pak_name_wstr); it != s_injected_name_to_real_path.end()) {
+        flags_path = it->second;
+    }
+
+    if (auto flags = get_pak_flags(flags_path)) {
         s_pak_flags_value = static_cast<uint8_t>(*flags);
 
         spdlog::info(
@@ -717,8 +833,174 @@ void IntegrityCheckBypass::pak_load_check_function(safetyhook::Context& context)
             *flags
         );
     } else {
-        spdlog::warn("[IntegrityCheckBypass]: Could not read flags from {}!", utility::narrow(pak_name_wstr));
+        // Leaving the stale value in place would hand the midhook another pak's flags.
+        spdlog::warn("[IntegrityCheckBypass]: Could not read flags from {} (resolved: {})!",
+            utility::narrow(pak_name_wstr), utility::narrow(flags_path.wstring()));
     }
+
+    auto res = s_pak_load_check_function_hook.call<bool>(pak_struct, pak_name_wstr, a3, is_mount, a5, a6, a7);
+    
+    if (res) {
+        spdlog::info("[IntegrityCheckBypass]: {} +480 = 0x{:X}", pak_path.filename().string(), *(uint32_t*)((uintptr_t)pak_struct + 0x1E0));
+    } else {
+        spdlog::warn("[IntegrityCheckBypass]: pak_load_check_function_hook returned false for string: {}", utility::narrow(pak_name_wstr));
+    }
+
+    return res;
+}
+
+void* IntegrityCheckBypass::pak_load_patch_load_function(uintptr_t* pak_slots, const wchar_t* base_path, int32_t first_slot_index, int32_t load_flags) {
+    spdlog::info("[IntegrityCheckBypass]: pak_load_patch_load_function called with base_path: {}", utility::narrow(base_path));
+
+    auto res = IntegrityCheckBypass::s_pak_load_patch_load_hook.call<void*>(pak_slots, base_path, first_slot_index, load_flags);
+    auto* slots = reinterpret_cast<uintptr_t*>(*pak_slots);
+
+    if (slots == nullptr) {
+        spdlog::error("[IntegrityCheckBypass]: slot array holder was empty, cannot inject custom paks!");
+        return res;
+    }
+
+    static std::unordered_set<std::wstring> s_injected_families{};
+
+    if (s_injected_families.contains(base_path)) {
+        spdlog::info("[IntegrityCheckBypass]: family '{}' already injected, skipping.", utility::narrow(base_path));
+        return res;
+    }
+
+    size_t num_paks = 0;
+    int next_free_patch_index = 1;
+
+    while (next_free_patch_index < 32 && slots[first_slot_index + next_free_patch_index] != 0) {
+        ++next_free_patch_index;
+    }
+
+    static bool s_auto_assigned = false;
+    bool did_auto_assign = false;
+
+    for (auto str : IntegrityCheckBypass::get_shared_instance()->m_custom_pak_in_directory_paths) {
+    //for (auto str : std::array<std::wstring, 2>{L"re_chunk_001.pak", L"re_chunk_002.pak"}) {
+        //auto fake_pak = VirtualAlloc(nullptr, pristine_pak_struct.size(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        const auto mod_filename = std::filesystem::path(str).filename().wstring();
+        const auto patch_marker = mod_filename.rfind(L".patch_");
+
+        int patch_index = 0;
+        bool explicit_target = false;
+
+        if (patch_marker != std::wstring::npos && mod_filename.compare(0, patch_marker, base_path) == 0) {
+            int parsed_patch_num = 0;
+            size_t digit_pos = patch_marker + 7; // past ".patch_"
+            const size_t first_digit = digit_pos;
+
+            while (digit_pos < mod_filename.size() && iswdigit(mod_filename[digit_pos])) {
+                parsed_patch_num = parsed_patch_num * 10 + (mod_filename[digit_pos] - L'0');
+                ++digit_pos;
+            }
+
+            if (digit_pos != first_digit) {
+                patch_index = parsed_patch_num;
+                explicit_target = true;
+            }
+        }
+
+        if (!explicit_target) {
+            static constexpr std::wstring_view AUTO_ASSIGN_FAMILY_SUFFIX = L".sub_000.pak";
+
+            if (s_auto_assigned || !std::wstring_view{base_path}.ends_with(AUTO_ASSIGN_FAMILY_SUFFIX)) {
+                continue;
+            }
+
+            patch_index = next_free_patch_index++;
+            did_auto_assign = true;
+        }
+
+        // Never overwrite an occupied slot: that pointer is a pak the engine loaded, and clobbering
+        // it would drop a real archive out of the staging array before registration.
+        if (slots[first_slot_index + patch_index] != 0) {
+            spdlog::error("[IntegrityCheckBypass]: slot {} for '{}' is already occupied by a real pak, skipping.",
+                first_slot_index + patch_index, utility::narrow(mod_filename));
+            continue;
+        }
+
+        wchar_t native_name_buf[1024]{};
+        swprintf_s(native_name_buf, L"%ls.patch_%03d.pak", base_path, patch_index);
+        const std::wstring native_name_str{native_name_buf};
+        const wchar_t* native_name = native_name_str.c_str();
+
+        auto fake_pak = sdk::memory::allocate(0x300);
+        memcpy(fake_pak, pristine_pak_struct.data(), pristine_pak_struct.size()); // Struct is pristine post-ctor. Removes need to know ctor addr.
+
+        if (event_handle_offset != 0) {
+            *reinterpret_cast<HANDLE*>((uintptr_t)fake_pak + event_handle_offset) = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        }
+
+        if (event_handle_offset_2 != 0) {
+            *reinterpret_cast<HANDLE*>((uintptr_t)fake_pak + event_handle_offset_2) = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        }
+
+        const auto fake_base = (uintptr_t)fake_pak;
+
+        // Fix up any self-referential pointers in the pak_struct, so that they point to the new fake_pak instead of the original pak_struct.
+        for (auto& rebase : rebase_offsets) {
+            auto v = reinterpret_cast<uintptr_t*>(fake_base + rebase.offset);
+            *v = (uintptr_t)fake_base + rebase.delta_from_base; // rebase to the new fake_pak
+            spdlog::info("[IntegrityCheckBypass]: Rebased pointer at offset 0x{:X} from 0x{:X} to 0x{:X}", rebase.offset, *v, (uintptr_t)fake_base + rebase.delta_from_base);
+        }
+
+        // Register BEFORE the load: both the flags read and the file open happen inside PakLoad.
+        s_injected_name_to_real_path[native_name_str] = str;
+
+        spdlog::info("[IntegrityCheckBypass]: injecting {} as native-form '{}' (a6={}, slot={}, {})",
+            utility::narrow(str), utility::narrow(native_name_str), patch_index,
+            first_slot_index + patch_index, explicit_target ? "named target" : "auto-assigned");
+
+        const auto pak_array_i = first_slot_index + patch_index;
+        ++num_paks;
+
+        slots[pak_array_i] = reinterpret_cast<uintptr_t>(fake_pak);
+
+        // Force: is_mount = true.
+        if (!pak_load_check_function(reinterpret_cast<void*>(slots[pak_array_i]), native_name, 0, 1, 0, patch_index, 0)) {
+            --num_paks;
+            slots[pak_array_i] = 0; // engine clears the slot on failure before destroying
+            sdk::memory::deallocate(fake_pak);
+
+            spdlog::warn("[IntegrityCheckBypass]: pak_load_check_function_hook returned false for string: {}", utility::narrow(str));
+        } else {
+            spdlog::info("[IntegrityCheckBypass]: inserted pak_struct for string: {} at index {}", utility::narrow(str), pak_array_i);
+
+            /*
+            pak + 0x08:  wchar_t buf OR wchar_t* ptr   (SSO: <= 0xB chars inline; else heap ptr at +0x08)
+            pak + 0x18:  uint32 size    (char count, w/o null)
+            pak + 0x1C:  uint32 capacity (if >= 0xC → buffer is heap pointer at +0x08)
+            */
+
+            /*auto fake_str = sdk::memory::allocate((str.size() + 1) * sizeof(wchar_t));
+            // We only want the filename part
+            const auto filename = std::filesystem::path(str).filename().wstring();
+            std::memcpy(fake_str, filename.data(), (filename.size() + 1) * sizeof(wchar_t));
+            // log what's at fake_pak + 0x08, +0x18, +0x1C
+            spdlog::info("[IntegrityCheckBypass]: fake_pak +0x08 = {}", utility::narrow(*reinterpret_cast<wchar_t**>((uintptr_t)fake_pak + 0x08)));
+            spdlog::info("[IntegrityCheckBypass]: fake_pak +0x18 = 0x{:X}", *reinterpret_cast<uint32_t*>((uintptr_t)fake_pak + 0x18));
+            spdlog::info("[IntegrityCheckBypass]: fake_pak +0x1C = 0x{:X}", *reinterpret_cast<uint32_t*>((uintptr_t)fake_pak + 0x1C));
+            *reinterpret_cast<uintptr_t*>((uintptr_t)fake_pak + 0x08) = reinterpret_cast<uintptr_t>(fake_str);
+            *reinterpret_cast<uint32_t*>((uintptr_t)fake_pak + 0x18) = static_cast<uint32_t>(filename.size());
+            *reinterpret_cast<uint32_t*>((uintptr_t)fake_pak + 0x1C) = static_cast<uint32_t>(filename.size());*/
+        }
+    }
+
+    // Latch only if something actually landed, so a family whose loads all failed can retry.
+    if (num_paks > 0) {
+        s_injected_families.insert(base_path);
+
+        if (did_auto_assign) {
+            s_auto_assigned = true;
+        }
+
+        spdlog::info("[IntegrityCheckBypass]: injected {} custom pak(s) into family '{}'{}.",
+            num_paks, utility::narrow(base_path), did_auto_assign ? " (auto-assigned; no other family will get them)" : "");
+    }
+
+    return res;
 }
 
 void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
@@ -733,7 +1015,7 @@ void IntegrityCheckBypass::patch_version_hook(safetyhook::Context& context) {
 
     spdlog::info("[IntegrityCheckBypass]: Patch version: {}. Game wont load past this patch version. Setting new patch version at {} to {}",
         current_patch_version, disasm_utils::register_name(reg), file_count_result);
-    disasm_utils::set_register_value(context, reg, (uint64_t)file_count_result);
+    //disasm_utils::set_register_value(context, reg, (uint64_t)file_count_result);
 }
 
 // This allows unencrypted paks to load.
@@ -783,6 +1065,8 @@ void IntegrityCheckBypass::sha3_rsa_code_midhook(safetyhook::Context& context) {
 
 void IntegrityCheckBypass::restore_unencrypted_paks() {
     spdlog::info("[IntegrityCheckBypass]: Restoring unencrypted paks...");
+
+    scan_patch_files_count();
 
     // If this breaks... we'll fix it!
     const auto game = utility::get_executable();
@@ -870,6 +1154,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
         "48 8B 8E C0 00 00 00 48 C1 E9 ?",
         "48 8B ? C0 00 00 00 48 C1 ? 10 4C 21 ? 48 8B 0D ? ? ? ? 48 C1 ? 10 4C 21 ? 48 39 ? 75 ? 48 83 ? 30 FF 74 ? 31 ? 4C 89 ? 31 ? 45 31 ? C5 F8 77", // MHSTORIES3, hope its the last thing that is like this
         "48 8B 05 ? ? ? ? 49 33 86 C0 00 00 00 48 A9 00 00 F8 FF 75 ? 49 83 7E 30 FF 74 ? 49 8D 4E 30 45 33 C0 33 D2 C5 F8 77",   // PRAGMATA
+        "E9 ? ? ? ? 8B 8E 70 01 00 00 48 85 C9 74 ? 48 8B 86 68 01 00 00 48 C1 E1 04", // DD2 dark arisen
     };
 
     for (const auto& pattern : possible_end_patterns) {
@@ -897,7 +1182,7 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
 
     if (pak_load_check_start) {
         spdlog::info("[IntegrityCheckBypass]: Found pak_load_check_function @ 0x{:X}, hook!", (uintptr_t)*pak_load_check_start);
-        s_pak_load_check_function_hook = safetyhook::create_mid((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
+        s_pak_load_check_function_hook = safetyhook::create_inline((void*)*pak_load_check_start, &IntegrityCheckBypass::pak_load_check_function);
 
         find_try_hook_via_file_load_win32_create_file(*pak_load_check_start);
     } else {
@@ -930,6 +1215,8 @@ void IntegrityCheckBypass::restore_unencrypted_paks() {
             // Find the lea that loads re_chunk string
             auto where_compare_str = utility::find_string_reference_in_path(*load_patch_func, re_chunk_string, false);
             if (where_compare_str) {
+                s_pak_load_patch_load_hook = safetyhook::create_inline((void*)*load_patch_func, &IntegrityCheckBypass::pak_load_patch_load_function);
+
                 spdlog::info("[IntegrityCheckBypass]: Found reference to re_chunk string at 0x{:X}, assuming this is the start of using patch version", where_compare_str->addr);
                 patch_version_start = where_compare_str->addr;
 
@@ -2556,14 +2843,38 @@ void IntegrityCheckBypass::directstorage_open_pak_hook_wrappper(safetyhook::Cont
 }
 
 void IntegrityCheckBypass::correct_pak_load_path(safetyhook::Context& context, int register_index) {
+    static bool once = false;
+    if (!once) {
+        spdlog::info("[IntegrityCheckBypass]: correct_pak_load_path called, register index: {}", register_index);
+        once = true;
+    }
+
     if (!m_load_pak_directory || !m_load_pak_directory->value() || m_custom_pak_in_directory_paths.empty()) {
         return;
     }
 
+    // Injected paks are handed to PakLoad under their bare native name, which deliberately does
+    // not exist on disk, so divert the real open (CreateFileW / DirectStorage) to the actual file.
+    // Keyed on the exact name rather than patch-number arithmetic, so it cannot drift out of sync
+    // with what the injection loop synthesised.
+    if (auto* path_ptr = disasm_utils::get_register_value<wchar_t*>(context, register_index);
+        path_ptr != nullptr && !IsBadStringPtrW(path_ptr, 1024)) {
+        if (const auto it = s_injected_name_to_real_path.find(path_ptr); it != s_injected_name_to_real_path.end()) {
+            spdlog::info("[IntegrityCheckBypass]: redirecting open of '{}' -> '{}'",
+                utility::narrow(it->first), utility::narrow(it->second));
+
+            disasm_utils::set_register_value(context, register_index, it->second.c_str());
+            return;
+        }
+    }
+
+    // No longer necessary because we directly insert our loaded paks into the list.
+#if 0
     auto path_ptr = disasm_utils::get_register_value<wchar_t*>(context, register_index);
     if (path_ptr != nullptr) {
         std::wstring_view path_view(path_ptr);
         if (path_view.ends_with(PAK_EXTENSION_NAME_W)) {
+            spdlog::info("[IntegrityCheckBypass]: Attempting to load PAK file: {}", utility::narrow(path_view));
             std::wstring filename_copy = std::filesystem::path(path_view).filename().wstring();
             auto patch_num_opt = extract_patch_num_from_path(filename_copy);
 
@@ -2575,7 +2886,20 @@ void IntegrityCheckBypass::correct_pak_load_path(safetyhook::Context& context, i
                         auto &pak_path = m_custom_pak_in_directory_paths[custom_directory_pak_index];
                         spdlog::info("[IntegrityCheckBypass]: Redirecting load of {} to custom pak at path: {}", utility::narrow(filename_copy), utility::narrow(pak_path));
                     
-                        disasm_utils::set_register_value(context, register_index, pak_path.c_str());
+                        disasm_utils::set_register_value(context, register_index, pak_path.c_str());    auto path_ptr = disasm_utils::get_register_value<wchar_t*>(context, NDR_RCX);
+                        std::wstring_view path_view(path_ptr);
+                        auto pak_name_wstr = std::filesystem::path(pak_path).filename().wstring();
+                        if (auto flags = get_pak_flags(pak_path)) {
+                            s_pak_flags_value = static_cast<uint8_t>(*flags);
+
+                            spdlog::info(
+                                "[IntegrityCheckBypass]: {} flags from disk: 0x{:X}",
+                                utility::narrow(pak_name_wstr),
+                                *flags
+                            );
+                        } else {
+                            spdlog::warn("[IntegrityCheckBypass]: Could not read flags from {}!", utility::narrow(pak_name_wstr));
+                        }
                     } else {
                         spdlog::error("[IntegrityCheckBypass]: Patch number {} is out of range for PAK directory's PAK! (index {})", patch_num, custom_directory_pak_index);
                     }
@@ -2583,6 +2907,7 @@ void IntegrityCheckBypass::correct_pak_load_path(safetyhook::Context& context, i
             }
         }
     }
+#endif
 }
 
 void IntegrityCheckBypass::directstorage_open_pak_hook(safetyhook::Context& context) {
