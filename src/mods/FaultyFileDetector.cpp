@@ -666,7 +666,11 @@ void FaultyFileDetector::early_init() {
         g_faulty_detector_instance = std::make_unique<FaultyFileDetector>();
     }
 
-    g_faulty_detector_instance->initialize_impl();
+    // Don't run the detector's scans here. early_init() is called right before the
+    // ThreadSuspender block in REFramework::REFramework(), and the time the scans take
+    // (~150-200ms) lets the game start D3D12/Streamline init first. Under Wine/Proton a
+    // thread frozen mid-init can hold a lock the IntegrityCheckBypass scan needs, and
+    // startup deadlocks (#1827). initialize_impl() still runs from on_initialize().
 }
 
 std::shared_ptr<FaultyFileDetector>& FaultyFileDetector::get() {
