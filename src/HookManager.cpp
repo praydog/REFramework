@@ -33,7 +33,7 @@ void* get_actual_function(void* possible_fn) {
         }
 
         if (hde.opcode == 0xE9) { // jmp.
-            actual_fn = (void*)(ip + hde.imm.imm32);
+            actual_fn = (void*)(ip + static_cast<int32_t>(hde.imm.imm32));
             break;
         }
     }
