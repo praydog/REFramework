@@ -4,10 +4,10 @@ namespace regenny::via::behaviortree {
 struct TreeNodeData;
 }
 namespace regenny::via::behaviortree {
-struct SelectorFSM;
+struct TreeObject;
 }
 namespace regenny::via::behaviortree {
-struct TreeObject;
+struct SelectorFSM;
 }
 namespace regenny::via::behaviortree {
 struct Condition;

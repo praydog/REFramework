@@ -13,9 +13,14 @@ struct TextureContext {
     std::unique_ptr<DirectX::DescriptorHeap> rtv_heap{};
     std::unique_ptr<DirectX::DescriptorHeap> srv_heap{};
 
-    bool setup(ID3D12Device* device, ID3D12Resource* rsrc, std::optional<DXGI_FORMAT> rtv_format, std::optional<DXGI_FORMAT> srv_format, const wchar_t* name = L"TextureContext object");
+    bool setup(ID3D12Device* device, ID3D12Resource* rsrc, std::optional<DXGI_FORMAT> rtv_format, std::optional<DXGI_FORMAT> srv_format, const wchar_t* name);
     bool create_rtv(ID3D12Device* device, std::optional<DXGI_FORMAT> format = std::nullopt);
     bool create_srv(ID3D12Device* device, std::optional<DXGI_FORMAT> format = std::nullopt);
+    void log_desc(const char* view_kind, const D3D12_RESOURCE_DESC& desc) const;
+
+    // Views are only usable if their heap exists and a view was actually written into it.
+    bool has_rtv() const { return texture != nullptr && rtv_heap != nullptr; }
+    bool has_srv() const { return texture != nullptr && srv_heap != nullptr; }
 
     D3D12_CPU_DESCRIPTOR_HANDLE get_rtv() const {
         return rtv_heap->GetCpuHandle(0);

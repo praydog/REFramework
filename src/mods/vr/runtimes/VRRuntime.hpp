@@ -62,6 +62,14 @@ struct VRRuntime {
         return Error::SUCCESS;
     }
 
+    virtual Error fix_frame() {
+        if (!this->frame_synced) {
+            synchronize_frame();
+        }
+
+        return Error::SUCCESS;
+    }
+
     virtual Error update_poses() {
         return Error::SUCCESS;
     }
@@ -113,6 +121,7 @@ struct VRRuntime {
     bool got_first_poses{false};
     bool got_first_valid_poses{false};
     bool got_first_sync{false};
+    bool frame_synced{false};
     bool handle_pause{false};
     bool wants_reset_origin{true};
 
