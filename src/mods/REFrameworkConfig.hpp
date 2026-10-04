@@ -29,6 +29,10 @@ public:
         return m_menu_open;
     }
 
+    reframework::localization::Language get_ui_language() const {
+        return static_cast<reframework::localization::Language>(m_ui_language->value());
+    }
+
     bool is_always_show_cursor() const {
         return m_always_show_cursor->value();
     }
@@ -45,6 +49,8 @@ public:
     }
 
 private:
+    ModCombo::Ptr m_ui_language{ModCombo::create(generate_name("UILanguage"),
+        reframework::localization::language_names(), static_cast<int>(reframework::localization::default_language))};
     ModKey::Ptr m_menu_key{ ModKey::create(generate_name("MenuKey_V2"), VK_INSERT) };
     ModToggle::Ptr m_menu_open{ ModToggle::create(generate_name("MenuOpen"), true) };
     ModToggle::Ptr m_remember_menu_state{ ModToggle::create(generate_name("RememberMenuState"), false) };
@@ -62,6 +68,7 @@ private:
     ModComboString::Ptr m_font_file{};
 
     ValueList m_options {
+        *m_ui_language,
         *m_menu_key,
         *m_menu_open,
         *m_remember_menu_state,

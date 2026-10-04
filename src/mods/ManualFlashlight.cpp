@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include "REFramework.hpp"
 
 #include "ManualFlashlight.hpp"
@@ -24,7 +25,7 @@ void ManualFlashlight::on_frame() {
 
 void ManualFlashlight::on_draw_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 

@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include <optional>
 #include <tuple>
 
@@ -156,7 +157,7 @@ void ChainViewer::on_config_save(utility::Config& cfg) {
 void ChainViewer::on_draw_dev_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 
@@ -164,7 +165,7 @@ void ChainViewer::on_draw_dev_ui() {
         // todo
     }
 
-    if (ImGui::SliderFloat("Effect Alpha", &m_effect_alpha, 0.0f, 1.0f)) {
+    if (ImGui::SliderFloat(reframework::localization::label("Effect Alpha").c_str(), &m_effect_alpha, 0.0f, 1.0f)) {
         m_effect_dirty = true;
     }
 }
@@ -504,8 +505,8 @@ void ChainViewer::on_frame() {
                                 ImGui::TreePop();
                             }
 
-                            ImGui::DragFloat("Radius", &collider.radius(), 0.01f, 0.0f, 0.0f);
-                            ImGui::DragInt("Flags", (int*)&collider.flags(), 1, 0, 0);
+                            ImGui::DragFloat(reframework::localization::label("Radius").c_str(), &collider.radius(), 0.01f, 0.0f, 0.0f);
+                            ImGui::DragInt(reframework::localization::label("Flags").c_str(), (int*)&collider.flags(), 1, 0, 0);
 
                             ImGui::DragFloat3("Offset", (float*)&collider.offset(), 0.01f, 0.0f, 0.0f);
                             ImGui::DragFloat3("Pair Offset", (float*)&collider.pair_offset(), 0.01f, 0.0f, 0.0f);

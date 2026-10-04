@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #define NOMINMAX
 
 #include <cstdint>
@@ -1172,13 +1173,13 @@ void ScriptRunner::on_frame() {
 void ScriptRunner::on_draw_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-    if (ImGui::CollapsingHeader(get_name().data())) {
+    if (ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         if (m_last_online_match_state) {
-            ImGui::TextWrapped("Online match detected. Scripts will not be loaded. Existing scripts have been unloaded.");
+            ImGui::TextWrapped(reframework::localization::text("Online match detected. Scripts will not be loaded. Existing scripts have been unloaded."));
             return;
         }
 
-        if (ImGui::Button("Run script")) {
+        if (ImGui::Button(reframework::localization::label("Run script").c_str())) {
             OPENFILENAME ofn{};
             char file[260]{};
 
@@ -1198,13 +1199,13 @@ void ScriptRunner::on_draw_ui() {
 
         ImGui::SameLine();
 
-        if (ImGui::Button("Reset scripts")) {
+        if (ImGui::Button(reframework::localization::label("Reset scripts").c_str())) {
             reset_scripts();
         }
 
         ImGui::SameLine();
 
-        if (ImGui::Button("Spawn Debug Console")) {
+        if (ImGui::Button(reframework::localization::label("Spawn Debug Console").c_str())) {
             g_framework->open_console();
         }
 
@@ -1213,13 +1214,13 @@ void ScriptRunner::on_draw_ui() {
         }
 
         //Garbage collection currently only showing from main lua state, might rework to show total later?
-        if (ImGui::TreeNode("Garbage Collection Stats")) {
+        if (ImGui::TreeNode(reframework::localization::label("Garbage Collection Stats").c_str())) {
             std::scoped_lock _{ m_access_mutex };
 
             auto g = G(m_main_state->lua().lua_state());
             const auto bytes_in_use = g->totalbytes + g->GCdebt;
 
-            ImGui::Text("Megabytes in use: %.2f", (float)bytes_in_use / 1024.0f / 1024.0f);
+            ImGui::Text(reframework::localization::text("Megabytes in use: %.2f"), (float)bytes_in_use / 1024.0f / 1024.0f);
 
             ImGui::TreePop();
         }
@@ -1269,17 +1270,17 @@ void ScriptRunner::on_draw_ui() {
             const auto diff = now - m_last_script_error_time;
             const auto sec = std::chrono::duration<float>(diff).count();
 
-            ImGui::TextWrapped("Last Error Time: %.2f seconds ago", sec);
+            ImGui::TextWrapped(reframework::localization::text("Last Error Time: %.2f seconds ago"), sec);
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-            ImGui::TextWrapped("Last Script Error: %s", m_last_script_error.data());
+            ImGui::TextWrapped(reframework::localization::text("Last Script Error: %s"), m_last_script_error.data());
             ImGui::PopStyleColor();
         } else {
-            ImGui::TextWrapped("No Script Errors... yet!");
+            ImGui::TextWrapped(reframework::localization::text("No Script Errors... yet!"));
         }
 
         if (!m_known_scripts.empty()) {
-            ImGui::Text("Known scripts:");
+            ImGui::Text(reframework::localization::text("Known scripts:"));
 
             for (auto&& name : m_known_scripts) {
                 if (ImGui::Checkbox(name.data(), &m_loaded_scripts_map[name])) {
@@ -1288,7 +1289,7 @@ void ScriptRunner::on_draw_ui() {
                 }
             }
         } else {
-            ImGui::Text("No scripts loaded.");
+            ImGui::Text(reframework::localization::text("No scripts loaded."));
         }
     }
 
@@ -1300,7 +1301,7 @@ void ScriptRunner::on_draw_ui() {
         if (reframework::ui::persistent_tree_item(
                 reframework::ui::TreeStateSource::Native,
                 "Script Generated UI",
-                []() { return ImGui::CollapsingHeader("Script Generated UI"); })) {
+                []() { return ImGui::CollapsingHeader(reframework::localization::label("Script Generated UI").c_str()); })) {
             if (scripts_initialized) {
                 for (auto& state : m_states) {
                     state->on_draw_ui();
