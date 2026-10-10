@@ -256,8 +256,29 @@ try {
 
 REFramework::REFramework(HMODULE reframework_module)
     : m_game_module{GetModuleHandle(0)}
-    , m_logger{spdlog::basic_logger_mt("REFramework", (get_persistent_dir("re2_framework_log.txt")).string(), true)}
     {
+
+    // Preserve the previous session's log instead of overwriting it, so it can still be
+    // inspected after a crash or a restart (re2_framework_log.txt -> re2_framework_log.prev.txt).
+    const auto log_path = get_persistent_dir("re2_framework_log.txt");
+    bool log_rotated = false;
+    std::string log_prev_path;
+
+    {
+        std::error_code ec;
+
+        if (std::filesystem::exists(log_path, ec)) {
+            auto prev = log_path.parent_path() / (log_path.stem().string() + ".prev" + log_path.extension().string());
+
+            std::filesystem::remove(prev, ec);
+            std::filesystem::rename(log_path, prev, ec);
+
+            log_rotated = !ec;
+            log_prev_path = prev.string();
+        }
+    }
+
+    m_logger = spdlog::basic_logger_mt("REFramework", log_path.string(), true);
 
     s_reframework_module = reframework_module;
     m_dist_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
@@ -269,6 +290,10 @@ REFramework::REFramework(HMODULE reframework_module)
 
     spdlog::set_default_logger(m_logger);
     spdlog::flush_on(spdlog::level::info);
+
+    if (log_rotated) {
+        spdlog::info("Previous log preserved as {}", log_prev_path);
+    }
 
     if (s_fallback_appdata) {
         spdlog::warn("Failed to write to current directory, falling back to appdata folder");
