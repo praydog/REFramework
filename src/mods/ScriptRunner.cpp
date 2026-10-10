@@ -1476,7 +1476,7 @@ void ScriptRunner::reset_scripts() {
     package_path = package_path + ";" + autorun_path.string() + "/?/init.lua";
     package_path = package_path + ";" + autorun_path.string() + "/?.dll";
 
-    m_main_state->lua()["package"]["path"] = package_path;
+    m_main_state->lua().registry()["package_path"] = package_path;
 
     for (auto&& entry : std::filesystem::directory_iterator{autorun_path}) {
         auto&& path = entry.path();
