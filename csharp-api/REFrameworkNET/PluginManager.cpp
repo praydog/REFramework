@@ -737,22 +737,7 @@ namespace REFrameworkNET {
                     continue;
                 }
 
-                auto path = state->script_path;
                 REFrameworkNET::API::LogInfo("Attempting to initiate first phase unload of " + state->script_path);
-
-				// Look for the PluginExitPoint attribute in the assembly
-                for each (Type ^ t in assem->GetTypes()) {
-                    auto methods = t->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public | System::Reflection::BindingFlags::NonPublic);
-
-                    for each (System::Reflection::MethodInfo^ method in methods) {
-                        array<Object^>^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginExitPoint::typeid, true);
-
-                        if (attributes->Length > 0) {
-                            REFrameworkNET::API::LogInfo("Unloading plugin by calling " + method->Name + " in " + t->FullName);
-                            method->Invoke(nullptr, nullptr);
-                        }
-                    }
-				}
 
                 state->Unload();
             }
@@ -896,8 +881,38 @@ namespace REFrameworkNET {
         Hexa::NET::ImGui::ImGui::PopID();
     }
 
+    void PluginManager::PluginState::InvokePluginExitPoints() {
+        if (assembly == nullptr) {
+            return;
+        }
+
+        for each (Type ^ type in assembly->GetTypes()) {
+            auto methods = type->GetMethods(System::Reflection::BindingFlags::Static | System::Reflection::BindingFlags::Public |
+                                            System::Reflection::BindingFlags::NonPublic);
+
+            for each (System::Reflection::MethodInfo ^ method in methods) {
+                array<Object ^> ^ attributes = method->GetCustomAttributes(REFrameworkNET::Attributes::PluginExitPoint::typeid, true);
+
+                if (attributes->Length > 0) {
+                    REFrameworkNET::API::LogInfo("Unloading plugin by calling " + method->Name + " in " + type->FullName);
+                    method->Invoke(nullptr, nullptr);
+                }
+            }
+        }
+    }
+
     void PluginManager::PluginState::Unload() {
         if (load_context != nullptr) {
+        try {
+            InvokePluginExitPoints();
+        } catch (System::Exception ^ e) {
+            REFrameworkNET::API::LogError("Failed to invoke PluginExitPoint for " + script_path + ": " + e->Message);
+        } catch (const std::exception& e) {
+            REFrameworkNET::API::LogError("Failed to invoke PluginExitPoint for " + script_path + ": " + gcnew System::String(e.what()));
+        } catch (...) {
+            REFrameworkNET::API::LogError("Unknown exception caught while invoking PluginExitPoint for " + script_path);
+        }
+
             ManagedObject::ShuttingDown = true;
             ManagedObject::CleanupKnownCaches();
 

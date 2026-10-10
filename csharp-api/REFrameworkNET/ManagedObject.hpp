@@ -64,7 +64,7 @@ internal:
             }
 
             // Use the plugin ABI getter; hardcoded offset 0x8 varies across TDB versions.
-            if (((reframework::API::ManagedObject*)addr)->get_ref_count() < 0) {
+            if (static_cast<int32_t>(((reframework::API::ManagedObject*)addr)->get_ref_count()) < 0) {
                 return gcnew T((::REFrameworkManagedObjectHandle)addr, false); // Local object, false for not cached
             }
 
