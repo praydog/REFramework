@@ -297,7 +297,7 @@ typedef struct {
     void (*release)(REFrameworkManagedObjectHandle);
     REFrameworkTypeDefinitionHandle (*get_type_definition)(REFrameworkManagedObjectHandle);
     bool (*is_managed_object)(void*);
-    unsigned int (*get_ref_count)(REFrameworkManagedObjectHandle);
+    int (*get_ref_count)(REFrameworkManagedObjectHandle);
     unsigned int (*get_size)(REFrameworkManagedObjectHandle);
     unsigned int (*get_vm_obj_type)(REFrameworkManagedObjectHandle);
     REFrameworkTypeInfoHandle (*get_type_info)(REFrameworkManagedObjectHandle); /* NOT a type definition */
