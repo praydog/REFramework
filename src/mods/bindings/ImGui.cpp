@@ -3,6 +3,8 @@
 #include <imnodes.h>
 
 #include "../ScriptRunner.hpp"
+#include "sdk/GameIdentity.hpp"
+#include "sdk/Renderer.hpp"
 #include "sdk/SceneManager.hpp"
 #include "REFramework.hpp"
 #include "utility/ImGui.hpp"
@@ -1480,6 +1482,10 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
         world_pos = Vector4f{v4f.x, v4f.y, v4f.z, v4f.w};
     } else {
         return std::nullopt;
+    }
+
+    if (sdk::GameIdentity::get().is_re9()) {
+        return sdk::renderer::world_to_screen_matrix(Vector3f{world_pos});
     }
 
     static auto transform_def = first_transform->get_type_definition();
