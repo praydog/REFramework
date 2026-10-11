@@ -296,5 +296,8 @@
   "Hold": "누르고 있기",
   "Toggle": "전환",
   "Unbound": "지정 안 됨",
-  "Press a key...": "키를 누르세요..."
+  "Press a key...": "키를 누르세요...",
+  "FaultyFileDetector": "문제 파일 감지",
+  "FirstPerson": "1인칭 시점",
+  "ManualFlashlight": "수동 손전등"
 }

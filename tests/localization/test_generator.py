@@ -47,6 +47,16 @@ def registry_change(mutation):
     return lambda fixture: change_json(fixture, "languages.json", mutation)
 
 
+def swap_languages(registry, first, second):
+    languages = registry["languages"]
+    languages[first], languages[second] = languages[second], languages[first]
+
+
+def new_language():
+    # Reuse valid catalog data to test registry growth independently of translation.
+    return {"id": "German", "tag": "de-DE", "name": "Deutsch", "catalog": "ko-KR.json"}
+
+
 def run_generator(fixture: Path, check=False) -> subprocess.CompletedProcess:
     command = [sys.executable, str(fixture / "scripts/generate_localization.py")]
     if check:
@@ -169,21 +179,61 @@ def exercise(source: Path, run_root: Path) -> list:
         (
             "invalid_default_language",
             registry_change(lambda r: r.__setitem__("default", "Unknown")),
-            "Preserve persisted English=0 / SimplifiedChinese=1", False,
+            "The default language must remain English", False,
         ),
         (
             "persisted_language_order_changed",
             registry_change(lambda r: r["languages"].__setitem__(
                 slice(0, 2), list(reversed(r["languages"][:2]))
             )),
-            "Preserve persisted English=0 / SimplifiedChinese=1", False,
+            "Preserve persisted language IDs", False,
         ),
     ]
+    # All shipped IDs are persisted, including the three added after Simplified Chinese.
+    for first, second in [(2, 3), (2, 4), (3, 4)]:
+        cases.append((
+            f"persisted_languages_swapped_{first}_{second}",
+            registry_change(lambda r, a=first, b=second: swap_languages(r, a, b)),
+            "Preserve persisted language IDs", False,
+        ))
+    for index in range(2, 5):
+        cases.append((
+            f"persisted_language_removed_{index}",
+            registry_change(lambda r, i=index: r["languages"].pop(i)),
+            "Preserve persisted language IDs", False,
+        ))
+    for index in range(1, 5):
+        cases.append((
+            f"language_inserted_before_persisted_id_{index}",
+            registry_change(lambda r, i=index: r["languages"].insert(i, new_language())),
+            "Preserve persisted language IDs", False,
+        ))
+    for language in registry["languages"][1:5]:
+        identifier = language["id"]
+        cases.append((
+            f"non_english_default_{identifier}",
+            registry_change(lambda r, name=identifier: r.__setitem__("default", name)),
+            "The default language must remain English", False,
+        ))
     for name, mutation, diagnostic, check in cases:
         fixture = run_root / name
         shutil.copytree(baseline, fixture)
         mutation(fixture)
         record(name, run_generator(fixture, check=check), False, diagnostic)
+
+    # Appending a language must remain supported without editing the generator.
+    fixture = run_root / "appended_language"
+    shutil.copytree(baseline, fixture)
+    registry_change(lambda r: r["languages"].append(new_language()))(fixture)
+    extended_description = (
+        f"{len(catalogs) + 1} catalogs, {entry_count} entries each, "
+        f"{len(registry['languages']) + 1} selectable languages"
+    )
+    record("appended_language_generation", run_generator(fixture), True, "Generated " + extended_description)
+    record(
+        "appended_language_check", run_generator(fixture, check=True),
+        True, "Verified " + extended_description,
+    )
 
     # Valid edits must invalidate the generated output until it is regenerated.
     fixture = run_root / "valid_edit_regeneration"

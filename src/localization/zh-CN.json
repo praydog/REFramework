@@ -296,5 +296,8 @@
   "Hold": "按住",
   "Toggle": "切换",
   "Unbound": "未绑定",
-  "Press a key...": "请按下按键……"
+  "Press a key...": "请按下按键……",
+  "FaultyFileDetector": "异常文件检测",
+  "FirstPerson": "第一人称",
+  "ManualFlashlight": "手动手电筒"
 }

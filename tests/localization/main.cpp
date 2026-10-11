@@ -3,6 +3,7 @@
 #include "imgui_internal.h"
 #include "re2-imgui/font_robotomedium.hpp"
 
+#include <array>
 #include <cstdio>
 #include <cstring>
 #include <iomanip>
@@ -51,6 +52,141 @@ static void collect_codepoints(const char* text, const std::string& usage) {
     }
 }
 
+static std::string finish_ui_log() {
+    // LogFinish clears LogBuffer. Copy what the real widgets rendered first.
+    const std::string rendered = ImGui::GetCurrentContext()->LogBuffer.c_str();
+    ImGui::LogFinish();
+    return rendered;
+}
+
+static void test_object_explorer_widgets() {
+    struct TreeCase {
+        const char* format;
+        int count;
+        const char* english;
+        const char* chinese;
+        ImGuiID id{};
+    };
+    std::array<TreeCase, 5> trees{{
+        {"Reflection Methods: %i", 7, "Reflection Methods: 7", "反射方法：7"},
+        {"Reflection Properties: %i", 13, "Reflection Properties: 13", "反射属性：13"},
+        {"TDB Fields: %i", 23, "TDB Fields: 23", "类型数据库字段：23"},
+        {"TDB Methods: %i", 41, "TDB Methods: 41", "类型数据库方法：41"},
+        {"%s [Hits: %d [%d instructions]]", 0,
+            "field%value [Hits: 11 [17 instructions]]", "field%value [命中：11 次 [17 条指令]]"},
+    }};
+    ImGuiID input_id{}, drag_id{};
+    unsigned int threshold = 123;
+    int edited_value = -456;
+    // Set an open state once, switch language without forcing it, then repeat closed.
+    // A zero log expansion depth prevents logging from silently opening our trees.
+    for (int frame = 0; frame < 4; ++frame) {
+        const bool chinese = frame == 1 || frame == 2;
+        const bool expected_open = frame < 2;
+        selected_language = chinese ? loc::Language::SimplifiedChinese : loc::Language::English;
+        ImGui::NewFrame();
+        ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_Once);
+        ImGui::SetNextWindowSize(ImVec2(950, 600), ImGuiCond_Once);
+        ImGui::Begin("ObjectExplorer widget regression");
+        ImGui::PushID("object scope");
+        ImGui::LogToBuffer(0);
+        for (size_t i = 0; i < trees.size(); ++i) {
+            auto& tree = trees[i];
+            const void* ptr_id = &tree;
+            const auto original_pointer_id = ImGui::GetID(ptr_id);
+            if (frame == 0) tree.id = original_pointer_id;
+            if (frame == 0 || frame == 2) ImGui::SetNextItemOpen(expected_open);
+            const bool open = i + 1 == trees.size()
+                ? ImGui::TreeNode(ptr_id, loc::text(tree.format), "field%value", 11, 17)
+                : ImGui::TreeNode(ptr_id, loc::text(tree.format), tree.count);
+            check(ImGui::GetItemID() == original_pointer_id && original_pointer_id == tree.id,
+                "Formatted tree lost its original pointer ID: " + std::string(tree.format));
+            check(open == expected_open, "Formatted tree open state changed with language: " + std::string(tree.format));
+            // TreeNode pushes a scope when open; its storage remains in this window.
+            check(ImGui::GetStateStorage()->GetInt(tree.id, -1) == static_cast<int>(expected_open),
+                "Formatted tree did not retain its stored open/closed state");
+            if (open) ImGui::TreePop();
+        }
+
+        ImGui::ProgressBar(0.25f, ImVec2(300, 0), loc::text("Dumping Types..."));
+        ImGui::ProgressBar(0.75f, ImVec2(300, 0), loc::text("Generating IDA SDK..."));
+        ImGui::InputScalar(loc::label("Max Call Count").c_str(), ImGuiDataType_U32, &threshold);
+        if (frame == 0) input_id = ImGui::GetItemID();
+        check(ImGui::GetItemID() == input_id, "Max Call Count input ID changed with language");
+        ImGui::DragInt(loc::label("Set Value").c_str(), &edited_value);
+        if (frame == 0) drag_id = ImGui::GetItemID();
+        check(ImGui::GetItemID() == drag_id, "Set Value drag ID changed with language");
+        check(threshold == 123 && edited_value == -456, "Language switch changed numeric control values");
+
+        const auto rendered = finish_ui_log();
+        for (const auto& tree : trees) {
+            check(rendered.find(chinese ? tree.chinese : tree.english) != std::string::npos,
+                "Real TreeNode render lost translated text or format arguments: " + std::string(tree.format));
+        }
+        for (const auto* expected : chinese
+            ? std::initializer_list<const char*>{"正在导出类型…", "正在生成 IDA SDK…", "最大调用次数", "设置值", "123", "-456"}
+            : std::initializer_list<const char*>{"Dumping Types...", "Generating IDA SDK...", "Max Call Count", "Set Value", "123", "-456"}) {
+            check(rendered.find(expected) != std::string::npos, "Real progress/input render missing: " + std::string(expected));
+        }
+        check(rendered.find("###") == std::string::npos, "Internal ImGui ID leaked into displayed text");
+        ImGui::PopID();
+        ImGui::End();
+        ImGui::Render();
+    }
+    std::cout << "PASS ObjectExplorer widgets: real ptr-ID TreeNodes retain open/closed state across language switches; "
+              << "rendered counts, string arguments, translated progress and numeric controls verified\n";
+}
+
+static void test_object_explorer_windows() {
+    struct WindowCase {
+        const char* title;
+        const char* chinese;
+        ImGuiWindow* window{};
+        ImGuiID id{};
+        ImVec2 position{};
+    };
+    std::array<WindowCase, 3> windows{{
+        {"Read Listeners", "读取监听器"},
+        {"Pinned objects", "已固定的对象"},
+        {"Hooked methods", "已挂钩的方法"},
+    }};
+    for (int frame = 0; frame < 3; ++frame) {
+        const bool chinese = frame == 1;
+        selected_language = chinese ? loc::Language::SimplifiedChinese : loc::Language::English;
+        ImGui::NewFrame();
+        for (size_t i = 0; i < windows.size(); ++i) {
+            auto& expected = windows[i];
+            if (frame == 0) {
+                ImGui::SetNextWindowPos(ImVec2(40.0f + 330.0f * static_cast<float>(i), 80.0f));
+                ImGui::SetNextWindowSize(ImVec2(300, 180));
+            }
+            ImGui::LogToBuffer(0);
+            bool open = true;
+            ImGui::Begin(loc::label(expected.title).c_str(), &open);
+            auto* current = ImGui::GetCurrentWindow();
+            if (frame == 0) {
+                expected.window = current;
+                expected.id = current->ID;
+                // Move the actual window, then verify the user position survives two switches.
+                ImGui::SetWindowPos(ImVec2(current->Pos.x + 11.0f, current->Pos.y + 19.0f));
+                expected.position = current->Pos;
+            }
+            check(current == expected.window && current->ID == expected.id,
+                "Language switch created a different window: " + std::string(expected.title));
+            check(current->Pos.x == expected.position.x && current->Pos.y == expected.position.y,
+                "Language switch moved a window: " + std::string(expected.title));
+            // ImGui may retain the first Name internally; the title bar renders
+            // Begin's current name argument. Assert the rendered title instead.
+            const auto rendered = finish_ui_log();
+            check(rendered.find(chinese ? expected.chinese : expected.title) != std::string::npos,
+                "Actual window title rendering missing translated title");
+            ImGui::End();
+        }
+        ImGui::Render();
+    }
+    std::cout << "PASS ObjectExplorer floating windows: translated titles render and preserve actual window identity and moved positions\n";
+}
+
 int main() {
     try {
         IMGUI_CHECKVERSION();
@@ -73,7 +209,8 @@ int main() {
         check(static_cast<int>(loc::Language::Japanese) == 3, "Japanese index mismatch");
         check(static_cast<int>(loc::Language::Korean) == 4, "Korean index mismatch");
         check(loc::languages.size() == 5, "Expected five selectable languages");
-        check(loc::source_catalog.size() == 298, "Expected 298 source keys");
+        for (const auto* module : {"FaultyFileDetector", "FirstPerson", "ManualFlashlight"})
+            check(loc::source_catalog.contains(module), "Missing built-in module label: " + std::string(module));
         check(loc::languages[0].catalog == nullptr, "English must retain original text");
         const auto names = loc::language_names();
         const std::vector<std::string> expected_names{"English", "简体中文", "繁體中文", "日本語", "한국어"};
@@ -175,6 +312,9 @@ int main() {
         ImGui::PopID();
         ImGui::End();
         ImGui::Render();
+
+        test_object_explorer_widgets();
+        test_object_explorer_windows();
 
         // Real official compressed font, rasterized offline: no game, GPU or GUI required.
         // Accumulate every missing glyph before failing, without replacing text to hide font gaps.

@@ -15,6 +15,10 @@ def cpp_string(value: str) -> str:
 
 PRINTF = re.compile(r"%(?:%|[-+ #0']*(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:hh|ll|I64|I32|[hljztL])?[diuoxXfFeEgGaAcspn])")
 
+# Backward-compatibility contract for IDs already persisted in user configs.
+# languages.json remains the source of language metadata; new languages may be appended.
+PERSISTED_LANGUAGE_IDS = ['English', 'SimplifiedChinese', 'TraditionalChinese', 'Japanese', 'Korean']
+
 
 def unique_object(pairs):
     result = {}
@@ -78,8 +82,10 @@ def main() -> None:
     tags = [language['tag'] for language in languages]
     if len(set(ids)) != len(ids) or len(set(tags)) != len(tags):
         raise ValueError('Duplicate language ID or tag')
-    if ids[:2] != ['English', 'SimplifiedChinese'] or registry['default'] not in ids:
-        raise ValueError('Preserve persisted English=0 / SimplifiedChinese=1 and specify a valid default')
+    if ids[:len(PERSISTED_LANGUAGE_IDS)] != PERSISTED_LANGUAGE_IDS:
+        raise ValueError('Preserve persisted language IDs; append new languages after the existing five')
+    if registry['default'] != 'English':
+        raise ValueError('The default language must remain English')
     outputs = {}
     reference = None
     reference_variable = None

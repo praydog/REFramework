@@ -23,9 +23,21 @@ The tests cover:
 
 - English as the default, persisted language indices, and all five language names.
 - Equal catalog key sets, UTF-8 validity, printf placeholders, and brace fields.
+  Built-in module labels include `FaultyFileDetector`, `FirstPerson`, and
+  `ManualFlashlight`; adding valid entries does not require changing a key count.
 - Stable ImGui IDs across English, Simplified Chinese, Traditional Chinese,
   Japanese, and Korean, including existing `###` IDs and hidden `##` labels.
 - Original option values, indices, and pointers, plus unknown, empty, and null text.
+- Actual ObjectExplorer-style ImGui `TreeNode(ptr_id, format, ...)` calls across
+  consecutive English/Chinese frames: unchanged pointer IDs, retained open and
+  closed states, and rendered reflection/TDB counts and listener names/hit counts.
+- Actual floating windows for Read Listeners, Pinned objects, and Hooked methods:
+  translated title rendering, unchanged window instances/IDs, and retained moved
+  positions when switching to Chinese and back to English.
+- Actual progress bars and numeric input/drag controls: translated SDK progress
+  text and labels, unchanged control IDs/values, and no visible `###` suffixes.
+  Text is captured from ImGui's rendering log before `LogFinish` clears it; tree
+  auto-expansion during logging is disabled so open-state checks remain meaningful.
 - Coverage and actual CPU rasterization of every non-ASCII character in the four
   catalogs and language names using the embedded font. Missing glyphs are reported
   by Unicode code point with the entries that use them.

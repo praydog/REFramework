@@ -296,5 +296,8 @@
   "Hold": "長押し",
   "Toggle": "切り替え",
   "Unbound": "未割り当て",
-  "Press a key...": "キーを押してください…"
+  "Press a key...": "キーを押してください…",
+  "FaultyFileDetector": "異常ファイル検出",
+  "FirstPerson": "一人称視点",
+  "ManualFlashlight": "手動フラッシュライト"
 }
