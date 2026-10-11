@@ -85,6 +85,7 @@ internal:
             Unload();
         }
 
+        void InvokePluginExitPoints();
         void Unload();
         bool SynchronousUnload();
 

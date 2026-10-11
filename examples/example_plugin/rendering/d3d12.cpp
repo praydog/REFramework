@@ -88,9 +88,30 @@ bool D3D12::initialize() {
         this->rt_height = (uint32_t)desc.Height;
     }
 
-    if (!ImGui_ImplDX12_Init(device, 1, DXGI_FORMAT_R8G8B8A8_UNORM, this->srv_desc_heap.Get(),
-        this->get_cpu_srv(device, D3D12::SRV::IMGUI_FONT), this->get_gpu_srv(device, D3D12::SRV::IMGUI_FONT))) 
-    {
+    auto& bb = this->get_rt(D3D12::RTV::BACKBUFFER_0);
+    if (bb == nullptr) {
+        return false;
+    }
+
+    auto bb_desc = bb->GetDesc();
+
+    DXGI_SWAP_CHAIN_DESC swapchain_desc{};
+    if (FAILED(swapchain->GetDesc(&swapchain_desc))) {
+                return false;
+    }
+
+    ImGui_ImplDX12_InitInfo init_info{};
+    init_info.Device = device;
+    
+    init_info.CommandQueue = (ID3D12CommandQueue*)renderer_data->command_queue;
+    init_info.NumFramesInFlight = swapchain_desc.BufferCount;
+    init_info.RTVFormat = bb_desc.Format;
+    init_info.DSVFormat = DXGI_FORMAT_UNKNOWN;
+    init_info.SrvDescriptorHeap = this->srv_desc_heap.Get();
+    init_info.LegacySingleSrvCpuDescriptor = this->get_cpu_srv(device, D3D12::SRV::IMGUI_FONT);
+    init_info.LegacySingleSrvGpuDescriptor = this->get_gpu_srv(device, D3D12::SRV::IMGUI_FONT);
+
+    if (!ImGui_ImplDX12_Init(&init_info)) {
         return false;
     }
 

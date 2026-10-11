@@ -1220,7 +1220,7 @@ void Graphics::apply_ray_tracing_tweaks() {
     }
 
     static const auto set_RaytracingMode = rt_t->get_method("set_RaytracingMode");
-    static const auto setBounce = rt_t->get_method("setBounce");
+    static const auto setBounce = rt_t->get_method("setBounce") != nullptr? rt_t->get_method("setBounce") : rt_t->get_method("set_RayBounce");
     static const auto setSpp = rt_t->get_method("setSpp");
     static const auto set_enabled = rt_t->get_method("set_Enabled");
 

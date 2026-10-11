@@ -591,7 +591,7 @@ endif()
 # Target: CSharpAPITestRE9
 if(REFRAMEWORK_REF_ASSEMBLIES_EXIST_RE9) # build-csharp-test-re9
 	set(CSharpAPITestRE9_SOURCES
-		"test/Test/TestRE9.cs"
+		"test/Test/ZombieSpawner.cs"
 		cmake.toml
 	)
 

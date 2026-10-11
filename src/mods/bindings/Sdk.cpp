@@ -619,7 +619,20 @@ sol::object create_managed_string(sol::this_state s, const char* text) {
     return sol::make_object(s, (::REManagedObject*)new_str);
 }
 
-sol::object create_managed_array(sol::this_state s, sol::object t_obj, uint32_t length) {
+// Length is taken as int64_t, not uint32_t: a negative Lua number would wrap to
+// ~4e9 and the VM would attempt a multi-GB allocation that hangs the process.
+sol::object create_managed_array(sol::this_state s, sol::object t_obj, int64_t length) {
+    constexpr int64_t max_length = 0x1000000; // 16.7M elements
+
+    if (length < 0) {
+        throw sol::error("create_managed_array: length cannot be negative");
+    }
+
+    if (length > max_length) {
+        throw sol::error("create_managed_array: length " + std::to_string(length)
+            + " exceeds the maximum of " + std::to_string(max_length));
+    }
+
     ::REManagedObject* t{nullptr};
 
     if (t_obj.is<::REManagedObject*>()) {
@@ -640,7 +653,7 @@ sol::object create_managed_array(sol::this_state s, sol::object t_obj, uint32_t 
         throw sol::error("Type passed to create_managed_array resolved to null.");
     }
 
-    auto out = ::sdk::VM::create_managed_array(t, length);
+    auto out = ::sdk::VM::create_managed_array(t, (uint32_t)length);
 
     if (out == nullptr) {
         return sol::make_object(s, sol::nil);
@@ -1332,6 +1345,9 @@ std::vector<void*>& build_args(sol::variadic_args va) {
         if (lua_isboolean(l, i)) {
             auto b = lua_toboolean(l, i);
             args.push_back((void*)(intptr_t)b);
+        } else if (lua_type(l, i) == LUA_TSTRING) {
+            auto s = lua_tostring(l, i);
+            args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
         } else if (lua_isinteger(l, i)) {
             auto n = (intptr_t)lua_tointeger(l, i);
             args.push_back((void*)n);
@@ -1339,9 +1355,6 @@ std::vector<void*>& build_args(sol::variadic_args va) {
             auto f = lua_tonumber(l, i);
             auto n = *(intptr_t*)&f;
             args.push_back((void*)n);
-        } else if (lua_isstring(l, i)) {
-            auto s = lua_tostring(l, i);
-            args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
         } else if (arg.is<Vector2f>()) {
             auto& v = arg.as<Vector2f&>();
             args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
@@ -1500,6 +1513,24 @@ sol::object index(sol::this_state s, sol::object lua_obj, sol::variadic_args arg
     return sol::make_object(s, sol::nil);
 }
 
+static int32_t checked_array_index(sol::stack_proxy index, ::sdk::SystemArray* arr) {
+    if (index.get_type() != sol::type::number) {
+        throw sol::error("Array index must be a number");
+    }
+
+    const auto d = index.as<double>();
+
+    if (d != (double)(int64_t)d) {
+        throw sol::error("Array index must be an integer");
+    }
+
+    if (d < 0.0 || d >= (double)arr->get_size()) {
+        throw sol::error("Array index out of range: " + std::to_string((int64_t)d));
+    }
+
+    return (int32_t)d;
+}
+
 void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) {
     auto obj = lua_obj.as<REManagedObject*>();
     if (obj == nullptr) {
@@ -1542,6 +1573,41 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
         ::api::sdk::call_native_func_direct(lua_obj, fn, args);
         return;
     }
+
+    // System.Int32 -> object
+    if (auto set_method = type_def->get_method("Set"); set_method != nullptr) {
+        static auto system_int32 = sdk::find_type_definition("System.Int32");
+        const auto params = set_method->get_param_types();
+
+        if (params.size() == 2 && params[0] == system_int32) {
+            if (type_def->is_array()) {
+                checked_array_index(index, static_cast<::sdk::SystemArray*>(obj));
+
+                // Reject type-confused raw writes (a string into a value element
+                // would store the managed string's pointer bits). Dispatch on the
+                // real Lua type: is<const char*>/is<double> are true for both.
+                const auto elem_type = params[1];
+
+                if (elem_type != nullptr) {
+                    const auto lua_t = assign.get_type();
+                    const auto is_string = lua_t == sol::type::string;
+                    const auto is_number = lua_t == sol::type::number || lua_t == sol::type::boolean;
+
+                    if (elem_type->is_value_type() && is_string) {
+                        throw sol::error("Cannot assign a string to a " + elem_type->get_full_name() + " element");
+                    }
+
+                    if (!elem_type->is_value_type() && is_number) {
+                        throw sol::error("Cannot assign a number to a " + elem_type->get_full_name() + " element");
+                    }
+                }
+            }
+
+            ::api::sdk::call_native_func_direct(lua_obj, set_method, args);
+            return;
+        }
+    }
+
     throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
 }
 
@@ -2010,16 +2076,20 @@ void bindings::open_sdk(ScriptState* s) {
         "get_elements", &sdk::SystemArray::get_elements,
         sol::meta_function::index, [](sol::this_state s, sdk::SystemArray* arr, sol::variadic_args args) {
             auto index = args[0];
-            if (index.is<int32_t>()) {
-                return sol::make_object(s.L, arr->get_element(index));
+            if (index.get_type() == sol::type::number) {
+                const auto d = index.as<double>();
+                if (d != (double)(int64_t)d || d < 0.0 || d >= (double)arr->get_size()) {
+                    return sol::make_object(s.L, sol::nil);
+                }
+                return sol::make_object(s.L, arr->get_element((int32_t)d));
             }
             return api::re_managed_object::index(s, sol::make_object(s.L, arr), args);
         },
         sol::meta_function::new_index, [](sol::this_state s, sdk::SystemArray* arr, sol::variadic_args args) {
             auto index = args[0];
             auto value = args[1];
-            if (index.is<int32_t>() && value.is<REManagedObject*>()) {
-                return arr->set_element(index, value);
+            if (index.get_type() == sol::type::number && value.is<REManagedObject*>()) {
+                return arr->set_element(api::re_managed_object::checked_array_index(index, arr), value);
             }
             return api::re_managed_object::new_index(s, sol::make_object(s.L, arr), args);
         },

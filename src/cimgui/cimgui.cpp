@@ -1533,12 +1533,16 @@ CIMGUI_API ImDrawList* igGetBackgroundDrawList_Nil()
 {
     return ImGui::GetBackgroundDrawList();
 }
-CIMGUI_API ImDrawList* igGetForegroundDrawList_Nil()
-{
+CIMGUI_API ImDrawList* igGetBackgroundDrawList() {
+    return ImGui::GetBackgroundDrawList();
+}
+CIMGUI_API ImDrawList* igGetForegroundDrawList_Nil() {
     return ImGui::GetForegroundDrawList();
 }
-CIMGUI_API bool igIsRectVisible_Nil(const ImVec2 size)
-{
+CIMGUI_API ImDrawList* igGetForegroundDrawList() {
+    return ImGui::GetForegroundDrawList();
+}
+CIMGUI_API bool igIsRectVisible_Nil(const ImVec2 size) {
     return ImGui::IsRectVisible(size);
 }
 CIMGUI_API bool igIsRectVisible_Vec2(const ImVec2 rect_min,const ImVec2 rect_max)

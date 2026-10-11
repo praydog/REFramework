@@ -188,7 +188,7 @@ tag = "70db095765ab2066dd88dfb7bbcc42259ed167c5"
 
 [fetch-content.kananlib]
 git = "https://github.com/cursey/kananlib"
-tag = "8c27b656734355db0f2893581fd62e838fa130ad"
+tag = "43cb5353615dcbc5d4945b1b9ab685b11e8b0d37"
 
 [target.utility]
 type = "static"
@@ -256,6 +256,20 @@ link-libraries = [
     "pdperfmod"
 ]
 cmake-before="""
+set_source_files_properties(
+    "src/cimgui/cimgui.cpp"
+    PROPERTIES COMPILE_DEFINITIONS
+        "igTreeNode_Str=igTreeNode_Str_cimgui_generated;
+         igTreeNode_StrStr=igTreeNode_StrStr_cimgui_generated;
+         igTreeNode_StrStr0=igTreeNode_StrStr0_cimgui_generated;
+         igTreeNodeV_Str=igTreeNodeV_Str_cimgui_generated;
+         igTreeNodeEx_Str=igTreeNodeEx_Str_cimgui_generated;
+         igTreeNodeEx_StrStr=igTreeNodeEx_StrStr_cimgui_generated;
+         igTreeNodeEx_StrStr0=igTreeNodeEx_StrStr0_cimgui_generated;
+         igTreeNodeExV_Str=igTreeNodeExV_Str_cimgui_generated;
+         igCollapsingHeader_TreeNodeFlags=igCollapsingHeader_TreeNodeFlags_cimgui_generated;
+         igCollapsingHeader_BoolPtr=igCollapsingHeader_BoolPtr_cimgui_generated"
+)
 """
 cmake-after="""
 add_custom_command(

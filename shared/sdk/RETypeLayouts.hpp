@@ -44,9 +44,10 @@ static_assert(sizeof(REType) == 0x68);
 
 // Returns true if the running game uses the 0x68 REType layout (super at 0x40, +8 shift).
 // Only MHWILDS and RE9 have this; MHSTORIES3/PRAGMATA are 0x60 despite tdb >= 82.
+// TODO: We need to automate this probably, DD2 is 0x68 despite TDB 83.
 inline bool retype_has_shifted_pointers() {
     const auto& gi = sdk::GameIdentity::get();
-    return gi.is_mhwilds() || gi.is_re9();
+    return gi.is_mhwilds() || gi.is_re9() || gi.is_dd2();
 }
 
 // Returns true if typeCRC/size fields are reordered relative to RE8.

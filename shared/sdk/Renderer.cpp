@@ -6,6 +6,7 @@
 #include <utility/Module.hpp>
 
 #include "Application.hpp"
+#include "GameIdentity.hpp"
 #include "RETypeDB.hpp"
 #include "RETypes.hpp"
 #include "SceneManager.hpp"
@@ -1155,7 +1156,48 @@ sdk::renderer::layer::Output* get_output_layer() {
     return sdk::call_native_func<sdk::renderer::layer::Output*>(nullptr, renderer_t, "getOutputLayer", sdk::get_thread_context(), nullptr);
 }
 
+std::optional<Vector2f> world_to_screen_matrix(const Vector3f& world_pos) {
+    auto camera = sdk::get_primary_camera();
+
+    if (camera == nullptr) {
+        return std::nullopt;
+    }
+
+    auto main_view = sdk::get_main_view();
+
+    if (main_view == nullptr) {
+        return std::nullopt;
+    }
+
+    Matrix4x4f proj{}, view{};
+    float screen_size[2]{};
+    auto context = sdk::get_thread_context();
+
+    sdk::call_object_func<void*>(camera, "get_ProjectionMatrix", &proj, context, camera);
+    sdk::call_object_func<void*>(camera, "get_ViewMatrix", &view, context, camera);
+    sdk::call_object_func<void*>(main_view, "get_WindowSize", &screen_size, context, main_view);
+
+    const Vector4f pos = Vector4f{world_pos, 1.0f};
+    const auto clip_pos = proj * view * pos;
+
+    if (clip_pos.w <= 0.0f || screen_size[0] <= 0.0f || screen_size[1] <= 0.0f) {
+        return std::nullopt;
+    }
+
+    const auto inverse_w = 1.0f / clip_pos.w;
+    const auto normalized_x = clip_pos.x * inverse_w;
+    const auto normalized_y = clip_pos.y * inverse_w;
+
+    return Vector2f{
+        (normalized_x * 0.5f + 0.5f) * screen_size[0],
+        (0.5f - normalized_y * 0.5f) * screen_size[1]};
+}
+
 std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
+    if (sdk::GameIdentity::get().is_re9()) {
+        return world_to_screen_matrix(world_pos);
+    }
+
     auto camera = sdk::get_primary_camera();
 
     if (camera == nullptr) {

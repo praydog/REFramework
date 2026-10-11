@@ -855,7 +855,7 @@ public:
             return fn(*this);
         }
 
-        uint32_t get_ref_count() const {
+        int32_t get_ref_count() const {
             static const auto fn = API::s_instance->sdk()->managed_object->get_ref_count;
             return fn(*this);
         }

@@ -3,9 +3,12 @@
 #include <imnodes.h>
 
 #include "../ScriptRunner.hpp"
+#include "sdk/GameIdentity.hpp"
+#include "sdk/Renderer.hpp"
 #include "sdk/SceneManager.hpp"
 #include "REFramework.hpp"
 #include "utility/ImGui.hpp"
+#include "utility/PersistentTreeState.hpp"
 
 #include "ImGui.hpp"
 
@@ -386,7 +389,10 @@ bool tree_node(const char* label) {
         label = "";
     }
 
-    return ImGui::TreeNode(label);
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::Lua,
+        label,
+        [label]() { return ImGui::TreeNode(label); });
 }
 
 bool tree_node_ptr_id(const void* id, const char* label) {
@@ -402,7 +408,10 @@ bool tree_node_str_id(const char* id, const char* label) {
         label = "";
     }
 
-    return ImGui::TreeNode(id, label);
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::Lua,
+        id != nullptr ? id : "",
+        [id, label]() { return ImGui::TreeNode(id, label); });
 }
 
 void tree_pop() {
@@ -536,7 +545,14 @@ void new_line() {
 }
 
 bool collapsing_header(const char* name) {
-    return ImGui::CollapsingHeader(name);
+    if (name == nullptr) {
+        name = "";
+    }
+
+    return reframework::ui::persistent_tree_item(
+        reframework::ui::TreeStateSource::Lua,
+        name,
+        [name]() { return ImGui::CollapsingHeader(name); });
 }
 
 int load_font(sol::object filepath_obj, float size) {
@@ -1466,6 +1482,10 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
         world_pos = Vector4f{v4f.x, v4f.y, v4f.z, v4f.w};
     } else {
         return std::nullopt;
+    }
+
+    if (sdk::GameIdentity::get().is_re9()) {
+        return sdk::renderer::world_to_screen_matrix(Vector3f{world_pos});
     }
 
     static auto transform_def = first_transform->get_type_definition();

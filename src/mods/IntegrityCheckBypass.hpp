@@ -3,6 +3,10 @@
 #include <memory>
 #include <string_view>
 #include <regex>
+#include <array>
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "Mod.hpp"
 #include "utility/Patch.hpp"
@@ -55,16 +59,14 @@ private:
     static inline uint32_t s_last_non_zero_corruption{ 8 }; // What I've seen it default to
 
     static void sha3_rsa_code_midhook(safetyhook::Context& context);
-    static void pak_load_check_function(safetyhook::Context& context);
-    static void patch_version_hook(safetyhook::Context& context);
+    static bool pak_load_check_function(void* pak_struct, const wchar_t* pak_name, uintptr_t a3, uintptr_t a4, uintptr_t a5, uintptr_t a6, uintptr_t a7);
+    static void* pak_load_patch_load_function(uintptr_t* pak_slots, const wchar_t* base_path, int32_t first_slot_index, int32_t load_flags);
     static int scan_patch_files_count();
     static void restore_unencrypted_paks();
     static inline safetyhook::MidHook s_sha3_rsa_code_midhook;
-    static inline safetyhook::MidHook s_pak_load_check_function_hook;
-    static inline safetyhook::MidHook s_patch_version_hook;
+    static inline safetyhook::InlineHook s_pak_load_check_function_hook;
+    static inline safetyhook::InlineHook s_pak_load_patch_load_hook;
     static inline std::optional<uintptr_t> s_sha3_code_end{};
-    static inline int32_t s_sha3_reg_index{-1};
-    static inline int32_t s_patch_version_reg_index{-1};
     static inline int s_patch_count;
     static inline bool s_patch_count_checked;
     static inline std::optional<std::uint8_t> s_pak_flags_value{};
@@ -92,7 +94,6 @@ private:
 
     static void* rtl_exit_user_process_hook(uint32_t code);
     static inline std::unique_ptr<FunctionHookMinHook> s_rtl_exit_user_process_hook{};
-    static void pak_store_flags_hook(safetyhook::Context& context);
 
 #ifdef REFRAMEWORK_UNIVERSAL
     // All members present in monolithic build
@@ -131,6 +132,25 @@ private:
     static inline std::vector<safetyhook::MidHook> s_before_create_file_w_hooks{};
     static inline safetyhook::MidHook s_directstorage_open_pak_hook{};
     static inline int s_base_directory_patch_count{0};
+
+    constexpr static size_t PRISTINE_PAK_STRUCT_SIZE = 0x300;
+    static inline std::array<uint8_t, PRISTINE_PAK_STRUCT_SIZE> s_pristine_pak_struct{};
+
+    struct PakRebase {
+        size_t offset;
+        size_t delta_from_base;
+    };
+
+    static inline std::vector<PakRebase> s_pak_rebase_offsets{};
+    static inline uintptr_t* s_pak_array_start{nullptr};
+    static inline size_t s_pak_array_len{0};
+    static inline size_t s_event_handle_offset{0};
+    static inline size_t s_event_handle_offset_2{0};
+
+    static inline std::unordered_map<std::wstring, std::wstring> s_injected_name_to_real_path{};
+
+    static inline bool s_auto_assigned{false};
+    static inline std::unordered_set<std::wstring> s_seen_pak_families{};
 
     std::vector<std::wstring> m_custom_pak_in_directory_paths{};
     bool m_custom_pak_in_directory_paths_cached{ false };

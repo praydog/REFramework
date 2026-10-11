@@ -18,8 +18,19 @@ void* allocate(size_t size, bool zero_memory) {
         auto ref = utility::scan(utility::get_executable(), "B9 ? ? ? ? E8 ? ? ? ? 45 33 F6 48 85 C0");
 
         if (!ref) {
-            spdlog::error("[via::memory::allocate] Failed to find allocate function!");
-            return nullptr;
+            std::optional<uintptr_t> containing_function{utility::find_function_from_string_ref(utility::get_executable(), L"RE ENGINE [")};
+
+            if (containing_function) {
+                auto res = utility::find_pattern_in_path((uint8_t*)*containing_function, 100, false, "B9 ? ? ? ? E8 ? ? ? ?");
+                ref = res.has_value() ? res->addr : std::optional<uintptr_t>{};
+            } else {
+                spdlog::error("[via::memory::allocate] Failed to find containing function for allocate function!");
+            }
+
+            if (!ref) {
+                spdlog::error("[via::memory::allocate] Failed to find allocate function!");
+                return nullptr;
+            }
         }
 
         spdlog::info("[via::memory::allocate] Ref {:x}", (uintptr_t)*ref);
@@ -35,6 +46,10 @@ void* allocate(size_t size, bool zero_memory) {
 
         return fn;
     }();
+
+    if (allocate_fn == nullptr) {
+        return nullptr; // nope
+    }
 
     auto result = allocate_fn(size);
 
@@ -55,26 +70,67 @@ void deallocate(void* ptr) {
         // Relevant string references:
         // "RE ENGINE [%ls] %ls port:%3d"
         auto ref = utility::scan(utility::get_executable(), "B9 ? ? ? ? E8 ? ? ? ? 45 33 F6 48 85 C0");
+        std::optional<uintptr_t> containing_function{utility::find_function_from_string_ref(utility::get_executable(), L"RE ENGINE [")};
+        bool use_containing_fn = false;
 
         if (!ref) {
-            spdlog::error("[via::memory::deallocate] Failed to find allocate function!");
-            return nullptr;
+            if (containing_function) {
+                spdlog::info("[via::memory::deallocate] Found containing function at {:x}", (uintptr_t)*containing_function);
+
+                auto res = utility::find_pattern_in_path((uint8_t*)*containing_function, 100, false, "B9 ? ? ? ? E8 ? ? ? ?");
+
+                ref = res.has_value() ? res->addr : std::optional<uintptr_t>{};
+
+                if (!ref) {
+                    spdlog::error("[via::memory::deallocate] Failed to find allocate function within containing function!");
+                    return nullptr;
+                }
+
+                use_containing_fn = true;
+            } else {
+                spdlog::error("[via::memory::deallocate] Failed to find containing function for deallocate function!");
+            }
+
+            if (!ref) {
+                spdlog::error("[via::memory::deallocate] Failed to find allocate function!");
+                return nullptr;
+            }
         }
 
-        auto allocate_fn = utility::calculate_absolute(*ref + 6);
+        if (!use_containing_fn) {
+            // Only usable under certain optimizations.
+            auto allocate_fn = utility::calculate_absolute(*ref + 6);
 
-        if (!allocate_fn) {
-            spdlog::error("[via::memory::deallocate] Failed to calculate allocate function!");
-            return nullptr;
+            if (!allocate_fn) {
+                spdlog::error("[via::memory::deallocate] Failed to calculate allocate function!");
+                return nullptr;
+            }
+
+            spdlog::info("[via::memory::deallocate] Found allocate function at {:x}", (uintptr_t)allocate_fn);
+
+            const auto decoded_insn = utility::decode_one((uint8_t*)allocate_fn);
+            const auto first_insn_size = decoded_insn.has_value() ? decoded_insn->Length : 1;
+
+            // Scan until we hit a jmp.
+            ref = utility::scan_opcode((uintptr_t)allocate_fn + first_insn_size, 50, 0xE9);
+
+            if (!ref) {
+                spdlog::error("[via::memory::deallocate] Failed to find deallocate function!");
+                return nullptr;
+            }
+        } else {
+            // Look for first 48 8B 4C ? ? E8 ? ? ? ?
+            auto res = utility::find_pattern_in_path((uint8_t*)*containing_function, 200, false, "48 8B 4C ? ? E8 ? ? ? ?");
+
+            ref = res.has_value() ? res->addr : std::optional<uintptr_t>{};
+
+            if (!ref) {
+                spdlog::error("[via::memory::deallocate] Failed to find deallocate function!");
+                return nullptr;
+            }
+
+            ref = utility::calculate_absolute(*ref + 6);
         }
-
-        spdlog::info("[via::memory::deallocate] Found allocate function at {:x}", (uintptr_t)allocate_fn);
-
-        const auto decoded_insn = utility::decode_one((uint8_t*)allocate_fn);
-        const auto first_insn_size = decoded_insn.has_value() ? decoded_insn->Length : 1;
-
-        // Scan until we hit a jmp.
-        ref = utility::scan_opcode((uintptr_t)allocate_fn + first_insn_size, 50, 0xE9);
 
         if (!ref) {
             spdlog::error("[via::memory::deallocate] Failed to find deallocate function!");
@@ -82,11 +138,14 @@ void deallocate(void* ptr) {
         }
 
         auto fn = (decltype(sdk::memory::deallocate)*)*ref;
-
         spdlog::info("[via::memory::deallocate] Found deallocate function at {:x}", (uintptr_t)fn);
 
         return fn;
     }();
+
+    if (deallocate_fn == nullptr) {
+        return; // nope
+    }
 
     deallocate_fn(ptr);
 }

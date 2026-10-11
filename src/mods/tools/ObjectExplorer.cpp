@@ -841,9 +841,8 @@ void ObjectExplorer::on_frame() {
 
         if (ImGui::Begin("Hooked methods", &open)) {
             display_hooks();
-
-            ImGui::End();
         }
+        ImGui::End();
 
         ImGui::PopFont();
 

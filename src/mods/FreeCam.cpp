@@ -342,7 +342,7 @@ void FreeCam::on_update_transform(RETransform* transform) {
         }
     } else {
         // TODO: Get rid of this hacky workaround for onimusha, not sure whats happening here yet.
-        if (joint != nullptr && !gi.is_onimusha_wots()) {
+        if (joint != nullptr && !gi.is_onimusha_wots() && !gi.is_dd2()) {
             sdk::set_joint_local_rotation(joint, glm::quat{1.0f, 0.0f, 0.0f, 0.0f});
             sdk::set_joint_local_position(joint, Vector4f{});
         }

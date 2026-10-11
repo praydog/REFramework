@@ -147,12 +147,12 @@ FetchContent_Declare(bddisasm
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (8c27b656734355db0f2893581fd62e838fa130ad)...")
+message(STATUS "Fetching kananlib (43cb5353615dcbc5d4945b1b9ab685b11e8b0d37)...")
 FetchContent_Declare(kananlib
 	GIT_REPOSITORY
 		"https://github.com/cursey/kananlib"
 	GIT_TAG
-		8c27b656734355db0f2893581fd62e838fa130ad
+		43cb5353615dcbc5d4945b1b9ab685b11e8b0d37
 )
 FetchContent_MakeAvailable(kananlib)
 
@@ -1450,6 +1450,21 @@ endif()
 # Target: REFramework
 if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 	set(CMKR_TARGET REFramework)
+	set_source_files_properties(
+	    "src/cimgui/cimgui.cpp"
+	    PROPERTIES COMPILE_DEFINITIONS
+	        "igTreeNode_Str=igTreeNode_Str_cimgui_generated;
+	         igTreeNode_StrStr=igTreeNode_StrStr_cimgui_generated;
+	         igTreeNode_StrStr0=igTreeNode_StrStr0_cimgui_generated;
+	         igTreeNodeV_Str=igTreeNodeV_Str_cimgui_generated;
+	         igTreeNodeEx_Str=igTreeNodeEx_Str_cimgui_generated;
+	         igTreeNodeEx_StrStr=igTreeNodeEx_StrStr_cimgui_generated;
+	         igTreeNodeEx_StrStr0=igTreeNodeEx_StrStr0_cimgui_generated;
+	         igTreeNodeExV_Str=igTreeNodeExV_Str_cimgui_generated;
+	         igCollapsingHeader_TreeNodeFlags=igCollapsingHeader_TreeNodeFlags_cimgui_generated;
+	         igCollapsingHeader_BoolPtr=igCollapsingHeader_BoolPtr_cimgui_generated"
+	)
+
 	set(REFramework_SOURCES
 		cmake.toml
 		"src/D3D11Hook.cpp"
@@ -1479,6 +1494,7 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/WindowsMessageHook.hpp"
 		"src/cimgui/cimgui.cpp"
 		"src/cimgui/cimgui.h"
+		"src/cimgui/cimgui_ref.cpp"
 		"src/mods/APIProxy.cpp"
 		"src/mods/APIProxy.hpp"
 		"src/mods/BackBufferRenderer.cpp"
@@ -1571,6 +1587,8 @@ if(REF_BUILD_FRAMEWORK AND CMAKE_SIZEOF_VOID_P EQUAL 8) # build-framework
 		"src/re2-imgui/re2_imconfig.hpp"
 		"src/utility/ImGui.cpp"
 		"src/utility/ImGui.hpp"
+		"src/utility/PersistentTreeState.hpp"
+		"src/utility/SafeCallbackVector.hpp"
 	)
 
 	add_library(REFramework SHARED)

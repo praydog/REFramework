@@ -470,6 +470,16 @@ bool LooseFileLoader::can_loosely_load_file(const wchar_t* path) {
     if (sdk::GameIdentity::get().tdb_ver() <= 67) {
         return safe_exists(path);
     }
+
+    if (m_path_to_hash_hook == nullptr) {
+        hook();
+
+        if (m_path_to_hash_hook == nullptr) {
+            spdlog::error("[LooseFileLoader] Failed to hook path_to_hash, cannot check if file can be loosely loaded");
+            return false;
+        }
+    }
+
     auto hash = m_path_to_hash_hook->get_original<decltype(path_to_hash_hook)>()(path);
     return handle_path(path, hash);
 }
