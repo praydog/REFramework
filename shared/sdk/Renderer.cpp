@@ -1194,7 +1194,7 @@ std::optional<Vector2f> world_to_screen_matrix(const Vector3f& world_pos) {
 }
 
 std::optional<Vector2f> world_to_screen(const Vector3f& world_pos) {
-    if (sdk::GameIdentity::get().is_re9()) {
+    if (sdk::GameIdentity::get().tdb_ver() >= 81) {
         return world_to_screen_matrix(world_pos);
     }
 
