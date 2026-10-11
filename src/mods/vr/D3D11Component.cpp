@@ -225,6 +225,12 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
 
     auto runtime = vr->get_runtime();
 
+    // Sometimes this can happen if pipeline execution does not go exactly as planned
+    // so we need to resynchronized or begin the frame again.
+    if (runtime->ready()) {
+        runtime->fix_frame();
+    }
+
     // If m_frame_count is even, we're rendering the left eye.
     if (vr->m_render_frame_count % 2 == vr->m_left_eye_interval) {
         auto copy_from_tex = m_backbuffer_is_8bit ? backbuffer : m_left_eye_rt.tex;
@@ -275,6 +281,7 @@ vr::EVRCompositorError D3D11Component::on_frame(VR* vr) {
             vr::Texture_t left_eye{(void*)m_left_eye_tex.Get(), vr::TextureType_DirectX, vr::ColorSpace_Auto};
 
             auto e = vr::VRCompositor()->Submit(vr::Eye_Left, &left_eye, &vr->m_left_bounds);
+            runtime->frame_synced = false;
 
             bool submitted = true;
 
@@ -738,6 +745,39 @@ void D3D11Component::OpenXR::copy(uint32_t swapchain_idx, ID3D11Texture2D* resou
     uint32_t texture_index{};
     LOG_VERBOSE("Acquiring swapchain image for {}", swapchain_idx);
     auto result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &texture_index);
+
+    if (result == XR_ERROR_CALL_ORDER_INVALID && ctx.num_textures_acquired > 0) {
+        spdlog::info("Attempting to correct call order invalid error.");
+
+        XrSwapchainImageReleaseInfo release_info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+
+        if (auto release_result = xrReleaseSwapchainImage(swapchain.handle, &release_info)) {
+            if (release_result == XR_ERROR_CALL_ORDER_INVALID) {
+                XrSwapchainImageWaitInfo wait_info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+                //wait_info.timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)).count();
+                wait_info.timeout = XR_INFINITE_DURATION;
+
+                LOG_VERBOSE("Waiting on swapchain image for {}", swapchain_idx);
+                const auto wait_result = xrWaitSwapchainImage(swapchain.handle, &wait_info);
+
+                if (wait_result == XR_SUCCESS) {
+                    release_result = xrReleaseSwapchainImage(swapchain.handle, &release_info);
+                } else {
+                    spdlog::error("[VR] xrWaitSwapchainImage failed: {}", vr->m_openxr->get_result_string(wait_result));
+                    return;
+                }
+            }
+
+            if (release_result != XR_SUCCESS) {
+                spdlog::error("[VR] xrReleaseSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
+                return;
+            }
+        }
+
+        ctx.num_textures_acquired--;
+        texture_index = 0;
+        result = xrAcquireSwapchainImage(swapchain.handle, &acquire_info, &texture_index);
+    }
 
     if (result != XR_SUCCESS) {
         spdlog::error("[VR] xrAcquireSwapchainImage failed: {}", vr->m_openxr->get_result_string(result));
