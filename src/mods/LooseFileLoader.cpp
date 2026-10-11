@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include <sdk/GameIdentity.hpp>
 #include <sdk/RETypeDB.hpp>
 #include <utility/Scan.hpp>
@@ -64,12 +65,12 @@ void LooseFileLoader::on_config_save(utility::Config& cfg) {
 }
 
 void LooseFileLoader::on_draw_ui() {
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 
     if (m_attempted_hook && !m_hook_success) {
-        ImGui::TextWrapped("Failed to hook successfully. This mod will not work.");
+        ImGui::TextWrapped(reframework::localization::text("Failed to hook successfully. This mod will not work."));
         return;
     }
 
@@ -87,10 +88,10 @@ void LooseFileLoader::on_draw_ui() {
     }
 
     if (m_hook_success) {
-        ImGui::TextWrapped("Files encountered: %d", m_files_encountered);
-        ImGui::TextWrapped("Loose files loaded: %d", m_loose_files_loaded);
+        ImGui::TextWrapped(reframework::localization::text("Files encountered: %d"), m_files_encountered);
+        ImGui::TextWrapped(reframework::localization::text("Loose files loaded: %d"), m_loose_files_loaded);
 
-        if (ImGui::Button("Clear stats")) {
+        if (ImGui::Button(reframework::localization::label("Clear stats").c_str())) {
             m_files_encountered = 0;
             m_loose_files_loaded = 0;
 
@@ -101,12 +102,12 @@ void LooseFileLoader::on_draw_ui() {
             m_all_loose_files.clear();
         }
 
-        if (ImGui::TreeNode("Debug")) {
-            ImGui::Checkbox("Enable file cache", &m_enable_file_cache);
-            ImGui::TextWrapped("Cache hits: %d", m_cache_hits);
-            ImGui::TextWrapped("Uncached hits: %d", m_uncached_hits);
+        if (ImGui::TreeNode(reframework::localization::label("Debug").c_str())) {
+            ImGui::Checkbox(reframework::localization::label("Enable file cache").c_str(), &m_enable_file_cache);
+            ImGui::TextWrapped(reframework::localization::text("Cache hits: %d"), m_cache_hits);
+            ImGui::TextWrapped(reframework::localization::text("Uncached hits: %d"), m_uncached_hits);
 
-            if (ImGui::Button("Clear existence cache")) {
+            if (ImGui::Button(reframework::localization::label("Clear existence cache").c_str())) {
                 clear_existence_cache();
             }
 
@@ -116,23 +117,23 @@ void LooseFileLoader::on_draw_ui() {
         m_log_accessed_files->draw("Log accessed files");
         if (ImGui::IsItemHovered()) {
             ImGui::BeginTooltip();
-            ImGui::Text("Logs all accessed files to <game_dir>/reframework_accessed_files.txt");
+            ImGui::Text(reframework::localization::text("Logs all accessed files to <game_dir>/reframework_accessed_files.txt"));
             ImGui::EndTooltip();
         }
 
         m_log_loose_files->draw("Log loose files");
         if (ImGui::IsItemHovered()) {
             ImGui::BeginTooltip();
-            ImGui::Text("Logs loaded loose files to <game_dir>/reframework_loose_files.txt");
+            ImGui::Text(reframework::localization::text("Logs loaded loose files to <game_dir>/reframework_loose_files.txt"));
             ImGui::EndTooltip();
         }
 
-        ImGui::Checkbox("Show recent files", &m_show_recent_files);
+        ImGui::Checkbox(reframework::localization::label("Show recent files").c_str(), &m_show_recent_files);
 
         if (m_show_recent_files) {
             std::shared_lock _{m_mutex};
 
-            if (ImGui::TreeNode("Recent accessed files")) {
+            if (ImGui::TreeNode(reframework::localization::label("Recent accessed files").c_str())) {
                 for (const auto& file : m_recent_accessed_files) {
                     ImGui::TextWrapped("%s", utility::narrow(file).c_str());
                 }
@@ -140,7 +141,7 @@ void LooseFileLoader::on_draw_ui() {
                 ImGui::TreePop();
             }
 
-            if (ImGui::TreeNode("Recent loose files")) {
+            if (ImGui::TreeNode(reframework::localization::label("Recent loose files").c_str())) {
                 for (const auto& file : m_recent_loose_files) {
                     ImGui::TextWrapped("%s", utility::narrow(file).c_str());
                 }

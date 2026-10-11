@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include <DirectXColors.h>
 #include <../../directxtk12-src/Src/d3dx12.h>
 
@@ -127,7 +128,7 @@ void GameObjectsDisplay::on_config_save(utility::Config& cfg) {
 void GameObjectsDisplay::on_draw_dev_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_Once);
 
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 
@@ -139,11 +140,11 @@ void GameObjectsDisplay::on_draw_dev_ui() {
 
     ImGui::SameLine();
 
-    ImGui::Checkbox("Legacy Mode", &m_legacy_mode);
+    ImGui::Checkbox(reframework::localization::label("Legacy Mode").c_str(), &m_legacy_mode);
 
     m_max_distance->draw("Max Distance for GameObjects");
 
-    if (ImGui::SliderFloat("Object Effect Alpha", &m_effect_alpha, 0.0f, 1.0f)) {
+    if (ImGui::SliderFloat(reframework::localization::label("Object Effect Alpha").c_str(), &m_effect_alpha, 0.0f, 1.0f)) {
         m_effect_dirty = true;
     }
 }
