@@ -114,5 +114,11 @@ internal:
     static System::Collections::Generic::List<PluginState^>^ s_plugin_states{gcnew System::Collections::Generic::List<PluginState^>()};
     static System::Collections::Generic::List<PluginState^>^ s_plugin_states_to_remove{gcnew System::Collections::Generic::List<PluginState^>()};
     static bool s_auto_reload_plugins{true};
+
+    // Persisted in REFramework.NET.settings.json, read before the console is allocated at startup
+    static bool s_show_console{true};
+    static System::String^ GetSettingsPath();
+    static void LoadSettings();
+    static void SaveSettings();
 };
 }

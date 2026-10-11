@@ -8,11 +8,11 @@ extern "C" {
 #include <mutex>
 #include <filesystem>
 
-#include <Windows.h>
 #include <msclr/marshal_cppstd.h>
 
 #include "API.hpp"
 #include "PluginManager.hpp"
+#include "ConsoleWindow.hpp"
 
 #include "Plugin.hpp"
 
@@ -21,19 +21,11 @@ using namespace System;
 using namespace System::Runtime;
 
 extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFrameworkPluginInitializeParam* param) {
-    HWND prev = GetForegroundWindow();
+    REFrameworkNET::PluginManager::LoadSettings();
 
-    // Create a console
-    AllocConsole();
-
-    HWND console = GetConsoleWindow();
-
-    ShowWindow(console, SW_HIDE);
-    ShowWindow(console, SW_SHOWNOACTIVATE);
-
-    if (prev)
-    {
-        SetForegroundWindow(prev);
+    // Displays compilation/loading progress; can be disabled in the REFramework.NET menu
+    if (REFrameworkNET::PluginManager::s_show_console) {
+        REFrameworkNET::ConsoleWindow::SetVisible(true);
     }
 
     return REFrameworkNET::PluginManager::Entry(param);

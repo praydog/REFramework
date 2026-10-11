@@ -8,6 +8,7 @@
 #include "SystemString.hpp"
 #include "NativePool.hpp"
 #include "PluginManager.hpp"
+#include "ConsoleWindow.hpp"
 
 using namespace System;
 using namespace System::IO;
@@ -170,6 +171,43 @@ namespace REFrameworkNET {
         }
     }
 
+    System::String^ PluginManager::GetSettingsPath() {
+        const auto settings_path = std::filesystem::current_path() / "reframework" / "plugins" / "REFramework.NET.settings.json";
+        return gcnew System::String(settings_path.wstring().c_str());
+    }
+
+    // Called before the API is initialized (from reframework_plugin_initialize), so no API::Log* here
+    void PluginManager::LoadSettings() {
+        auto path = GetSettingsPath();
+
+        if (!File::Exists(path)) {
+            return;
+        }
+
+        try {
+            auto jsonDocument = JsonDocument::Parse(File::ReadAllText(path));
+            JsonElement value;
+
+            if (jsonDocument->RootElement.TryGetProperty("ShowConsole", value)) {
+                s_show_console = value.GetBoolean();
+            }
+        } catch (Exception^ ex) {
+            System::Console::WriteLine("Error reading " + path + ": " + ex->Message);
+        }
+    }
+
+    void PluginManager::SaveSettings() {
+        auto path = GetSettingsPath();
+        auto settings = gcnew Dictionary<System::String^, bool>();
+        settings->Add("ShowConsole", s_show_console);
+
+        try {
+            File::WriteAllText(path, JsonSerializer::Serialize(settings));
+        } catch (Exception^ ex) {
+            REFrameworkNET::API::LogError("Error writing " + path + ": " + ex->Message);
+        }
+    }
+
     void PluginManager::GenerateReferenceAssemblies(List<System::Reflection::Assembly^>^ deps) {
         REFrameworkNET::API::LogInfo("Generating reference assemblies...");
 
@@ -277,6 +315,9 @@ namespace REFrameworkNET {
         }
 
         PluginManager::s_initialized = true;
+
+        // Statics are per load context; reload the settings in this one
+        LoadSettings();
 
         auto self = System::Reflection::Assembly::GetExecutingAssembly();
 
@@ -828,6 +869,11 @@ namespace REFrameworkNET {
             }
 
             Hexa::NET::ImGui::ImGui::Checkbox("Auto Reload", s_auto_reload_plugins);
+
+            if (Hexa::NET::ImGui::ImGui::Checkbox("Show Console Window", s_show_console)) {
+                SaveSettings();
+                ConsoleWindow::SetVisible(s_show_console);
+            }
 
             if (Hexa::NET::ImGui::ImGui::TreeNode("Debug Stats")) {
                 if (Hexa::NET::ImGui::ImGui::TreeNode("Garbage Collection")) {
