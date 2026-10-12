@@ -1,5 +1,5 @@
-#include "../../REFrameworkNET/Proxy.hpp"
-#include "../../REFrameworkNET/ValueType.hpp"
+#using <REFramework.NET.dll> as_friend
+#include "../../REFrameworkNET/ObjectAddress.inl"
 
 using namespace System;
 using namespace System::Reflection;
@@ -8,7 +8,7 @@ using namespace System::Runtime::CompilerServices;
 namespace REFrameworkNET::Tests {
 public interface class IStorageTest {};
 
-// Opt-in fixture compiled against the actual production ObjectAddress scope.
+// Separate assembly using normal bridge types and the production ObjectAddress source.
 // No engine initialization, native TDB, or fabricated engine pointer is used.
 public ref class ValueTypePinning abstract sealed {
     static ValueType^ MakeValue(int expected) {
@@ -42,6 +42,8 @@ public ref class ValueTypePinning abstract sealed {
 
 public:
     static void Run() {
+        Check(ValueType::typeid->Assembly != ValueTypePinning::typeid->Assembly);
+        Check(ValueType::typeid->Assembly->GetType("REFrameworkNET.Tests.ValueTypePinning") == nullptr);
         int moved = 0;
         for (int i = 0; i < 32; ++i) {
             auto garbage = gcnew array<Byte>(8192);

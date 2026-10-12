@@ -1,7 +1,3 @@
-using System;
-using System.Reflection;
-using REFrameworkNET;
+using REFrameworkNET.Tests;
 
-var fixture = typeof(IObject).Assembly.GetType("REFrameworkNET.Tests.ValueTypePinning", throwOnError: true)!;
-try { fixture.GetMethod("Run")!.Invoke(null, null); }
-catch (TargetInvocationException error) { throw error.InnerException!; }
+ValueTypePinning.Run();

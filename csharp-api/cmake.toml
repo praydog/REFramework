@@ -6,7 +6,6 @@
 name = "CSharpAPIProject"
 languages = ["CXX", "C", "CSharp"]
 cmake-after = """
-option(REF_CSHARP_PINNING_TESTS "Compile the offline value pinning regression fixture into the bridge" OFF)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 set(CMAKE_CSharp_FLAGS "${CMAKE_CSHARP_FLAGS} /langversion:latest /platform:x64")
@@ -171,7 +170,7 @@ set_target_properties(REFCoreDeps PROPERTIES VS_PACKAGE_REFERENCES "${REFRAMEWOR
 type = "shared"
 include-directories = ["../include/"]
 sources = ["REFrameworkNET/**.cpp", "REFrameworkNET/**.c"]
-headers = ["REFrameworkNET/**.hpp", "REFrameworkNET/**.h"]
+headers = ["REFrameworkNET/**.hpp", "REFrameworkNET/**.h", "REFrameworkNET/**.inl"]
 compile-features = ["cxx_std_20"]
 compile-options = ["/EHa", "/MD", "/doc"]
 link-libraries = [
@@ -204,9 +203,7 @@ VS_DOTNET_REFERENCE_REFCoreDeps
 )
 
 set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCoreDeps")
-if(REF_CSHARP_PINNING_TESTS)
-    target_sources(csharp-api PRIVATE test/ValueTypePinning/ScopeTests.cpp)
-endif()
+add_subdirectory(test/ValueTypePinning)
 """
 
 [target.csharp-api.properties]

@@ -33,7 +33,6 @@ project(CSharpAPIProject
 
 include(CSharpUtilities)
 
-option(REF_CSHARP_PINNING_TESTS "Compile the offline value pinning regression fixture into the bridge" OFF)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 set(CMAKE_CSharp_FLAGS "${CMAKE_CSHARP_FLAGS} /langversion:latest /platform:x64")
@@ -245,6 +244,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/NativeObject.hpp"
 	"REFrameworkNET/NativePool.hpp"
 	"REFrameworkNET/NativeSingleton.hpp"
+	"REFrameworkNET/ObjectAddress.hpp"
 	"REFrameworkNET/ObjectEnumerator.hpp"
 	"REFrameworkNET/Plugin.hpp"
 	"REFrameworkNET/PluginLoadContext.hpp"
@@ -261,6 +261,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/Utility.hpp"
 	"REFrameworkNET/VM.hpp"
 	"REFrameworkNET/ValueType.hpp"
+	"REFrameworkNET/ObjectAddress.inl"
 	cmake.toml
 )
 
@@ -339,9 +340,7 @@ VS_DOTNET_REFERENCE_REFCoreDeps
 )
 
 set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCoreDeps")
-if(REF_CSHARP_PINNING_TESTS)
-    target_sources(csharp-api PRIVATE test/ValueTypePinning/ScopeTests.cpp)
-endif()
+add_subdirectory(test/ValueTypePinning)
 
 # Target: AssemblyGenerator
 set(AssemblyGenerator_SOURCES
