@@ -33,6 +33,7 @@ project(CSharpAPIProject
 
 include(CSharpUtilities)
 
+option(REF_CSHARP_PINNING_TESTS "Compile the offline value pinning regression fixture into the bridge" OFF)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 set(CMAKE_CSharp_FLAGS "${CMAKE_CSHARP_FLAGS} /langversion:latest /platform:x64")
@@ -338,6 +339,9 @@ VS_DOTNET_REFERENCE_REFCoreDeps
 )
 
 set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCoreDeps")
+if(REF_CSHARP_PINNING_TESTS)
+    target_sources(csharp-api PRIVATE test/ValueTypePinning/ScopeTests.cpp)
+endif()
 
 # Target: AssemblyGenerator
 set(AssemblyGenerator_SOURCES
