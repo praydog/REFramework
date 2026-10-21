@@ -1,4 +1,5 @@
 #include <bit>
+#include <memory>
 
 #include "ManagedObject.hpp"
 #include "NativeObject.hpp"
@@ -150,6 +151,12 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
 
     //std::vector<void*> args2{};
     std::array<void*, 32> args2{}; // what function has more than 32 arguments?
+    if (args != nullptr && args->Length > args2.size()) {
+        throw gcnew System::ArgumentException("Too many method arguments", "args");
+    }
+    // Keep every argument's storage pinned through native invocation, including
+    // conversions of later arguments which may allocate and trigger collection.
+    std::array<std::unique_ptr<ObjectAddress>, 32> argument_addresses{};
 
     if (args != nullptr && args->Length > 0) {
         for (int i = 0; i < args->Length; ++i) try {
@@ -170,7 +177,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
 
             if (REFrameworkNET::IObject::typeid->IsAssignableFrom(t)) {
                 auto iobj = static_cast<REFrameworkNET::IObject^>(args[i]);
-                args2[i] = iobj->Ptr();
+                argument_addresses[i].reset(new ObjectAddress(iobj));
+                args2[i] = argument_addresses[i]->Ptr();
             } else if (t == REFrameworkNET::TypeDefinition::typeid) {
                 // TypeDefinitions are wrappers for System.RuntimeTypeHandle
                 // However there's basically no functions that actually take a System.RuntimeTypeHandle
@@ -178,7 +186,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
                 auto td = static_cast<REFrameworkNET::TypeDefinition^>(args[i]);
 
                 if (auto rt = td->GetRuntimeType(); rt != nullptr) {
-                    args2[i] = rt->Ptr();
+                    argument_addresses[i].reset(new ObjectAddress(rt));
+                    args2[i] = argument_addresses[i]->Ptr();
                 } else {
                     System::Console::WriteLine("TypeDefinition has no runtime type @ arg " + i);
                 }
@@ -186,7 +195,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
                 auto createdStr = VM::CreateString(static_cast<System::String^>(args[i]));
 
                 if (createdStr != nullptr) {
-                    args2[i] = createdStr->Ptr();
+                    argument_addresses[i].reset(new ObjectAddress(createdStr));
+                    args2[i] = argument_addresses[i]->Ptr();
                 } else {
                     System::Console::WriteLine("Error creating string @ arg " + i);
                 }
@@ -243,12 +253,13 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     // Temporary storage for fake boxed value type (0x10 header + value type data)
     std::vector<uint8_t> fake_boxed_storage;
     uintptr_t fake_object_ptr{};
+    ObjectAddress receiver(dynamic_cast<IObject^>(obj));
 
     if (obj != nullptr) try {
         const auto obj_t = obj->GetType();
 
         if (REFrameworkNET::IObject::typeid->IsAssignableFrom(obj_t)) {
-            auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
+            auto iobj = receiver.Instance();
 
             // For instance methods on value types, we need to construct a fake boxed object.
             // The native invoke() expects a ManagedObject* with a 0x10 byte header:
@@ -256,7 +267,7 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
             //   0x08: uint32_t refcount + padding
             //   0x10: actual value type data starts here
             // ValueType::Ptr() returns raw data at offset 0, so we need to prepend the header.
-            if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
+            if (!this->IsStatic() && dynamic_cast<REFrameworkNET::ValueType^>(iobj) != nullptr) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
                 auto type_def = vt->GetTypeDefinition();
                 auto vt_size = type_def->ValueTypeSize;
@@ -269,11 +280,11 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
                 // REManagedObject: reference count at offset 0x08 (set high to prevent GC interference)
                 *(uint32_t*)&fake_boxed_storage[0x08] = 9999;
                 // Copy value type data at offset 0x10
-                memcpy(&fake_boxed_storage[0x10], vt->Ptr(), vt_size);
+                memcpy(&fake_boxed_storage[0x10], receiver.Ptr(), vt_size);
 
                 obj_ptr = fake_boxed_storage.data();
             } else {
-                obj_ptr = iobj->Ptr();
+                obj_ptr = receiver.Ptr();
             }
         } else if (obj_t == System::IntPtr::typeid) {
             obj_ptr = (void*)(intptr_t)safe_cast<System::IntPtr>(obj).ToPointer();
@@ -291,13 +302,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     auto result = m_method->invoke((::reframework::API::ManagedObject*)obj_ptr, std::span<void*>(args2.data(), argcount));
 
     // If we used a fake boxed object, copy any mutations back to the original value type
-    if (!fake_boxed_storage.empty() && obj != nullptr) {
-        auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
-        if (REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj->GetType())) {
-            auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
-            auto vt_size = vt->GetTypeDefinition()->ValueTypeSize;
-            memcpy(vt->Ptr(), &fake_boxed_storage[0x10], vt_size);
-        }
+    if (!fake_boxed_storage.empty()) {
+        memcpy(receiver.Ptr(), &fake_boxed_storage[0x10], fake_boxed_storage.size() - 0x10);
     }
 
     return result;

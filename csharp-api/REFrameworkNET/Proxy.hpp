@@ -5,6 +5,7 @@
 #include "./API.hpp"
 #include "ManagedObject.hpp"
 #include "TypeDefinition.hpp"
+#include "ValueType.hpp"
 #include "Attributes/Method.hpp"
 
 using namespace System;
@@ -166,14 +167,15 @@ protected:
 
                 // Property getter/setters for fields
                 if (methodAttribute->IsField) {
+                    ObjectAddress address(iobject);
                     auto field = (REFrameworkNET::Field^)underlyingObject;
                     bool isValueType = !IsManaged() && GetTypeDefinition()->IsValueType();
 
                     if (methodAttribute->FieldFacade == REFrameworkNET::FieldFacadeType::Getter) {
-                        return field->GetDataBoxed(targetMethod->ReturnType, iobject->GetAddress(), isValueType);
+                        return field->GetDataBoxed(targetMethod->ReturnType, address.Address(), isValueType);
                     }
 
-                    field->SetDataBoxed(iobject->GetAddress(), args[0], isValueType);
+                    field->SetDataBoxed(address.Address(), args[0], isValueType);
                     return nullptr;
                 }
 

@@ -170,7 +170,7 @@ set_target_properties(REFCoreDeps PROPERTIES VS_PACKAGE_REFERENCES "${REFRAMEWOR
 type = "shared"
 include-directories = ["../include/"]
 sources = ["REFrameworkNET/**.cpp", "REFrameworkNET/**.c"]
-headers = ["REFrameworkNET/**.hpp", "REFrameworkNET/**.h"]
+headers = ["REFrameworkNET/**.hpp", "REFrameworkNET/**.h", "REFrameworkNET/**.inl"]
 compile-features = ["cxx_std_20"]
 compile-options = ["/EHa", "/MD", "/doc"]
 link-libraries = [
@@ -203,6 +203,7 @@ VS_DOTNET_REFERENCE_REFCoreDeps
 )
 
 set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCoreDeps")
+add_subdirectory(test/ValueTypePinning)
 """
 
 [target.csharp-api.properties]

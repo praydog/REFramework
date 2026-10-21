@@ -157,7 +157,8 @@ System::Object^ Utility::BoxData(uintptr_t* ptr, TypeDefinition^ t, bool fromInv
         {
             // Here's hoping this works
             auto vt = gcnew REFrameworkNET::ValueType(t);
-            memcpy(vt->Ptr(), ptr, t->ValueTypeSize);
+            ObjectAddress address(vt);
+            memcpy(address.Ptr(), ptr, t->ValueTypeSize);
             result = vt;
         }
         break;

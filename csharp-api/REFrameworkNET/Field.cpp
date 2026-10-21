@@ -128,10 +128,11 @@ namespace REFrameworkNET {
             const auto iobject_td = iobject != nullptr ? iobject->GetTypeDefinition() : nullptr;
 
             if (iobject != nullptr && iobject_td == field_type) {
+                ObjectAddress source(iobject);
                 if (iobject->IsManaged()) {
-                    memcpy((void*)data_ptr, (void*)((uintptr_t)iobject->Ptr() + iobject_td->GetFieldPtrOffset()), field_type->ValueTypeSize);
+                    memcpy((void*)data_ptr, (void*)(source.Address() + iobject_td->GetFieldPtrOffset()), field_type->ValueTypeSize);
                 } else {
-                    memcpy((void*)data_ptr, iobject->Ptr(), field_type->ValueTypeSize);
+                    memcpy((void*)data_ptr, source.Ptr(), field_type->ValueTypeSize);
                 }
             }
 
