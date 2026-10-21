@@ -56,6 +56,11 @@ namespace ns_dd2 {
 #include "sdk/regenny/dd2/via/SceneView.hpp"
 }
 
+namespace ns_dd2_tdb83 {
+#include "sdk/regenny/dd2_tdb83/via/Window.hpp"
+#include "sdk/regenny/dd2_tdb83/via/SceneView.hpp"
+}
+
 // re9 headers are already included globally by the caller — use ::regenny::via.
 
 // ── Dispatch helpers ────────────────────────────────────────────────────────
@@ -73,6 +78,7 @@ namespace W {
     using re4    = ns_re4::regenny::via::Window;
     using sf6    = ns_sf6::regenny::via::Window;
     using dd2    = ns_dd2::regenny::via::Window;
+    using dd2_tdb83    = ns_dd2_tdb83::regenny::via::Window;
     using re9    = ::regenny::via::Window;  // global — already included
 }
 
@@ -85,6 +91,7 @@ namespace SV {
     using re4    = ns_re4::regenny::via::SceneView;
     using sf6    = ns_sf6::regenny::via::SceneView;
     using dd2    = ns_dd2::regenny::via::SceneView;
+    using dd2_tdb83 = ns_dd2_tdb83::regenny::via::SceneView;
     using re9    = ::regenny::via::SceneView;  // global
 }
 
@@ -107,8 +114,8 @@ namespace SV {
     case sdk::GameID::KUNITSU:                                       \
     case sdk::GameID::ONIMUSHA2:                                     \
     case sdk::GameID::DRDR:                                          \
-    case sdk::GameID::DD2:                                          \
     case sdk::GameID::MHSTORIES3: return ((W::dd2*)(w))->field;    \
+    case sdk::GameID::DD2: return ((W::dd2_tdb83*)(w))->field; \
     default:                   return ((W::re9*)(w))->field;    \
     }
 
@@ -132,8 +139,8 @@ inline uint32_t& window_height(void* w) { VIA_WIN_FIELD(w, height); }
     case sdk::GameID::KUNITSU:                                       \
     case sdk::GameID::ONIMUSHA2:                                     \
     case sdk::GameID::DRDR:                                          \
-    case sdk::GameID::DD2:                                                     \
     case sdk::GameID::MHSTORIES3: return ((W::dd2*)(w))->borderless_size.sub;     \
+    case sdk::GameID::DD2: return ((W::dd2_tdb83*)(w))->borderless_size.sub; \
     default:                   return ((W::re9*)(w))->borderless_size.sub;     \
     }
 
@@ -161,8 +168,8 @@ inline void* sv_window(void* sv) {
     case sdk::GameID::KUNITSU:
     case sdk::GameID::ONIMUSHA2:
     case sdk::GameID::DRDR:
-    case sdk::GameID::DD2:
     case sdk::GameID::MHSTORIES3: return ((SV::dd2*)sv)->window;
+    case sdk::GameID::DD2:     return ((SV::dd2_tdb83*)sv)->window;
     default:                   return ((SV::re9*)sv)->window;
     }
 }
@@ -183,8 +190,8 @@ inline void* sv_window(void* sv) {
     case sdk::GameID::GS456:                                         \
     case sdk::GameID::KUNITSU:                                       \
     case sdk::GameID::ONIMUSHA2:                                     \
-    case sdk::GameID::DRDR:                                          \
-    case sdk::GameID::DD2:     return ((SV::dd2*)(sv))->size.sub;    \
+    case sdk::GameID::DRDR: return ((SV::dd2*)(sv))->size.sub;       \
+    case sdk::GameID::DD2:     return ((SV::dd2_tdb83*)(sv))->size.sub;    \
     default:                   return ((SV::re9*)(sv))->size.sub;    \
     }
 
@@ -209,8 +216,8 @@ inline int32_t& sv_display_type(void* sv) {
     case sdk::GameID::GS456:
     case sdk::GameID::KUNITSU:
     case sdk::GameID::ONIMUSHA2:
-    case sdk::GameID::DRDR:
-    case sdk::GameID::DD2:     return *(int32_t*)&((SV::dd2*)sv)->display_type;
+    case sdk::GameID::DRDR:    return *(int32_t*)&((SV::dd2*)sv)->display_type;
+    case sdk::GameID::DD2:     return *(int32_t*)&((SV::dd2_tdb83*)sv)->display_type;
     default:                   return *(int32_t*)&((SV::re9*)sv)->display_type;
     }
 }
