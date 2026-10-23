@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -1973,17 +1974,17 @@ void REFramework::draw_ui() {
     bool is_open = true;
     ImGui::Begin(REF_NAME.c_str(), &is_open);
     const auto* main_window = ImGui::GetCurrentWindow();
-    ImGui::Text("Default Menu Key: Insert");
-    ImGui::Checkbox("Transparency", &m_ui_option_transparent);
+    ImGui::Text(reframework::localization::text("Default Menu Key: Insert"));
+    ImGui::Checkbox(reframework::localization::label("Transparency").c_str(), &m_ui_option_transparent);
     ImGui::SameLine();
     ImGui::Text("(?)");
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Makes the UI transparent when not focused.");
-    ImGui::Checkbox("Input Passthrough", &m_ui_passthrough);
+        ImGui::SetTooltip(reframework::localization::text("Makes the UI transparent when not focused."));
+    ImGui::Checkbox(reframework::localization::label("Input Passthrough").c_str(), &m_ui_passthrough);
     ImGui::SameLine();
     ImGui::Text("(?)");
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Allows mouse and keyboard inputs to register to the game while the UI is focused.");
+        ImGui::SetTooltip(reframework::localization::text("Allows mouse and keyboard inputs to register to the game while the UI is focused."));
 
     // Mods:
     draw_about();
@@ -1991,10 +1992,10 @@ void REFramework::draw_ui() {
     if (m_error.empty() && m_game_data_initialized) {
         m_mods->on_draw_ui();
     } else if (!m_game_data_initialized) {
-        ImGui::TextWrapped("REFramework is currently initializing...");
-        ImGui::TextWrapped("This menu will close after initialization if you have the remember option enabled.");
+        ImGui::TextWrapped(reframework::localization::text("REFramework is currently initializing..."));
+        ImGui::TextWrapped(reframework::localization::text("This menu will close after initialization if you have the remember option enabled."));
     } else if (!m_error.empty()) {
-        ImGui::TextWrapped("REFramework error: %s", m_error.c_str());
+        ImGui::TextWrapped(reframework::localization::text("REFramework error: %s"), m_error.c_str());
     }
 
     m_last_window_pos = main_window->Pos;
@@ -2019,27 +2020,27 @@ void REFramework::draw_ui() {
 }
 
 void REFramework::draw_about() {
-    if (!ImGui::CollapsingHeader("About")) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label("About").c_str())) {
         return;
     }
 
     ImGui::TreePush("About");
 
-    ImGui::Text("Author: praydog");
-    ImGui::Text("Inspired by the Kanan project.");
+    ImGui::Text(reframework::localization::text("Author: praydog"));
+    ImGui::Text(reframework::localization::text("Inspired by the Kanan project."));
     ImGui::Text("https://github.com/praydog/REFramework");
     ImGui::Text("http://praydog.com");
-    ImGui::Text("Branch: %s", REF_BRANCH);
-    ImGui::Text("Commits: %i", REF_TOTAL_COMMITS);
-    ImGui::Text("Commit hash: %s", std::format("{:.8}", REF_COMMIT_HASH).c_str());
-    ImGui::Text("Tag: %s", REF_TAG);
+    ImGui::Text(reframework::localization::text("Branch: %s"), REF_BRANCH);
+    ImGui::Text(reframework::localization::text("Commits: %i"), REF_TOTAL_COMMITS);
+    ImGui::Text(reframework::localization::text("Commit hash: %s"), std::format("{:.8}", REF_COMMIT_HASH).c_str());
+    ImGui::Text(reframework::localization::text("Tag: %s"), REF_TAG);
 #ifdef REF_COMMITS_PAST_TAG
-    ImGui::Text("Commits past tag: %i", REF_COMMITS_PAST_TAG);
+    ImGui::Text(reframework::localization::text("Commits past tag: %i"), REF_COMMITS_PAST_TAG);
 #endif
-    ImGui::Text("Build date: %s", REF_BUILD_DATE);
-    ImGui::Text("Build time: %s", REF_BUILD_TIME);
+    ImGui::Text(reframework::localization::text("Build date: %s"), REF_BUILD_DATE);
+    ImGui::Text(reframework::localization::text("Build time: %s"), REF_BUILD_TIME);
 
-    if (ImGui::TreeNode("Licenses")) {
+    if (ImGui::TreeNode(reframework::localization::label("Licenses").c_str())) {
         struct License {
             std::string name;
             std::string text;
@@ -2106,15 +2107,15 @@ void REFramework::draw_about() {
                 }
             }
 
-            ImGui::Text("Engine information");
-            ImGui::Text(" Config: %s", engine_config.c_str());
-            ImGui::Text(" Version: %s", clean_version.c_str());
-            ImGui::Text(" TDB Version: %i", tdb_version);
+            ImGui::Text(reframework::localization::text("Engine information"));
+            ImGui::Text(reframework::localization::text(" Config: %s"), engine_config.c_str());
+            ImGui::Text(reframework::localization::text(" Version: %s"), clean_version.c_str());
+            ImGui::Text(reframework::localization::text(" TDB Version: %i"), tdb_version);
         } catch(...) {
-            ImGui::Text("Unable to determine engine version.");
+            ImGui::Text(reframework::localization::text("Unable to determine engine version."));
         }
     } else {
-        ImGui::Text("Unable to determine engine version.");
+        ImGui::Text(reframework::localization::text("Unable to determine engine version."));
     }
 
     ImGui::TreePop();
