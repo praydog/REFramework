@@ -47,6 +47,16 @@ struct ImGui_ImplDX12_InitInfo
     ImGui_ImplDX12_InitInfo()   { memset((void*)this, 0, sizeof(*this)); }
 };
 
+// REFramework: HDR output for the ImGui overlay.
+// Mode: 0 = Off, 1 = Auto (by render target format), 2 = Force HDR10 (PQ), 3 = Force scRGB.
+// Forced modes only apply to render targets that are not 8-bit, so SDR targets (VR texture) are untouched.
+struct ImGui_ImplDX12_HDRSettings
+{
+    int     Mode = 1;
+    float   PaperWhiteNits = 203.0f;
+};
+IMGUI_IMPL_API ImGui_ImplDX12_HDRSettings& ImGui_ImplDX12_GetHDRSettings();
+
 // Follow "Getting Started" link and check examples/ folder to learn about using backends!
 IMGUI_IMPL_API bool     ImGui_ImplDX12_Init(ImGui_ImplDX12_InitInfo* info);
 IMGUI_IMPL_API void     ImGui_ImplDX12_Shutdown();

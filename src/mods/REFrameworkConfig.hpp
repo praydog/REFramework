@@ -21,6 +21,8 @@ public:
     void on_config_load(const utility::Config& cfg) override;
     void on_config_save(utility::Config& cfg) override;
 
+    void apply_hdr_menu_settings();
+
     auto& get_menu_key() {
         return m_menu_key;
     }
@@ -58,6 +60,8 @@ private:
     ModInt32::Ptr m_ui_monitor_width{ModInt32::create(UI_MONITOR_WIDTH_CONFIG_NAME, 0)};
     ModInt32::Ptr m_ui_monitor_height{ModInt32::create(UI_MONITOR_HEIGHT_CONFIG_NAME, 0)};
     ModFloat::Ptr m_ui_font_size{ModFloat::create(UI_FONT_SIZE_CONFIG_NAME, 0.0f)};
+    ModCombo::Ptr m_hdr_menu_mode{ModCombo::create(generate_name("HDRMenuMode"), {"Off", "Auto", "Force HDR10 (PQ)", "Force scRGB"}, 1)};
+    ModSlider::Ptr m_hdr_menu_paper_white{ModSlider::create(generate_name("HDRMenuPaperWhiteNits"), 10.0f, 500.0f, 203.0f)};
     std::vector<std::string> fonts{};
     ModComboString::Ptr m_font_file{};
 
@@ -71,5 +75,7 @@ private:
         *m_ui_monitor_width,
         *m_ui_monitor_height,
         *m_ui_font_size,
+        *m_hdr_menu_mode,
+        *m_hdr_menu_paper_white,
     };
 };

@@ -126,6 +126,36 @@ struct VERTEX_CONSTANT_BUFFER_DX12
     float   mvp[4][4];
 };
 
+// REFramework: HDR output for the ImGui overlay
+static ImGui_ImplDX12_HDRSettings g_ImGui_ImplDX12_HDRSettings{};
+
+ImGui_ImplDX12_HDRSettings& ImGui_ImplDX12_GetHDRSettings()
+{
+    return g_ImGui_ImplDX12_HDRSettings;
+}
+
+// 0 = SDR passthrough, 1 = HDR10 PQ (BT.2020), 2 = scRGB (linear, 1.0 = 80 nits)
+static float ImGui_ImplDX12_GetHDREncoding(DXGI_FORMAT fmt)
+{
+    const auto& hdr = g_ImGui_ImplDX12_HDRSettings;
+    const bool is_8bit = fmt == DXGI_FORMAT_R8G8B8A8_UNORM || fmt == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || fmt == DXGI_FORMAT_R8G8B8A8_TYPELESS
+        || fmt == DXGI_FORMAT_B8G8R8A8_UNORM || fmt == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB || fmt == DXGI_FORMAT_B8G8R8A8_TYPELESS;
+
+    switch (hdr.Mode)
+    {
+    case 1:
+        if (fmt == DXGI_FORMAT_R10G10B10A2_UNORM) return 1.0f;
+        if (fmt == DXGI_FORMAT_R16G16B16A16_FLOAT) return 2.0f;
+        return 0.0f;
+    case 2:
+        return is_8bit ? 0.0f : 1.0f;
+    case 3:
+        return is_8bit ? 0.0f : 2.0f;
+    default:
+        return 0.0f;
+    }
+}
+
 // Functions
 static void ImGui_ImplDX12_SetupRenderState(ImDrawData* draw_data, ID3D12GraphicsCommandList* command_list, ImGui_ImplDX12_RenderBuffers* fr)
 {
@@ -175,6 +205,14 @@ static void ImGui_ImplDX12_SetupRenderState(ImDrawData* draw_data, ID3D12Graphic
     command_list->SetPipelineState(bd->pPipelineState);
     command_list->SetGraphicsRootSignature(bd->pRootSignature);
     command_list->SetGraphicsRoot32BitConstants(0, 16, &vertex_constant_buffer, 0);
+
+    // REFramework: HDR parameters for the pixel shader (b1)
+    {
+        const float encoding = ImGui_ImplDX12_GetHDREncoding(bd->RTVFormat);
+        const float nits = g_ImGui_ImplDX12_HDRSettings.PaperWhiteNits < 1.0f ? 1.0f : g_ImGui_ImplDX12_HDRSettings.PaperWhiteNits;
+        float hdr_params[4] = { encoding, encoding == 2.0f ? nits / 80.0f : nits / 10000.0f, 0.0f, 0.0f };
+        command_list->SetGraphicsRoot32BitConstants(2, 4, hdr_params, 0);
+    }
 
     // Setup blend factor
     const float blend_factor[4] = { 0.f, 0.f, 0.f, 0.f };
@@ -566,7 +604,7 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
         descRange.RegisterSpace = 0;
         descRange.OffsetInDescriptorsFromTableStart = 0;
 
-        D3D12_ROOT_PARAMETER param[2] = {};
+        D3D12_ROOT_PARAMETER param[3] = {};
 
         param[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
         param[0].Constants.ShaderRegister = 0;
@@ -578,6 +616,13 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
         param[1].DescriptorTable.NumDescriptorRanges = 1;
         param[1].DescriptorTable.pDescriptorRanges = &descRange;
         param[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+        // REFramework: HDR parameters (b1)
+        param[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+        param[2].Constants.ShaderRegister = 1;
+        param[2].Constants.RegisterSpace = 0;
+        param[2].Constants.Num32BitValues = 4;
+        param[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
         // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
         D3D12_STATIC_SAMPLER_DESC staticSampler = {};
@@ -707,20 +752,52 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
     // Create the pixel shader
     {
         static const char* pixelShader =
-            "struct PS_INPUT\
-            {\
-              float4 pos : SV_POSITION;\
-              float4 col : COLOR0;\
-              float2 uv  : TEXCOORD0;\
-            };\
-            SamplerState sampler0 : register(s0);\
-            Texture2D texture0 : register(t0);\
-            \
-            float4 main(PS_INPUT input) : SV_Target\
-            {\
-              float4 out_col = input.col * texture0.Sample(sampler0, input.uv); \
-              return out_col; \
-            }";
+            "struct PS_INPUT\n"
+            "{\n"
+            "  float4 pos : SV_POSITION;\n"
+            "  float4 col : COLOR0;\n"
+            "  float2 uv  : TEXCOORD0;\n"
+            "};\n"
+            "cbuffer hdrBuffer : register(b1) { float4 hdr_params; };\n"
+            "SamplerState sampler0 : register(s0);\n"
+            "Texture2D texture0 : register(t0);\n"
+            "float3 srgb_to_linear(float3 c)\n"
+            "{\n"
+            "  float3 lo = c / 12.92;\n"
+            "  float3 hi = pow((c + 0.055) / 1.055, 2.4);\n"
+            "  return lerp(hi, lo, step(c, 0.04045));\n"
+            "}\n"
+            "float3 linear_to_pq(float3 l)\n"
+            "{\n"
+            "  const float m1 = 0.1593017578125;\n"
+            "  const float m2 = 78.84375;\n"
+            "  const float c1 = 0.8359375;\n"
+            "  const float c2 = 18.8515625;\n"
+            "  const float c3 = 18.6875;\n"
+            "  float3 p = pow(saturate(l), m1);\n"
+            "  return pow((c1 + c2 * p) / (1.0 + c3 * p), m2);\n"
+            "}\n"
+            "float4 main(PS_INPUT input) : SV_Target\n"
+            "{\n"
+            "  float4 out_col = input.col * texture0.Sample(sampler0, input.uv);\n"
+            "  if (hdr_params.x > 0.5)\n"
+            "  {\n"
+            "    float3 lin = srgb_to_linear(saturate(out_col.rgb));\n"
+            "    if (hdr_params.x < 1.5)\n"
+            "    {\n"
+            "      const float3x3 bt709_to_bt2020 = float3x3(\n"
+            "        0.6274040, 0.3292820, 0.0433136,\n"
+            "        0.0690970, 0.9195400, 0.0113612,\n"
+            "        0.0163916, 0.0880132, 0.8955950);\n"
+            "      out_col.rgb = linear_to_pq(mul(bt709_to_bt2020, lin) * hdr_params.y);\n"
+            "    }\n"
+            "    else\n"
+            "    {\n"
+            "      out_col.rgb = lin * hdr_params.y;\n"
+            "    }\n"
+            "  }\n"
+            "  return out_col;\n"
+            "}\n";
 
         if (FAILED(D3DCompile(pixelShader, strlen(pixelShader), nullptr, nullptr, nullptr, "main", "ps_5_0", 0, 0, &pixelShaderBlob, nullptr)))
         {

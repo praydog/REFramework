@@ -2,6 +2,8 @@
 
 #include "REFrameworkConfig.hpp"
 
+#include "re2-imgui/imgui_impl_dx12.h"
+
 std::shared_ptr<REFrameworkConfig>& REFrameworkConfig::get() {
      static std::shared_ptr<REFrameworkConfig> instance{std::make_shared<REFrameworkConfig>()};
      return instance;
@@ -66,11 +68,31 @@ void REFrameworkConfig::on_draw_ui() {
         changed = true;
     }
 
+    if (m_hdr_menu_mode->draw("HDR Menu Mode")) {
+        apply_hdr_menu_settings();
+        changed = true;
+    }
+
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Auto converts the menu to HDR when the game outputs a 10-bit (HDR10) or 16-bit float (scRGB) swapchain. D3D12 only.");
+    }
+
+    if (m_hdr_menu_paper_white->draw("HDR Menu Brightness (nits)")) {
+        apply_hdr_menu_settings();
+        changed = true;
+    }
+
     if (changed) {
         g_framework->request_save_config();
     }
 
     ImGui::TreePop();
+}
+
+void REFrameworkConfig::apply_hdr_menu_settings() {
+    auto& hdr = ImGui_ImplDX12_GetHDRSettings();
+    hdr.Mode = m_hdr_menu_mode->value();
+    hdr.PaperWhiteNits = m_hdr_menu_paper_white->value();
 }
 
 void REFrameworkConfig::on_frame() {
@@ -88,6 +110,8 @@ void REFrameworkConfig::on_config_load(const utility::Config& cfg) {
         g_framework->set_draw_ui(m_menu_open->value(), false);
     }
     
+    apply_hdr_menu_settings();
+
     g_framework->set_font(m_font_file->value());
     const auto saved_font_size = m_ui_font_size->value() > 0.0f
         ? m_ui_font_size->value()
