@@ -155,10 +155,37 @@ bool dump_file(const std::string& filepath, sol::object obj, sol::object indent_
 
     auto path = detail::get_datadir() / filepath;
 
+    // Serialize before touching the file: dump() can throw (e.g. invalid UTF-8),
+    // and opening the target first would already have truncated it.
+    const auto contents = detail::encode_any(obj).dump(indent);
+
     fs::create_directories(path.parent_path());
 
-    std::ofstream f{path};
-    f << detail::encode_any(obj).dump(indent);
+    // Write to a temporary file and swap it in, so a crash or kill mid-write
+    // never leaves the target empty or partially written.
+    auto tmp_path = path;
+    tmp_path += ".tmp";
+
+    {
+        std::ofstream f{tmp_path, std::ios::out | std::ios::trunc};
+        f << contents;
+        f.close();
+
+        if (!f) {
+            std::error_code ec{};
+            fs::remove(tmp_path, ec);
+            throw std::runtime_error{"failed to write temporary file"};
+        }
+    }
+
+    try {
+        fs::rename(tmp_path, path);
+    } catch (...) {
+        std::error_code ec{};
+        fs::remove(tmp_path, ec);
+        throw;
+    }
+
     return true;
 } catch (const std::exception& e) {
     spdlog::error("[JSON] Failed to dump file {}: {}", filepath, e.what());
