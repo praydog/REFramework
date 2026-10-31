@@ -472,10 +472,14 @@ bool LooseFileLoader::can_loosely_load_file(const wchar_t* path) {
     }
 
     if (m_path_to_hash_hook == nullptr) {
+        // hook() logs its own failure once; don't spam the log on every call when it failed.
+        if (m_attempted_hook) {
+            return false;
+        }
+
         hook();
 
         if (m_path_to_hash_hook == nullptr) {
-            spdlog::error("[LooseFileLoader] Failed to hook path_to_hash, cannot check if file can be loosely loaded");
             return false;
         }
     }
