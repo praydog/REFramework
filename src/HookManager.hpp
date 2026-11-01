@@ -4,6 +4,7 @@
 #include <functional>
 #include <vector>
 #include <memory>
+#include <atomic>
 #include <mutex>
 #include <stack>
 
@@ -83,7 +84,7 @@ public:
         };
 
         // Thread->storage
-        std::unordered_map<size_t, std::unique_ptr<HookStorage>> thread_storage{};
+        std::unordered_map<std::thread::id, std::unique_ptr<HookStorage>> thread_storage{};
         std::shared_mutex storage_mux{};
 
         HookedFn(HookManager& hm);
@@ -103,7 +104,10 @@ public:
         }
 
         __declspec(noinline) static HookStorage* get_storage(HookedFn* fn) {
-            auto tid = std::hash<std::thread::id>{}(std::this_thread::get_id());
+            // Use the thread id itself as the key instead of std::hash<std::thread::id>.
+            // Hashing the id introduces an unnecessary collision risk and makes the
+            // storage depend on the standard library's hash implementation.
+            auto tid = std::this_thread::get_id();
             {
                 std::shared_lock _{fn->storage_mux};
 
@@ -165,10 +169,12 @@ private:
 
     asmjit::JitRuntime m_jit{};
     std::mutex m_jit_mux{};
+    // Guards container access to m_hooked_fns / m_hooked_vtables in add/add_vtable/remove.
+    std::mutex m_map_mux{};
     std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};
     std::unordered_map<::REManagedObject*, std::unique_ptr<HookedVTable>> m_hooked_vtables{};
 
-    HookId m_next_hook_id{1};
+    std::atomic<HookId> m_next_hook_id{1};
 };
 
 inline HookManager g_hookman{};

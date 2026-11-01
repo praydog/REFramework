@@ -870,6 +870,10 @@ REFramework::~REFramework() {
     ImGui_ImplWin32_Shutdown();
 
     if (m_initialized) {
+        // Destroy ImNodes contexts created during initialization (both D3D11 and
+        // D3D12 backends call ImNodes::CreateContext; a single DestroyContext is
+        // sufficient as ImNodes keeps one global context).
+        ImNodes::DestroyContext();
         ImGui::DestroyContext();
     }
 }
