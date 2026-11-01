@@ -2473,8 +2473,16 @@ struct REMethodDefinition {
         return (TMETH_FIELD_71(this, params_hi) << 13) | TMETH_FIELD_71(this, params_lo);
     }
 
+    // Mirrors via.clr.ParamModifier.
+    enum class ParamModifier : uint8_t {
+        None = 0,
+        Ptr = 1,
+        ByRef = 2,
+    };
+
     std::vector<uint32_t> get_param_typeids() const;
     std::vector<sdk::RETypeDefinition*> get_param_types() const;
+    std::vector<ParamModifier> get_param_modifiers() const;
     std::vector<const char*> get_param_names() const;
 };
 

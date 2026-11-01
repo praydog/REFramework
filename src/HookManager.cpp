@@ -322,22 +322,26 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     };
     
     const auto num_params = fn->get_num_params();
+    const auto param_modifiers = fn->get_param_modifiers();
+
+    // Only by-value floats travel in XMM; out/ref/pointer floats are pointers in the integer registers.
+    auto is_float_arg = [&](uint32_t i) {
+        if (i >= num_params) {
+            return false;
+        }
+
+        if (i < param_modifiers.size() && param_modifiers[i] != sdk::REMethodDefinition::ParamModifier::None) {
+            return false;
+        }
+
+        return arg_tys[i]->get_full_name() == "System.Single";
+    };
 
     // +2 for buffer params to fix possible corruption.
     for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
-        auto is_float = false;
-
-        if (i < num_params) {
-            auto arg_ty = arg_tys[i];
-
-            if (arg_ty->get_full_name() == "System.Single") {
-                is_float = true;
-            }
-        }
-
         const auto args_offset = args_start_offset + (i * 8);
 
-        save_arg(args_offset, is_float);
+        save_arg(args_offset, is_float_arg(i));
     }
 
 
@@ -413,19 +417,9 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     // +2 for buffer params to fix possible corruption.
     for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
-        auto is_float = false;
-
-        if (i < num_params) {
-            auto arg_ty = arg_tys[i];
-
-            if (arg_ty->get_full_name() == "System.Single") {
-                is_float = true;
-            }
-        }
-
         auto args_offset = args_start_offset + (i * 8);
         
-        restore_arg(args_offset, is_float);
+        restore_arg(args_offset, is_float_arg(i));
     }
 
     // Call original function.

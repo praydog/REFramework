@@ -841,6 +841,49 @@ std::vector<uint32_t> REMethodDefinition::get_param_typeids() const {
     }
 }
 
+std::vector<REMethodDefinition::ParamModifier> REMethodDefinition::get_param_modifiers() const {
+    const auto param_list = get_param_index();
+
+    auto tdb = RETypeDB::get();
+
+    std::vector<ParamModifier> out{};
+
+    if (sdk::GameIdentity::get().tdb_ver() >= 69) {
+        auto param_ids = tdb->get_data<sdk::ParamList>(param_list);
+        const auto num_params = param_ids->numParams;
+
+        for (auto f = 0; f < num_params; ++f) {
+            const auto param_index = param_ids->params[f] & tdb->get_param_bitmask();
+
+            if (param_index >= tdb->get_num_params()) {
+                break;
+            }
+
+            auto& p = tdb->get_param_at(param_index);
+
+            out.push_back((ParamModifier)TPARAM_FIELD(&p, modifier));
+        }
+    } else {
+        // Older TDBs have no modifier field; ByRef/Ptr live in the param flags instead.
+        const auto param_ids = tdb->get_data<sdk::tdb67::REMethodParamDef>(param_list);
+        const auto num_params = get_num_params();
+
+        for (uint32_t f = 0; f < num_params; ++f) {
+            const auto flags = (uint32_t)param_ids[f].flags;
+
+            if (flags & (uint32_t)::via::clr::ParamFlag::ByRef) {
+                out.push_back(ParamModifier::ByRef);
+            } else if (flags & (uint32_t)::via::clr::ParamFlag::Ptr) {
+                out.push_back(ParamModifier::Ptr);
+            } else {
+                out.push_back(ParamModifier::None);
+            }
+        }
+    }
+
+    return out;
+}
+
 std::vector<sdk::RETypeDefinition*> REMethodDefinition::get_param_types() const {
     auto typeids = get_param_typeids();
 
