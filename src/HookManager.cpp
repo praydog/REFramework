@@ -324,6 +324,11 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     const auto num_params = fn->get_num_params();
     const auto param_modifiers = fn->get_param_modifiers();
 
+    auto is_float_type = [](sdk::RETypeDefinition* t) {
+        const auto name = t->get_full_name();
+        return name == "System.Single" || name == "System.Double";
+    };
+
     // Only by-value floats travel in XMM; out/ref/pointer floats are pointers in the integer registers.
     auto is_float_arg = [&](uint32_t i) {
         if (i >= num_params) {
@@ -334,7 +339,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
             return false;
         }
 
-        return arg_tys[i]->get_full_name() == "System.Single";
+        return is_float_type(arg_tys[i]);
     };
 
     // +2 for buffer params to fix possible corruption.
@@ -459,7 +464,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     constexpr auto ret_val_offset = offsetof(HookedFn::HookStorage, ret_val);
     //a.lea(rcx, ptr(r10, ret_val_offset));
 
-    auto is_ret_ty_float = hook->ret_ty->get_full_name() == "System.Single";
+    auto is_ret_ty_float = is_float_type(hook->ret_ty);
 
     if (is_ret_ty_float) {
         a.movq(ptr(r10, ret_val_offset), xmm0);
