@@ -1,6 +1,7 @@
 #include <spdlog/spdlog.h>
 #include <MinHook.h>
 
+#include "Arm64EC.hpp"
 #include "FunctionHookMinHook.hpp"
 
 using namespace std;
@@ -39,6 +40,11 @@ FunctionHookMinHook::~FunctionHookMinHook() {
 bool FunctionHookMinHook::create() {
     if (m_target == 0 || m_destination == 0 || m_original == 0) {
         spdlog::error("FunctionHookMinHook not initialized");
+        return false;
+    }
+
+    if (utility::is_arm64ec_code(m_target)) {
+        spdlog::error("Failed to hook {:x}: target is ARM64EC code", m_target);
         return false;
     }
 
