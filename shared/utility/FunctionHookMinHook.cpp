@@ -21,6 +21,13 @@ FunctionHookMinHook::FunctionHookMinHook(Address target, Address destination)
         g_isMinHookInitialized = true;
     }
 
+    // Check before MH_CreateHook: it would decode the ARM64 code as x86-64 to build a trampoline,
+    // and a created-but-never-enabled hook can't be removed (MH_DisableHook fails first in remove()).
+    if (utility::is_arm64ec_code(target.as<uintptr_t>())) {
+        spdlog::error("Failed to hook {:p}: target is ARM64EC code", target.ptr());
+        return;
+    }
+
     // Create the hook. Call create afterwards to prevent race conditions accessing FunctionHookMinHook before it leaves its constructor.
     if (auto status = MH_CreateHook(target.as<LPVOID>(), destination.as<LPVOID>(), (LPVOID*)&m_original); status == MH_OK) {
         m_target = target;
@@ -40,11 +47,6 @@ FunctionHookMinHook::~FunctionHookMinHook() {
 bool FunctionHookMinHook::create() {
     if (m_target == 0 || m_destination == 0 || m_original == 0) {
         spdlog::error("FunctionHookMinHook not initialized");
-        return false;
-    }
-
-    if (utility::is_arm64ec_code(m_target)) {
-        spdlog::error("Failed to hook {:x}: target is ARM64EC code", m_target);
         return false;
     }
 
