@@ -2,6 +2,7 @@
 
 #include <safetyhook/inline_hook.hpp>
 
+#include "Arm64EC.hpp"
 #include "FunctionHook.hpp"
 
 using namespace std;
@@ -27,6 +28,11 @@ bool FunctionHook::create() {
 
     if (is_valid_unsafe()) {
         return true;
+    }
+
+    if (utility::is_arm64ec_code(m_target)) {
+        spdlog::error("Failed to hook {:x}: target is ARM64EC code", m_target);
+        return false;
     }
 
     try {

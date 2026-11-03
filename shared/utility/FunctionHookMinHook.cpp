@@ -1,6 +1,7 @@
 #include <spdlog/spdlog.h>
 #include <MinHook.h>
 
+#include "Arm64EC.hpp"
 #include "FunctionHookMinHook.hpp"
 
 using namespace std;
@@ -18,6 +19,13 @@ FunctionHookMinHook::FunctionHookMinHook(Address target, Address destination)
     // Initialize MinHook if it hasn't been already.
     if (!g_isMinHookInitialized && MH_Initialize() == MH_OK) {
         g_isMinHookInitialized = true;
+    }
+
+    // Check before MH_CreateHook: it would decode the ARM64 code as x86-64 to build a trampoline,
+    // and a created-but-never-enabled hook can't be removed (MH_DisableHook fails first in remove()).
+    if (utility::is_arm64ec_code(target.as<uintptr_t>())) {
+        spdlog::error("Failed to hook {:p}: target is ARM64EC code", target.ptr());
+        return;
     }
 
     // Create the hook. Call create afterwards to prevent race conditions accessing FunctionHookMinHook before it leaves its constructor.
