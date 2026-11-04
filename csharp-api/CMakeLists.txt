@@ -244,6 +244,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/NativeObject.hpp"
 	"REFrameworkNET/NativePool.hpp"
 	"REFrameworkNET/NativeSingleton.hpp"
+	"REFrameworkNET/ObjectAddress.hpp"
 	"REFrameworkNET/ObjectEnumerator.hpp"
 	"REFrameworkNET/Plugin.hpp"
 	"REFrameworkNET/PluginLoadContext.hpp"
@@ -260,6 +261,7 @@ set(csharp-api_SOURCES
 	"REFrameworkNET/Utility.hpp"
 	"REFrameworkNET/VM.hpp"
 	"REFrameworkNET/ValueType.hpp"
+	"REFrameworkNET/ObjectAddress.inl"
 	cmake.toml
 )
 
@@ -338,6 +340,7 @@ VS_DOTNET_REFERENCE_REFCoreDeps
 )
 
 set_target_properties(csharp-api PROPERTIES VS_PACKAGE_REFERENCES "REFCoreDeps")
+add_subdirectory(test/ValueTypePinning)
 
 # Target: AssemblyGenerator
 set(AssemblyGenerator_SOURCES

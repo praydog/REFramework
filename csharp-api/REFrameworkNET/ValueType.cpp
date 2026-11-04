@@ -1,6 +1,7 @@
 #include "Proxy.hpp"
 #include "TDB.hpp"
 #include "ValueType.hpp"
+#include "ObjectAddress.inl"
 
 namespace REFrameworkNET {
 generic <typename T>

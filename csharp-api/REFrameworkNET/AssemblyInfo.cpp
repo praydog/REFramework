@@ -12,3 +12,4 @@ using namespace System::Security::Permissions;
 [assembly:AssemblyCopyrightAttribute("Copyright © praydog 2024")];
 [assembly:AssemblyCultureAttribute("")];
 [assembly:AssemblyVersionAttribute("1.0.0")];
+[assembly:InternalsVisibleToAttribute("REFramework.NET.ValueTypePinning.Tests")];

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <BridgeDirectory Condition="'$(BridgeDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\..\build\bin</BridgeDirectory>
+    <TestDirectory Condition="'$(TestDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\..\build\tests\ValueTypePinning</TestDirectory>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="REFramework.NET" HintPath="$(BridgeDirectory)\REFramework.NET.dll" />
+    <Reference Include="REFramework.NET.ValueTypePinning.Tests" HintPath="$(TestDirectory)\REFramework.NET.ValueTypePinning.Tests.dll" />
+    <None Include="$(BridgeDirectory)\Ijwhost.dll" Link="Ijwhost.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
