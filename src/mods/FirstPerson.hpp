@@ -57,6 +57,10 @@ public:
         return m_was_gripping_weapon;
     }
 
+    const auto& get_last_camera_matrix() const {
+        return m_last_camera_matrix;
+    }
+
 protected:
     // gross
     bool list_box_handler_attach(void* data, int idx, const char** out_text) {

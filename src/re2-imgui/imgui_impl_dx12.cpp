@@ -58,6 +58,8 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <d3dcompiler.h>
+
+#include <spdlog/spdlog.h>
 #ifdef _MSC_VER
 #pragma comment(lib, "d3dcompiler") // Automatically link with d3dcompiler.lib as we are using D3DCompile() below.
 #endif
@@ -325,6 +327,22 @@ void ImGui_ImplDX12_RenderDrawData(ImDrawData* draw_data, ID3D12GraphicsCommandL
                 // Bind texture, Draw
                 D3D12_GPU_DESCRIPTOR_HANDLE texture_handle = {};
                 texture_handle.ptr = (UINT64)pcmd->GetTexID();
+
+                // REFramework renders the same draw data through two backend instances (backbuffer and
+                // VR) by swapping BackendRendererUserData. The atlas' ImTextureData carries whichever
+                // TexID the last backend registered, so a pass can end up with none at all. Feeding a
+                // null handle to SetGraphicsRootDescriptorTable is INVALID_DESCRIPTOR_HANDLE (#646),
+                // which removes the device, so drop the draw instead.
+                if (texture_handle.ptr == 0) {
+                    static int s_null_texture_warnings = 0;
+
+                    if (s_null_texture_warnings++ < 8) {
+                        spdlog::error("[ImGui] Skipping draw with a null texture handle (backend data {})", (void*)bd);
+                    }
+
+                    continue;
+                }
+
                 command_list->SetGraphicsRootDescriptorTable(1, texture_handle);
                 command_list->DrawIndexedInstanced(pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
             }
