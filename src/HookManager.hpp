@@ -169,8 +169,13 @@ private:
 
     asmjit::JitRuntime m_jit{};
     std::mutex m_jit_mux{};
-    // Guards container access to m_hooked_fns / m_hooked_vtables in add/add_vtable/remove.
+    // m_map_mux guards m_hooked_fns (entries are never erased). It is never held while waiting on a
+    // hook's access_mux, because hook callbacks hold access_mux shared and may call add()/remove().
+    // m_vtable_mux guards m_hooked_vtables and is held across vtable hook operations, including access_mux
+    // waits: only Lua creates vtable hooks, and Lua callbacks never call into HookManager.
+    // The two mutexes are never held together.
     std::mutex m_map_mux{};
+    std::mutex m_vtable_mux{};
     std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};
     std::unordered_map<::REManagedObject*, std::unique_ptr<HookedVTable>> m_hooked_vtables{};
 

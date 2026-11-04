@@ -570,13 +570,17 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
 
     spdlog::info("[HookManager] Adding hook for '{}' @ {:p}...", fn->get_name(), target_fn);
 
-    // Serialize access to the hook containers across add/add_vtable/remove.
+    // m_map_mux guards m_hooked_fns only. Never wait on a hook's access_mux while holding it:
+    // callbacks run with access_mux held shared and may call add()/remove() themselves.
     std::unique_lock map_lock{m_map_mux};
 
     if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+        // Entries in m_hooked_fns are never erased, so the HookedFn outlives the map lock.
+        auto hook = search->second.get();
+        map_lock.unlock();
+
         spdlog::info("[HookManager] Reusing existing hook...");
 
-        auto& hook = search->second;
         std::scoped_lock _{hook->mux};
         std::unique_lock __{hook->access_mux};
         auto hook_id = m_next_hook_id++;
@@ -590,6 +594,8 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
         return hook_id;
     }
 
+    // Keep holding m_map_mux while creating, so two threads can't both create a hook for fn.
+    // Nothing below waits on an access_mux, so this can't deadlock with in-flight callbacks.
     spdlog::info("[HookManager] Creating a new hook...");
 
     auto hook = std::make_unique<HookedFn>(*this);
@@ -661,8 +667,8 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
         return HookId{};
     }
 
-    // Serialize access to the hook containers across add/add_vtable/remove.
-    std::unique_lock map_lock{m_map_mux};
+    // m_vtable_mux guards m_hooked_vtables. It is never held together with m_map_mux.
+    std::unique_lock vtable_lock{m_vtable_mux};
 
     auto search = m_hooked_vtables.find(obj);
 
@@ -759,18 +765,27 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
 }
 
 void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
-    // Serialize access to the hook containers across add/add_vtable/remove.
-    std::unique_lock map_lock{m_map_mux};
+    HookedFn* hooked_fn{};
 
-    if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+    {
+        // See add(): never wait on a hook's access_mux while holding m_map_mux.
+        std::scoped_lock map_lock{m_map_mux};
+
+        if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+            hooked_fn = search->second.get(); // never erased, outlives the lock
+        }
+    }
+
+    if (hooked_fn != nullptr) {
         spdlog::info("[HookManager] Removing hook ID {} from '{}'", id, fn->get_name());
 
-        auto& hook = search->second;
-        auto& cbs = hook->cbs;
-        std::scoped_lock _{hook->mux};
-        std::unique_lock __{hook->access_mux};
+        auto& cbs = hooked_fn->cbs;
+        std::scoped_lock _{hooked_fn->mux};
+        std::unique_lock __{hooked_fn->access_mux};
         cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }), cbs.end());
     } else {
+        std::scoped_lock vtable_lock{m_vtable_mux};
+
         std::vector<::REManagedObject*> queued_vtable_deletions{};
 
         // Search through the vtable hooks.
