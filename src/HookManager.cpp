@@ -357,17 +357,6 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
         return is_float_type(arg_tys[i]);
     };
 
-    // The first argument is stored into args_impl[0] (static) / args_impl[1]
-    // (non-static) using the integer register only. Persist the matching XMM
-    // register here; save_arg has no case for these slots (xmm0/xmm1).
-    if (num_params > 0 && is_float_arg(0)) {
-        if (fn->is_static()) {
-            a.movq(ptr(rax), xmm0);
-        } else {
-            a.movq(ptr(rax, 8), xmm1);
-        }
-    }
-
     // +2 for buffer params to fix possible corruption.
     for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
         const auto args_offset = args_start_offset + (i * 8);
@@ -445,15 +434,6 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
             break;
         }
     };
-
-    // Restore the first argument's XMM register (see save side above).
-    if (num_params > 0 && is_float_arg(0)) {
-        if (fn->is_static()) {
-            a.movq(xmm0, ptr(rax));
-        } else {
-            a.movq(xmm1, ptr(rax, 8));
-        }
-    }
 
     // +2 for buffer params to fix possible corruption.
     for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
