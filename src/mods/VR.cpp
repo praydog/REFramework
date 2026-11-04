@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #define NOMINMAX
 
 #include <fstream>
@@ -3688,7 +3689,7 @@ void VR::on_draw_ui() {
         }
     }
 
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 

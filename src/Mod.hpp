@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Localization.hpp"
+
 // Game can't use virtual keys unless the menu is open.
 #define DIRECTINPUT_VERSION 0x0800
 #include <dinput.h>
@@ -96,7 +98,7 @@ public:
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::Checkbox(name.data(), &m_value);
+        auto ret = ImGui::Checkbox(reframework::localization::label(name).c_str(), &m_value);
         ImGui::PopID();
 
         return ret;
@@ -124,7 +126,7 @@ public:
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::InputFloat(name.data(), &m_value);
+        auto ret = ImGui::InputFloat(reframework::localization::label(name).c_str(), &m_value);
         ImGui::PopID();
 
         return ret;
@@ -151,7 +153,7 @@ public:
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::SliderFloat(name.data(), &m_value, m_range.x, m_range.y);
+        auto ret = ImGui::SliderFloat(reframework::localization::label(name).c_str(), &m_value, m_range.x, m_range.y);
         ImGui::PopID();
 
         return ret;
@@ -184,7 +186,7 @@ public:
 
     bool draw(std::string_view name) override {
         ImGui::PushID(this);
-        auto ret = ImGui::SliderInt(name.data(), &m_value, 5, 40);
+        auto ret = ImGui::SliderInt(reframework::localization::label(name).c_str(), &m_value, 5, 40);
         ImGui::PopID();
 
         return ret;
@@ -217,7 +219,8 @@ public:
         m_value = std::clamp<int32_t>(m_value, 0, static_cast<int32_t>(m_options.size()) - 1);
 
         ImGui::PushID(this);
-        auto ret = ImGui::Combo(name.data(), &m_value, m_options.data(), static_cast<int32_t>(m_options.size()));
+        const auto display_options = reframework::localization::options(m_options);
+        auto ret = ImGui::Combo(reframework::localization::label(name).c_str(), &m_value, display_options.data(), static_cast<int32_t>(display_options.size()));
         ImGui::PopID();
 
         return ret;
@@ -282,7 +285,8 @@ public:
         index = std::clamp<int32_t>(index, 0, static_cast<int32_t>(m_options.size()) - 1);
 
         ImGui::PushID(this);
-        auto ret = ImGui::Combo(name.data(), &index, m_options.data(), static_cast<int32_t>(m_options.size()));
+        const auto display_options = reframework::localization::options(m_options);
+        auto ret = ImGui::Combo(reframework::localization::label(name).c_str(), &index, display_options.data(), static_cast<int32_t>(display_options.size()));
         ImGui::PopID();
 
         m_value = m_options[index];
@@ -334,7 +338,7 @@ public:
         bool changed = false;
 
         ImGui::PushID(this);
-        ImGui::Button(name.data());
+        ImGui::Button(reframework::localization::label(name).c_str());
 
         if (ImGui::IsItemHovered() && ImGui::GetIO().MouseDown[0]) {
             m_waiting_for_new_key = true;

@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include <utility/Module.hpp>
 #include <utility/Scan.hpp>
 
@@ -253,13 +254,13 @@ void Graphics::on_frame() {
 
 void Graphics::on_draw_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 
     if (sdk::GameIdentity::get().is_re4()) {
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
-    if (ImGui::TreeNode("RE4 Scope Tweaks")) {
+    if (ImGui::TreeNode(reframework::localization::label("RE4 Scope Tweaks").c_str())) {
         m_scope_tweaks->draw("Enable Scope Tweaks");
 
         if (m_scope_tweaks->value()) {
@@ -272,7 +273,7 @@ void Graphics::on_draw_ui() {
     }
 
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
-    if (ImGui::TreeNode("Ultrawide/FOV Options")) {
+    if (ImGui::TreeNode(reframework::localization::label("Ultrawide/FOV Options").c_str())) {
         if (m_ultrawide_fix->draw("Ultrawide/FOV/Aspect Ratio Fix") && m_ultrawide_fix->value() == false) {
             do_ultrawide_fov_restore(true);
         }
@@ -280,8 +281,8 @@ void Graphics::on_draw_ui() {
         if (m_ultrawide_fix->value()) {
             m_ultrawide_16_10_mode->draw("16:10 Mode: Use Black Bars (maintain 16:9)");
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("On a 16:10 display, keeps the game at 16:9 with black bars instead of\n"
-                                  "stretching to fill the screen. Prevents UI element misalignment.");
+                ImGui::SetTooltip(reframework::localization::text("On a 16:10 display, keeps the game at 16:9 with black bars instead of\n"
+                                  "stretching to fill the screen. Prevents UI element misalignment."));
             }
 
             if (!sdk::GameIdentity::get().is_mhwilds()) {
@@ -303,7 +304,7 @@ void Graphics::on_draw_ui() {
     }
 
     ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
-    if (ImGui::TreeNode("GUI Options")) {
+    if (ImGui::TreeNode(reframework::localization::label("GUI Options").c_str())) {
         m_disable_gui->draw("Hide GUI");
         m_disable_gui_key->draw("Hide GUI key");
         ImGui::TreePop();
@@ -311,7 +312,7 @@ void Graphics::on_draw_ui() {
 
     if (sdk::GameIdentity::get().tdb_ver() >= 69) {
         ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
-        if (ImGui::TreeNode("Ray Tracing Tweaks")) {
+        if (ImGui::TreeNode(reframework::localization::label("Ray Tracing Tweaks").c_str())) {
             m_ray_tracing_tweaks->draw("Enable Ray Tracing Tweaks");
 
             if (m_ray_tracing_tweaks->value()) {
@@ -319,7 +320,7 @@ void Graphics::on_draw_ui() {
                 m_ray_trace_always_recreate_rt_component->draw("Always Recreate RT Component");
                 // Description of the above option
                 if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Recreates the RT component. Useful if Ray Tracing Tweaks is not working.");
+                    ImGui::SetTooltip(reframework::localization::text("Recreates the RT component. Useful if Ray Tracing Tweaks is not working."));
                 }
                 m_ray_trace_type->draw("Ray Trace Type");
 
@@ -357,7 +358,7 @@ void Graphics::on_draw_ui() {
         }
 
         ImGui::SetNextItemOpen(true, ImGuiCond_::ImGuiCond_Once);
-        if (ImGui::TreeNode("Shader Playground")) {
+        if (ImGui::TreeNode(reframework::localization::label("Shader Playground").c_str())) {
             m_shader_playground->draw("Enable Shader Playground");
 
             if (m_shader_playground->value()) {  
@@ -369,7 +370,7 @@ void Graphics::on_draw_ui() {
 
                     const auto interception_node_open = ImGui::TreeNode("");
                     ImGui::SameLine();
-                    if (ImGui::InputText("Interception Shader", intercepted.name.data(), intercepted.name.size())) {
+                    if (ImGui::InputText(reframework::localization::label("Interception Shader").c_str(), intercepted.name.data(), intercepted.name.size())) {
                         intercepted.hash = sdk::murmur_hash::calc32_as_utf8(intercepted.name.data());
                     }
 
@@ -388,14 +389,14 @@ void Graphics::on_draw_ui() {
                             }
 
                             if (node_open) {
-                                ImGui::Combo("Dispatch Mode", (int*)&replacement.dispatch_mode, s_shader_dispatch_modes.data(), s_shader_dispatch_modes.size());
+                                ImGui::Combo(reframework::localization::label("Dispatch Mode").c_str(), (int*)&replacement.dispatch_mode, s_shader_dispatch_modes.data(), s_shader_dispatch_modes.size());
 
-                                ImGui::InputInt("Thread Group X", (int32_t*)&replacement.thread_group_x);
-                                ImGui::InputInt("Thread Group Y", (int32_t*)&replacement.thread_group_y);
-                                ImGui::InputInt("Thread Group Z", (int32_t*)&replacement.thread_group_z);
-                                ImGui::InputInt("Constant", (int32_t*)&replacement.constant);
+                                ImGui::InputInt(reframework::localization::label("Thread Group X").c_str(), (int32_t*)&replacement.thread_group_x);
+                                ImGui::InputInt(reframework::localization::label("Thread Group Y").c_str(), (int32_t*)&replacement.thread_group_y);
+                                ImGui::InputInt(reframework::localization::label("Thread Group Z").c_str(), (int32_t*)&replacement.thread_group_z);
+                                ImGui::InputInt(reframework::localization::label("Constant").c_str(), (int32_t*)&replacement.constant);
 
-                                ImGui::Checkbox("Valid hash", &replacement.valid_hash);
+                                ImGui::Checkbox(reframework::localization::label("Valid hash").c_str(), &replacement.valid_hash);
 
                                 ImGui::TreePop();
                             }
