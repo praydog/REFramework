@@ -158,6 +158,9 @@ public:
             return add_vtable(either_or.obj, either_or.fn, pre_fn, post_fn);
         }
     }
+
+    // Waits for in-flight callbacks of the hook to finish. Don't call it from inside that hook's own
+    // callback, or while holding a lock its callbacks take (e.g. the Lua lock via lock_lua): both deadlock.
     void remove(sdk::REMethodDefinition* fn, HookId id);
 
 private:
@@ -172,8 +175,8 @@ private:
     // m_map_mux guards m_hooked_fns (entries are never erased). It is never held while waiting on a
     // hook's access_mux, because hook callbacks hold access_mux shared and may call add()/remove().
     // m_vtable_mux guards m_hooked_vtables and is held across vtable hook operations, including access_mux
-    // waits: only Lua creates vtable hooks, and Lua callbacks never call into HookManager.
-    // The two mutexes are never held together.
+    // waits. Only Lua creates vtable hooks; ScriptState drops its Lua lock before removing hooks, so the
+    // callbacks being waited on can always finish. The two mutexes are never held together.
     std::mutex m_map_mux{};
     std::mutex m_vtable_mux{};
     std::unordered_map<sdk::REMethodDefinition*, std::unique_ptr<HookedFn>> m_hooked_fns{};

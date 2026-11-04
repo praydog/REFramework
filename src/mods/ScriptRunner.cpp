@@ -411,10 +411,29 @@ ScriptState::~ScriptState() {
         std::erase_if(s_delegates, [](auto& pair) { return pair.second->owner.expired(); });
     }
 
-    std::scoped_lock _{m_execution_mutex};
-    for (auto&& [fn, hook_ids] : m_hooks) {
-        for (auto&& id : hook_ids) {
-            g_hookman.remove(fn, id);
+    // remove() waits for in-flight callbacks, and our callbacks wait for m_execution_mutex, so don't hold it
+    // while removing. Drop the Lua references under the lock instead: callbacks that get the lock afterwards
+    // see `released` and return without touching Lua, and remove() then only destroys empty holders.
+    decltype(m_hooks) hooks{};
+
+    {
+        std::scoped_lock _{m_execution_mutex};
+
+        for (auto&& [fn, installed] : m_hooks) {
+            for (auto&& hook : installed) {
+                hook.callbacks->pre_cb = sol::protected_function{};
+                hook.callbacks->post_cb = sol::protected_function{};
+                hook.callbacks->released = true;
+            }
+        }
+
+        hooks = std::move(m_hooks);
+    }
+
+    // Once every remove() returns, none of this state's callbacks can be running or start again.
+    for (auto&& [fn, installed] : hooks) {
+        for (auto&& hook : installed) {
+            g_hookman.remove(fn, hook.id);
         }
     }
 }
@@ -764,21 +783,27 @@ void ScriptState::install_hooks() {
     for (; !m_hooks_to_add.empty(); m_hooks_to_add.pop_front()) {
         auto hookdef = m_hooks_to_add.front();
         auto fn = hookdef.fn;
-        auto pre_cb = hookdef.pre_cb;
-        auto post_cb = hookdef.post_cb;
+        auto callbacks = std::make_shared<HookCallbacks>(HookCallbacks{hookdef.pre_cb, hookdef.post_cb});
         auto ignore_jmp_object = hookdef.ignore_jmp_obj;
         const auto hookman_data = HookManager::EitherOr{hookdef.obj, hookdef.fn, ignore_jmp_object.is<bool>() ? ignore_jmp_object.as<bool>() : false};
         auto id = g_hookman.add_either_or(
             hookman_data,
-            [pre_cb, state = this](auto& args, auto& arg_tys, uintptr_t ret_addr) -> HookManager::PreHookResult {
+            [callbacks, state = this](auto& args, auto& arg_tys, uintptr_t ret_addr) -> HookManager::PreHookResult {
                 using PreHookResult = HookManager::PreHookResult;
 
                 auto _ = state->scoped_lock();
                 auto result = PreHookResult::CALL_ORIGINAL;
 
+                // The state is being destroyed; its Lua references are gone.
+                if (callbacks->released) {
+                    return result;
+                }
+
                 if (ScriptRunner::get()->is_online_match()) {
                     return result;
                 }
+
+                auto& pre_cb = callbacks->pre_cb;
 
                 try {
                     state->push_hook_storage(std::hash<std::thread::id>{}(std::this_thread::get_id()));
@@ -821,8 +846,13 @@ void ScriptState::install_hooks() {
 
                 return result;
             },
-            [post_cb, state = this](auto& ret_val, auto* ret_ty, uintptr_t ret_addr) {
+            [callbacks, state = this](auto& ret_val, auto* ret_ty, uintptr_t ret_addr) {
                 auto _ = state->scoped_lock();
+
+                // The state is being destroyed; its Lua references are gone.
+                if (callbacks->released) {
+                    return;
+                }
                 
                 if (ScriptRunner::get()->is_online_match()) {
                     return;
@@ -830,6 +860,8 @@ void ScriptState::install_hooks() {
 
                 const auto thash = std::hash<std::thread::id>{}(std::this_thread::get_id());
                 utility::ScopeGuard sg{[state, thash] { state->pop_hook_storage(thash); }};
+
+                auto& post_cb = callbacks->post_cb;
 
                 try {
                     state->m_current_hook_storage = state->get_hook_storage_internal(thash);
@@ -852,7 +884,7 @@ void ScriptState::install_hooks() {
                 }
             }
         );
-        m_hooks[fn].emplace_back(id);
+        m_hooks[fn].push_back({id, std::move(callbacks)});
     }
 }
 
