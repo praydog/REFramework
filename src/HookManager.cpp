@@ -769,7 +769,7 @@ void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
         auto& cbs = hook->cbs;
         std::scoped_lock _{hook->mux};
         std::unique_lock __{hook->access_mux};
-        cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
+        cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }), cbs.end());
     } else {
         std::vector<::REManagedObject*> queued_vtable_deletions{};
 
