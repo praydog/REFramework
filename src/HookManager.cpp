@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include <ranges>
 
 #include <hde64.h>
@@ -43,6 +44,26 @@ void* get_actual_function(void* possible_fn) {
     }
 
     return actual_fn;
+}
+
+// Runs a hook callback. C++ exceptions propagate to the caller's catch blocks. Structured exceptions
+// (access violations etc.), which /EHa would otherwise hand to catch(...) without a code, are handled
+// here so the code can be logged. Returns the exception code, or 0 if none was raised.
+template <typename F>
+DWORD call_callback(F&& callback) {
+    __try {
+        callback();
+    } __except (GetExceptionCode() == 0xE06D7363 ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER) {
+        const auto code = GetExceptionCode();
+
+        if (code == EXCEPTION_STACK_OVERFLOW) {
+            _resetstkoflw(); // restore the guard page, or the next overflow kills the process
+        }
+
+        return code;
+    }
+
+    return 0;
 }
 }
 
@@ -90,8 +111,22 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
 
     for (const auto& cb : cbs) {
         if (cb.pre_fn) {
-            if (cb.pre_fn(storage->args_impl, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
-                any_skipped = true;
+            // An exception escaping a callback would unwind past the bookkeeping below
+            // (pre_depth, access_mux), leaving the hook locked for good.
+            try {
+                const auto seh_code = detail::call_callback([&] {
+                    if (cb.pre_fn(storage->args_impl, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
+                        any_skipped = true;
+                    }
+                });
+
+                if (seh_code != 0) {
+                    spdlog::error("[HookManager] Structured exception 0x{:X} in pre-hook for '{}'", seh_code, fn_def->get_name());
+                }
+            } catch (const std::exception& e) {
+                spdlog::error("[HookManager] Exception in pre-hook for '{}': {}", fn_def->get_name(), e.what());
+            } catch (...) {
+                spdlog::error("[HookManager] Unknown exception in pre-hook for '{}'", fn_def->get_name());
             }
         }
     }
@@ -136,7 +171,20 @@ void HookManager::HookedFn::on_post_hook() {
             // Valid return address in recursion scenario is no longer supported with this API.
             // We just pass ret_addr_pre for now, even though it's not accurate.
             // Hooks will not have much use for the return address anyway.
-            cb.post_fn(ret_val, ret_ty, storage->ret_addr_pre); 
+            // See on_pre_hook: exceptions must not unwind past post_depth/access_mux bookkeeping.
+            try {
+                const auto seh_code = detail::call_callback([&] {
+                    cb.post_fn(ret_val, ret_ty, storage->ret_addr_pre);
+                });
+
+                if (seh_code != 0) {
+                    spdlog::error("[HookManager] Structured exception 0x{:X} in post-hook for '{}'", seh_code, fn_def->get_name());
+                }
+            } catch (const std::exception& e) {
+                spdlog::error("[HookManager] Exception in post-hook for '{}': {}", fn_def->get_name(), e.what());
+            } catch (...) {
+                spdlog::error("[HookManager] Unknown exception in post-hook for '{}'", fn_def->get_name());
+            }
         }
     }
 
@@ -555,10 +603,17 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
 
     spdlog::info("[HookManager] Adding hook for '{}' @ {:p}...", fn->get_name(), target_fn);
 
+    // m_map_mux guards m_hooked_fns only. Never wait on a hook's access_mux while holding it:
+    // callbacks run with access_mux held shared and may call add()/remove() themselves.
+    std::unique_lock map_lock{m_map_mux};
+
     if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+        // Entries in m_hooked_fns are never erased, so the HookedFn outlives the map lock.
+        auto hook = search->second.get();
+        map_lock.unlock();
+
         spdlog::info("[HookManager] Reusing existing hook...");
 
-        auto& hook = search->second;
         std::scoped_lock _{hook->mux};
         std::unique_lock __{hook->access_mux};
         auto hook_id = m_next_hook_id++;
@@ -572,6 +627,8 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
         return hook_id;
     }
 
+    // Keep holding m_map_mux while creating, so two threads can't both create a hook for fn.
+    // Nothing below waits on an access_mux, so this can't deadlock with in-flight callbacks.
     spdlog::info("[HookManager] Creating a new hook...");
 
     auto hook = std::make_unique<HookedFn>(*this);
@@ -593,11 +650,14 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
     auto& fn_hook = hook->fn_hook;
 
     // Create the facilitator! this really important!
+    auto hook_failed = false;
+
     create_jitted_facilitator(hook, fn,
         [&](){
             fn_hook = std::make_unique<FunctionHook>(hook->target_fn, (void*)hook->facilitator_fn);
             if (!fn_hook->create()) {
                 spdlog::error("[HookManager] Failed to hook function for '{}'", fn->get_name());
+                hook_failed = true;
                 return uintptr_t{0};
             }
             return fn_hook->get_original();
@@ -605,6 +665,11 @@ HookManager::HookId HookManager::add(sdk::REMethodDefinition* fn, HookManager::P
         [&]() {
         }
     );
+
+    if (hook_failed) {
+        spdlog::error("[HookManager] Aborting hook for '{}'", fn->get_name());
+        return HookId{};
+    }
 
     m_hooked_fns.emplace(fn, std::move(hook));
 
@@ -634,6 +699,9 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
         spdlog::error("[HookManager] Cannot add non-virtual function with add_vtable, use add instead.");
         return HookId{};
     }
+
+    // m_vtable_mux guards m_hooked_vtables. It is never held together with m_map_mux.
+    std::unique_lock vtable_lock{m_vtable_mux};
 
     auto search = m_hooked_vtables.find(obj);
 
@@ -700,11 +768,13 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
     //auto& arg_tys = hook_fn->arg_tys;
 
     // Create the facilitator! this really important!
+    auto hook_failed = false;
+
     create_jitted_facilitator(hook_fn, fn,
         [&]() -> uintptr_t {
             if (!hook->vtable_hook->hook_method(fn->get_virtual_index(), (void*)hook_fn->facilitator_fn)) {
                 spdlog::error("[HookManager] Failed to hook vtable method for {:x}", (uintptr_t)obj);
-                hook_fn = nullptr;
+                hook_failed = true;
                 return 0;
             }
 
@@ -715,21 +785,40 @@ HookManager::HookId HookManager::add_vtable(::REManagedObject* obj, sdk::REMetho
         }
     );
 
+    if (hook_failed) {
+        // Remove the residual entry so a later find() cannot hit a dead hook.
+        // Erasing also destroys the HookedFn, which releases the jitted facilitator.
+        hook->hooked_fns.erase(fn);
+        return 0;
+    }
+
     spdlog::info("[HookManager] VT Hook {} added for '{}' @ {:p}", hook_id, fn->get_name(), fn->get_function());
 
     return hook_id;
 }
 
 void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
-    if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+    HookedFn* hooked_fn{};
+
+    {
+        // See add(): never wait on a hook's access_mux while holding m_map_mux.
+        std::scoped_lock map_lock{m_map_mux};
+
+        if (auto search = m_hooked_fns.find(fn); search != m_hooked_fns.end()) {
+            hooked_fn = search->second.get(); // never erased, outlives the lock
+        }
+    }
+
+    if (hooked_fn != nullptr) {
         spdlog::info("[HookManager] Removing hook ID {} from '{}'", id, fn->get_name());
 
-        auto& hook = search->second;
-        auto& cbs = hook->cbs;
-        std::scoped_lock _{hook->mux};
-        std::unique_lock __{hook->access_mux};
-        cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }));
+        auto& cbs = hooked_fn->cbs;
+        std::scoped_lock _{hooked_fn->mux};
+        std::unique_lock __{hooked_fn->access_mux};
+        cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }), cbs.end());
     } else {
+        std::scoped_lock vtable_lock{m_vtable_mux};
+
         std::vector<::REManagedObject*> queued_vtable_deletions{};
 
         // Search through the vtable hooks.
@@ -742,6 +831,7 @@ void HookManager::remove(sdk::REMethodDefinition* fn, HookId id) {
                 auto& hook_fn = search->second;
                 auto& cbs = hook_fn->cbs;
                 std::scoped_lock _{hook->mux};
+                std::unique_lock access_lock{hook_fn->access_mux};
                 cbs.erase(std::remove_if(cbs.begin(), cbs.end(), [id](const HookCallback& cb) { return cb.id == id; }), cbs.end());
 
                 if (cbs.empty()) {

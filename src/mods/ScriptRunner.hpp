@@ -307,7 +307,21 @@ private:
     };
 
     std::deque<HookDef> m_hooks_to_add{};
-    std::unordered_map<sdk::REMethodDefinition*, std::vector<HookManager::HookId>> m_hooks{};
+
+    // Lua callbacks of an installed hook. Shared with the hook's lambdas so the destructor can drop the
+    // Lua references under m_execution_mutex, then remove the hooks without holding it.
+    struct HookCallbacks {
+        sol::protected_function pre_cb;
+        sol::protected_function post_cb;
+        bool released{false}; // guarded by m_execution_mutex
+    };
+
+    struct InstalledHook {
+        HookManager::HookId id{};
+        std::shared_ptr<HookCallbacks> callbacks{};
+    };
+
+    std::unordered_map<sdk::REMethodDefinition*, std::vector<InstalledHook>> m_hooks{};
 
     // Using std::list rather than deque because the elements need to remain valid even if the list is resized.
     // Using sol::reference instead of sol::table to keep a guaranteed reference to the table.
