@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include <ranges>
 
 #include <hde64.h>
@@ -43,6 +44,26 @@ void* get_actual_function(void* possible_fn) {
     }
 
     return actual_fn;
+}
+
+// Runs a hook callback. C++ exceptions propagate to the caller's catch blocks. Structured exceptions
+// (access violations etc.), which /EHa would otherwise hand to catch(...) without a code, are handled
+// here so the code can be logged. Returns the exception code, or 0 if none was raised.
+template <typename F>
+DWORD call_callback(F&& callback) {
+    __try {
+        callback();
+    } __except (GetExceptionCode() == 0xE06D7363 ? EXCEPTION_CONTINUE_SEARCH : EXCEPTION_EXECUTE_HANDLER) {
+        const auto code = GetExceptionCode();
+
+        if (code == EXCEPTION_STACK_OVERFLOW) {
+            _resetstkoflw(); // restore the guard page, or the next overflow kills the process
+        }
+
+        return code;
+    }
+
+    return 0;
 }
 }
 
@@ -90,11 +111,17 @@ HookManager::PreHookResult HookManager::HookedFn::on_pre_hook() {
 
     for (const auto& cb : cbs) {
         if (cb.pre_fn) {
-            // Callback exceptions must not propagate across the jitted facilitator
-            // boundary (the caller does not have a C++ exception frame).
+            // An exception escaping a callback would unwind past the bookkeeping below
+            // (pre_depth, access_mux), leaving the hook locked for good.
             try {
-                if (cb.pre_fn(storage->args_impl, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
-                    any_skipped = true;
+                const auto seh_code = detail::call_callback([&] {
+                    if (cb.pre_fn(storage->args_impl, arg_tys, ret_addr_pre) == PreHookResult::SKIP_ORIGINAL) {
+                        any_skipped = true;
+                    }
+                });
+
+                if (seh_code != 0) {
+                    spdlog::error("[HookManager] Structured exception 0x{:X} in pre-hook for '{}'", seh_code, fn_def->get_name());
                 }
             } catch (const std::exception& e) {
                 spdlog::error("[HookManager] Exception in pre-hook for '{}': {}", fn_def->get_name(), e.what());
@@ -144,9 +171,15 @@ void HookManager::HookedFn::on_post_hook() {
             // Valid return address in recursion scenario is no longer supported with this API.
             // We just pass ret_addr_pre for now, even though it's not accurate.
             // Hooks will not have much use for the return address anyway.
-            // Callback exceptions must not propagate across the jitted facilitator boundary.
+            // See on_pre_hook: exceptions must not unwind past post_depth/access_mux bookkeeping.
             try {
-                cb.post_fn(ret_val, ret_ty, storage->ret_addr_pre); 
+                const auto seh_code = detail::call_callback([&] {
+                    cb.post_fn(ret_val, ret_ty, storage->ret_addr_pre);
+                });
+
+                if (seh_code != 0) {
+                    spdlog::error("[HookManager] Structured exception 0x{:X} in post-hook for '{}'", seh_code, fn_def->get_name());
+                }
             } catch (const std::exception& e) {
                 spdlog::error("[HookManager] Exception in post-hook for '{}': {}", fn_def->get_name(), e.what());
             } catch (...) {
