@@ -68,13 +68,13 @@ void REFrameworkConfig::on_draw_ui() {
         changed = true;
     }
 
-    if (m_hdr_menu_mode->draw("HDR Menu Mode")) {
+    if (m_hdr_menu_output->draw("HDR Menu Output")) {
         apply_hdr_menu_settings();
         changed = true;
     }
 
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Auto converts the menu to HDR when the game outputs a 10-bit (HDR10) or 16-bit float (scRGB) swapchain. D3D12 only.");
+        ImGui::SetTooltip("Select HDR10 or scRGB when the game is outputting HDR. 8-bit render targets are never converted. D3D12 only.");
     }
 
     if (m_hdr_menu_paper_white->draw("HDR Menu Brightness (nits)")) {
@@ -91,7 +91,7 @@ void REFrameworkConfig::on_draw_ui() {
 
 void REFrameworkConfig::apply_hdr_menu_settings() {
     auto& hdr = ImGui_ImplDX12_GetHDRSettings();
-    hdr.Mode = m_hdr_menu_mode->value();
+    hdr.Mode = m_hdr_menu_output->value();
     hdr.PaperWhiteNits = m_hdr_menu_paper_white->value();
 }
 

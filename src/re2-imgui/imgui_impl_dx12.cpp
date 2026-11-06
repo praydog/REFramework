@@ -144,12 +144,8 @@ static float ImGui_ImplDX12_GetHDREncoding(DXGI_FORMAT fmt)
     switch (hdr.Mode)
     {
     case 1:
-        if (fmt == DXGI_FORMAT_R10G10B10A2_UNORM) return 1.0f;
-        if (fmt == DXGI_FORMAT_R16G16B16A16_FLOAT) return 2.0f;
-        return 0.0f;
-    case 2:
         return is_8bit ? 0.0f : 1.0f;
-    case 3:
+    case 2:
         return is_8bit ? 0.0f : 2.0f;
     default:
         return 0.0f;

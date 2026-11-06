@@ -48,11 +48,12 @@ struct ImGui_ImplDX12_InitInfo
 };
 
 // REFramework: HDR output for the ImGui overlay.
-// Mode: 0 = Off, 1 = Auto (by render target format), 2 = Force HDR10 (PQ), 3 = Force scRGB.
-// Forced modes only apply to render targets that are not 8-bit, so SDR targets (VR texture) are untouched.
+// Mode: 0 = Off, 1 = HDR10 (PQ), 2 = scRGB.
+// The swapchain format can't select this: Dragon's Dogma 2 keeps R10G10B10A2 with HDR off.
+// HDR output only applies to render targets that are not 8-bit, so SDR targets (VR texture) are untouched.
 struct ImGui_ImplDX12_HDRSettings
 {
-    int     Mode = 1;
+    int     Mode = 0;
     float   PaperWhiteNits = 203.0f;
 };
 IMGUI_IMPL_API ImGui_ImplDX12_HDRSettings& ImGui_ImplDX12_GetHDRSettings();
