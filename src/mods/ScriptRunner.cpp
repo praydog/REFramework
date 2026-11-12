@@ -1473,6 +1473,9 @@ void ScriptRunner::reset_scripts() {
     m_main_state.reset();
     m_states.clear();
 
+    // Queued states were destroyed above; their stale pointers could match new states reusing the address.
+    m_states_to_delete.clear();
+
     m_has_any_transform_updates = false;
 
     //creating the main lua state
