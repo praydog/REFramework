@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include <sdk/SceneManager.hpp>
 #include <sdk/RETypeDB.hpp>
 #include <sdk/GameIdentity.hpp>
@@ -20,11 +21,11 @@ void Camera::on_config_save(Config& cfg) {
 
 void Camera::on_draw_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 
-    ImGui::TextWrapped("Make sure to tick \"Enabled\" for any of the below settings to take effect.");
+    ImGui::TextWrapped(reframework::localization::text("Make sure to tick \"Enabled\" for any of the below settings to take effect."));
 
     if (m_enabled->draw("Enabled") && !m_enabled->value()) {
         on_disabled();
@@ -45,7 +46,7 @@ void Camera::on_draw_ui() {
     }
 
     ImGui::Separator();
-    ImGui::TextWrapped("These below settings are separate and do not require \"Enabled\" to be ticked.");
+    ImGui::TextWrapped(reframework::localization::text("These below settings are separate and do not require \"Enabled\" to be ticked."));
 
     m_use_custom_global_fov->draw("Use Custom Global FOV");
     m_global_fov->draw("Global FOV");
