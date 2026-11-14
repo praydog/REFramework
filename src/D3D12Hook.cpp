@@ -526,7 +526,7 @@ void D3D12Hook::hook_impl() {
     auto& present_fn = s_swapchain_vtable[8]; // Present
     m_present_hook = std::make_unique<PointerHook>(&present_fn, &D3D12Hook::present);
 
-    if (s_create_swapchain_hook == nullptr) {
+    if (s_create_swapchain_hook == nullptr && !sdk::GameIdentity::get().is_re9()) {
         auto& create_swapchain_fn = s_factory_vtable[15]; // CreateSwapChainForHwnd
         s_create_swapchain_hook = std::make_unique<PointerHook>(&create_swapchain_fn, &D3D12Hook::create_swapchain);
     }
