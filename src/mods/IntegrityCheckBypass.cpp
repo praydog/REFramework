@@ -591,15 +591,51 @@ void IntegrityCheckBypass::nuke_heap_allocated_code(uintptr_t addr) {
     const auto start = (uintptr_t)mbi.BaseAddress;
     const auto end = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
 
+    std::scoped_lock _{s_nuked_regions_mutex};
+
+    if (s_nuked_regions_restored) {
+        spdlog::info("[IntegrityCheckBypass]: Process is exiting, not nuking heap allocated code at 0x{:X}", start);
+        return;
+    }
+
     spdlog::info("[IntegrityCheckBypass]: Nuking heap allocated code at 0x{:X} - 0x{:X}", start, end);
 
+    // Keep the original bytes (once per region) so restore_nuked_heap_allocated_code can put them back at exit.
+    const auto already_nuked = std::any_of(s_nuked_regions.begin(), s_nuked_regions.end(), [start](const NukedRegion& r) { return r.start == start; });
+
+    if (!already_nuked) {
+        s_nuked_regions.push_back(NukedRegion{start, std::vector<uint8_t>((uint8_t*)start, (uint8_t*)end)});
+    }
+
     // Fix the protection of the memory region.
-    ProtectionOverride _{(void*)start, mbi.RegionSize, PAGE_EXECUTE_READWRITE};
+    ProtectionOverride po{(void*)start, mbi.RegionSize, PAGE_EXECUTE_READWRITE};
 
     // Replace every single byte with a RET (C3) instruction.
     std::memset((void*)start, 0xC3, mbi.RegionSize);
 
     spdlog::info("[IntegrityCheckBypass]: Nuked heap allocated code at 0x{:X}", start);
+}
+
+// The nuked region is not only code: in DD2 it is the .text section of the anti-tamper module that the game maps
+// by hand, and that module's atexit callback reads data from it. With the region full of C3 bytes the callback
+// dereferences 0xC3C3C3C3C3C3C3C3 and the game exits with an access violation (#1895). Called from the CRT exit hook,
+// before the atexit table runs; after this, the region is never nuked again.
+void IntegrityCheckBypass::restore_nuked_heap_allocated_code() {
+    std::scoped_lock _{s_nuked_regions_mutex};
+
+    if (s_nuked_regions_restored) {
+        return;
+    }
+
+    s_nuked_regions_restored = true;
+
+    for (const auto& region : s_nuked_regions) {
+        ProtectionOverride po{(void*)region.start, region.original.size(), PAGE_EXECUTE_READWRITE};
+        std::memcpy((void*)region.start, region.original.data(), region.original.size());
+        FlushInstructionCache(GetCurrentProcess(), (void*)region.start, region.original.size());
+
+        spdlog::info("[IntegrityCheckBypass]: Restored nuked heap allocated code at 0x{:X} ({} bytes)", region.start, region.original.size());
+    }
 }
 
 void IntegrityCheckBypass::anti_debug_watcher() try {
@@ -2548,6 +2584,38 @@ void* IntegrityCheckBypass::rtl_exit_user_process_hook(uint32_t code) {
     // It calls something that's heap allocated but no longer exists, and it crashes.
     TerminateProcess(GetCurrentProcess(), code);
     return nullptr;
+}
+
+void IntegrityCheckBypass::hook_crt_exit() {
+    spdlog::info("[IntegrityCheckBypass]: Hooking CRT exit...");
+
+    // The games use the shared UCRT; its exit() runs the atexit table before ExitProcess.
+    const auto ucrtbase = GetModuleHandleW(L"ucrtbase.dll");
+
+    if (ucrtbase == nullptr) {
+        spdlog::info("[IntegrityCheckBypass]: ucrtbase.dll is not loaded, not hooking exit");
+        return;
+    }
+
+    const auto crt_exit = GetProcAddress(ucrtbase, "exit");
+
+    if (crt_exit == nullptr) {
+        spdlog::error("[IntegrityCheckBypass]: Could not find ucrtbase!exit!");
+        return;
+    }
+
+    s_crt_exit_hook = std::make_unique<FunctionHookMinHook>(crt_exit, &crt_exit_hook);
+    if (!s_crt_exit_hook->create()) {
+        spdlog::error("[IntegrityCheckBypass]: Could not hook ucrtbase!exit!");
+        return;
+    }
+
+    spdlog::info("[IntegrityCheckBypass]: Hooked CRT exit!");
+}
+
+void IntegrityCheckBypass::crt_exit_hook(int code) {
+    restore_nuked_heap_allocated_code();
+    s_crt_exit_hook->get_original<decltype(crt_exit_hook)>()(code);
 }
 
 #pragma region Custom PAK directory loading

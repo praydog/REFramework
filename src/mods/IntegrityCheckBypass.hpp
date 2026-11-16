@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string_view>
 #include <regex>
 #include <array>
@@ -41,6 +42,7 @@ public:
 
     static void hook_add_vectored_exception_handler();
     static void hook_rtl_exit_user_process();
+    static void hook_crt_exit();
 
     static void allow_veh() {
         s_veh_allowed = true;
@@ -76,7 +78,19 @@ private:
     static void anti_debug_watcher();
     static void init_anti_debug_watcher();
     static void nuke_heap_allocated_code(uintptr_t addr);
+    static void restore_nuked_heap_allocated_code();
     static inline std::unique_ptr<std::jthread> s_anti_anti_debug_thread{nullptr};
+
+    // Original bytes of every region nuke_heap_allocated_code overwrote. The anti-tamper module that owns them
+    // still runs code at exit (an atexit callback reads data out of the nuked region), so the bytes go back
+    // before the CRT runs the atexit table.
+    struct NukedRegion {
+        uintptr_t start;
+        std::vector<uint8_t> original;
+    };
+    static inline std::mutex s_nuked_regions_mutex{};
+    static inline std::vector<NukedRegion> s_nuked_regions{};
+    static inline bool s_nuked_regions_restored{false};
 
     static BOOL WINAPI virtual_protect_impl(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
     static BOOL WINAPI virtual_protect_hook(LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
@@ -94,6 +108,9 @@ private:
 
     static void* rtl_exit_user_process_hook(uint32_t code);
     static inline std::unique_ptr<FunctionHookMinHook> s_rtl_exit_user_process_hook{};
+
+    static void crt_exit_hook(int code);
+    static inline std::unique_ptr<FunctionHookMinHook> s_crt_exit_hook{};
 
 #ifdef REFRAMEWORK_UNIVERSAL
     // All members present in monolithic build
