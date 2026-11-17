@@ -1433,20 +1433,25 @@ float get_scroll_max_y() {
     return ImGui::GetScrollMaxY();
 }
 
-void set_scroll_here_x(float center_x_ratio = 0.5f) {
-    ImGui::SetScrollHereX(center_x_ratio);
+// sol does not apply C++ default arguments: an omitted ratio arrives as 0 (top/left edge), not the centering 0.5.
+float center_ratio_or_default(sol::object ratio_obj) {
+    return ratio_obj.is<float>() ? ratio_obj.as<float>() : 0.5f;
 }
 
-void set_scroll_here_y(float center_y_ratio = 0.5f) {
-    ImGui::SetScrollHereY(center_y_ratio);
+void set_scroll_here_x(sol::object center_x_ratio) {
+    ImGui::SetScrollHereX(center_ratio_or_default(center_x_ratio));
 }
 
-void set_scroll_from_pos_x(float local_x, float center_x_ratio = 0.5f) {
-    ImGui::SetScrollFromPosX(local_x, center_x_ratio);
+void set_scroll_here_y(sol::object center_y_ratio) {
+    ImGui::SetScrollHereY(center_ratio_or_default(center_y_ratio));
 }
 
-void set_scroll_from_pos_y(float local_y, float center_y_ratio = 0.5f) {
-    ImGui::SetScrollFromPosY(local_y, center_y_ratio);
+void set_scroll_from_pos_x(float local_x, sol::object center_x_ratio) {
+    ImGui::SetScrollFromPosX(local_x, center_ratio_or_default(center_x_ratio));
+}
+
+void set_scroll_from_pos_y(float local_y, sol::object center_y_ratio) {
+    ImGui::SetScrollFromPosY(local_y, center_ratio_or_default(center_y_ratio));
 }
 } // namespace api::imgui
 
@@ -1544,13 +1549,15 @@ std::optional<Vector2f> world_to_screen(sol::object world_pos_object) {
     return Vector2f{screen_pos.x, screen_pos.y};
 }
 
-void world_text(const char* text, sol::object world_pos_object, ImU32 color = 0xFFFFFFFF) {
+// The color is optional; sol would pass 0 (fully transparent) for an omitted ImU32, so the text was invisible.
+void world_text(const char* text, sol::object world_pos_object, sol::object color_obj) {
     auto screen_pos = world_to_screen(world_pos_object);
 
     if (!screen_pos) {
         return;
     }
 
+    const ImU32 color = color_obj.is<ImU32>() ? color_obj.as<ImU32>() : 0xFFFFFFFF;
     auto draw_list = ImGui::GetBackgroundDrawList();
     draw_list->AddText(ImVec2{screen_pos->x, screen_pos->y}, color, text);
 }
