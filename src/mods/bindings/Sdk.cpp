@@ -355,7 +355,7 @@ void new_index(sol::this_state s, ::sdk::Delegate* delegate, sol::object lua_obj
 }
 
 namespace api::sdk {
-std::vector<void*>& build_args(sol::variadic_args va);
+std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn = nullptr);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
 sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field);
@@ -432,7 +432,7 @@ struct ValueType {
         }
 
         reframework::InvokeRet ret_val{};
-        auto vec_args = ::api::sdk::build_args(va);
+        auto vec_args = ::api::sdk::build_args(va, def);
 
         const auto mo_runtime_size = REManagedObject::runtime_size();
 
@@ -1323,7 +1323,40 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     return get_native_field_from_field(obj, ty, field);
 }
 
-std::vector<void*>& build_args(sol::variadic_args va) {
+namespace {
+enum class NumericParam { OTHER, FLOATING, INTEGRAL };
+
+NumericParam classify_numeric_param(::sdk::RETypeDefinition* t) {
+    if (t != nullptr && t->is_enum()) {
+        t = t->get_underlying_type();
+    }
+
+    if (t == nullptr) {
+        return NumericParam::OTHER;
+    }
+
+    switch (utility::hash(t->get_full_name())) {
+    case "System.Single"_fnv:
+    case "System.Double"_fnv:
+        return NumericParam::FLOATING;
+    case "System.Boolean"_fnv:
+    case "System.Char"_fnv:
+    case "System.SByte"_fnv:
+    case "System.Byte"_fnv:
+    case "System.Int16"_fnv:
+    case "System.UInt16"_fnv:
+    case "System.Int32"_fnv:
+    case "System.UInt32"_fnv:
+    case "System.Int64"_fnv:
+    case "System.UInt64"_fnv:
+        return NumericParam::INTEGRAL;
+    default:
+        return NumericParam::OTHER;
+    }
+}
+}
+
+std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn) {
     auto l = va.lua_state();
 
     static std::vector<void*> args{};
@@ -1331,6 +1364,23 @@ std::vector<void*>& build_args(sol::variadic_args va) {
 
     args.clear();
     vec_storage.clear();
+
+    // Parameter types, fetched only if a number argument needs them.
+    std::vector<::sdk::RETypeDefinition*> param_types{};
+    bool param_types_loaded = false;
+
+    const auto numeric_param = [&](size_t index) {
+        if (fn == nullptr) {
+            return NumericParam::OTHER;
+        }
+
+        if (!param_types_loaded) {
+            param_types = fn->get_param_types();
+            param_types_loaded = true;
+        }
+
+        return index < param_types.size() ? classify_numeric_param(param_types[index]) : NumericParam::OTHER;
+    };
 
     for (auto&& arg : va) {
         auto i = arg.stack_index();
@@ -1348,13 +1398,19 @@ std::vector<void*>& build_args(sol::variadic_args va) {
         } else if (lua_type(l, i) == LUA_TSTRING) {
             auto s = lua_tostring(l, i);
             args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
-        } else if (lua_isinteger(l, i)) {
-            auto n = (intptr_t)lua_tointeger(l, i);
-            args.push_back((void*)n);
-        } else if (lua_isnumber(l, i)) {
-            auto f = lua_tonumber(l, i);
-            auto n = *(intptr_t*)&f;
-            args.push_back((void*)n);
+        } else if (lua_type(l, i) == LUA_TNUMBER) {
+            // Encode by the parameter's type when it is known, not by the Lua subtype: 5 passed to a
+            // System.Single parameter must arrive as 5.0, and 4/2 (a float) passed to System.Int32 as 2.
+            const auto kind = numeric_param(args.size());
+
+            if (lua_isinteger(l, i) && kind != NumericParam::FLOATING) {
+                args.push_back((void*)(intptr_t)lua_tointeger(l, i));
+            } else if (kind == NumericParam::INTEGRAL) {
+                args.push_back((void*)(intptr_t)(int64_t)lua_tonumber(l, i));
+            } else {
+                const double f = lua_tonumber(l, i);
+                args.push_back(*(void**)&f);
+            }
         } else if (arg.is<Vector2f>()) {
             auto& v = arg.as<Vector2f&>();
             args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
@@ -1392,7 +1448,7 @@ sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* 
     }
 
     auto real_obj = get_real_obj(obj);
-    auto ret_val = fn->invoke(real_obj, build_args(va));
+    auto ret_val = fn->invoke(real_obj, build_args(va, fn));
 
     if (ret_val.exception_thrown) {
         throw sol::error("Invoke threw an exception");
@@ -1767,14 +1823,23 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
     sdk["to_int64"] = [](void* ptr) { return *(int64_t*)&ptr; };
     sdk["to_ptr"] = [](sol::object obj) {
-        if (obj.is<int64_t>()) {
-            const auto n = obj.as<int64_t>();
+        if (obj.get_type() == sol::type::number) {
+            // sol's is<int64_t>() is true for every number in this build, so check the Lua subtype ourselves:
+            // floats keep their double bit pattern (for System.Double hook arguments and return values).
+            const auto l = obj.lua_state();
+            obj.push(l);
+            const bool is_integer = lua_isinteger(l, -1);
+            lua_pop(l, 1);
+
+            if (is_integer) {
+                const auto n = obj.as<int64_t>();
+                return *(void**)&n;
+            }
+
+            const auto n = obj.as<double>();
             return *(void**)&n;
         } else if (obj.is<::REManagedObject*>()) {
             return (void*)obj.as<::REManagedObject*>();
-        } else if (obj.is<double>()) {
-            const auto n = obj.as<double>();
-            return *(void**)&n;
         } else if (obj.is<bool>()) {
             const auto n = (uintptr_t)obj.as<bool>();
             return *(void**)&n;
@@ -1862,7 +1927,7 @@ void bindings::open_sdk(ScriptState* s) {
         auto l = va.lua_state();
 
         auto real_obj = ::api::sdk::get_real_obj(obj);
-        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va, def));
 
         if (ret_val.exception_thrown) {
             throw sol::error("Invoke threw an exception");
