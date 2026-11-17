@@ -132,7 +132,10 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
         return {};
     }
 
-    if (std::filesystem::path(filepath).is_absolute()) {
+    // has_root_path, not is_absolute: on Windows "\\foo" (root directory only) and "C:foo" (drive only) are not
+    // absolute, but appending either to the data directory replaces it, escaping to the drive root or to the
+    // drive's current directory.
+    if (std::filesystem::path(filepath).has_root_path()) {
         lua_pushstring(l, "This API does not allow the use of absolute paths");
         lua_error(l);
         return {};
@@ -146,7 +149,7 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
         return {};
     }
 
-    if (corrected_subpath.is_absolute()) {
+    if (corrected_subpath.has_root_path()) {
         lua_pushstring(l, "This API does not allow the use of absolute paths");
         lua_error(l);
         return {};
@@ -337,7 +340,7 @@ void bindings::open_fs(ScriptState* s) {
 
     sol::function old_loadlib = lua["package"]["loadlib"];
 
-    lua["package"]["loadlib"] = [=](sol::this_state l, const std::string& filepath, const std::string& funcname) -> sol::object {
+    lua["package"]["loadlib"] = [=](sol::this_state l, const std::string& filepath, const std::string& funcname) -> sol::unsafe_function_result {
         const auto path = get_correct_subpath(l, filepath, true);
 
         if (!path) {
@@ -356,6 +359,9 @@ void bindings::open_fs(ScriptState* s) {
             lua_error(l);
         }
 
-        return old_loadlib(filepath.c_str(), funcname.c_str());
+        // Load the validated path inside the data directory, not the raw argument (LoadLibrary would search the game
+        // directory, system directories and PATH for it). Return every result: on failure loadlib returns nil plus
+        // the error message and the failing step.
+        return old_loadlib(path->string(), funcname);
     };
 }
