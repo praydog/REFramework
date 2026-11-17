@@ -394,10 +394,6 @@ struct ValueType {
         return offset >= 0 && offset + sizeof(T) <= (int32_t)data.size();
     }
 
-    bool is_valid_offset(int32_t offset) const {
-        return offset >= 0 && offset <= (int32_t)data.size();
-    }
-
     template <typename T>
     void write_memory(int32_t offset, T value) {
         if (!is_valid_offset(offset, value)) {
@@ -409,8 +405,11 @@ struct ValueType {
 
     template <typename T>
     T read_memory(int32_t offset) {
-        if (!is_valid_offset(offset)) {
-            return {};
+        T value{};
+
+        // Same bounds as write_memory: the whole T must fit, not just its first byte.
+        if (!is_valid_offset(offset, value)) {
+            return value;
         }
 
         return *(T*)((uintptr_t)data.data() + offset);
@@ -538,10 +537,6 @@ struct MemoryView {
         return offset >= 0 && offset + sizeof(T) <= (int32_t)size;
     }
 
-    bool is_valid_offset(int32_t offset) const {
-        return offset >= 0 && offset <= (int32_t)size;
-    }
-
     template <typename T>
     void write_memory(int32_t offset, T value) {
         if (!is_valid_offset(offset, value)) {
@@ -553,8 +548,10 @@ struct MemoryView {
 
     template <typename T>
     T read_memory(int32_t offset) {
-        if (!is_valid_offset(offset)) {
-            return {};
+        T value{};
+
+        if (!is_valid_offset(offset, value)) {
+            return value;
         }
 
         return *(T*)((uintptr_t)data + offset);
@@ -1162,7 +1159,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                 throw sol::error("Attempted to set ValueType to field of unknown type");
             }
 
-            memcpy(data, vt->data.data(), vt->data.size());
+            // vt->data holds the boxed size (get_size: payload plus the object header), but an inline field holds
+            // only the payload. Copying the whole buffer wrote get_size() - get_valuetype_size() bytes past the field.
+            memcpy(data, vt->data.data(), std::min<size_t>(vt->data.size(), data_type->get_valuetype_size()));
             return;
         }
 
@@ -1186,6 +1185,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             *(int16_t*)data = value.as<int16_t>();
             return;
         case "System.UInt16"_fnv:
+            *(uint16_t*)data = value.as<uint16_t>();
+            return;
+        case "System.Char"_fnv:
             *(uint16_t*)data = value.as<uint16_t>();
             return;
         case "System.UInt32"_fnv:
