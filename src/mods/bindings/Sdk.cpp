@@ -1365,8 +1365,9 @@ std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition*
     args.clear();
     vec_storage.clear();
 
-    // Parameter types, fetched only if a number argument needs them.
+    // Parameter types and modifiers, fetched only if a number argument needs them.
     std::vector<::sdk::RETypeDefinition*> param_types{};
+    std::vector<::sdk::REMethodDefinition::ParamModifier> param_modifiers{};
     bool param_types_loaded = false;
 
     const auto numeric_param = [&](size_t index) {
@@ -1376,7 +1377,14 @@ std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition*
 
         if (!param_types_loaded) {
             param_types = fn->get_param_types();
+            param_modifiers = fn->get_param_modifiers();
             param_types_loaded = true;
+        }
+
+        // An out/ref/pointer parameter takes an address: a Lua number passed there is a pointer, not a value of the
+        // pointed-to type.
+        if (index < param_modifiers.size() && param_modifiers[index] != ::sdk::REMethodDefinition::ParamModifier::None) {
+            return NumericParam::OTHER;
         }
 
         return index < param_types.size() ? classify_numeric_param(param_types[index]) : NumericParam::OTHER;
@@ -1823,23 +1831,14 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["to_float"] = [](void* ptr) { return *(float*)&ptr; };
     sdk["to_int64"] = [](void* ptr) { return *(int64_t*)&ptr; };
     sdk["to_ptr"] = [](sol::object obj) {
-        if (obj.get_type() == sol::type::number) {
-            // sol's is<int64_t>() is true for every number in this build, so check the Lua subtype ourselves:
-            // floats keep their double bit pattern (for System.Double hook arguments and return values).
-            const auto l = obj.lua_state();
-            obj.push(l);
-            const bool is_integer = lua_isinteger(l, -1);
-            lua_pop(l, 1);
-
-            if (is_integer) {
-                const auto n = obj.as<int64_t>();
-                return *(void**)&n;
-            }
-
-            const auto n = obj.as<double>();
+        if (obj.is<int64_t>()) {
+            const auto n = obj.as<int64_t>();
             return *(void**)&n;
         } else if (obj.is<::REManagedObject*>()) {
             return (void*)obj.as<::REManagedObject*>();
+        } else if (obj.is<double>()) {
+            const auto n = obj.as<double>();
+            return *(void**)&n;
         } else if (obj.is<bool>()) {
             const auto n = (uintptr_t)obj.as<bool>();
             return *(void**)&n;
