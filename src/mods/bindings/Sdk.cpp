@@ -61,7 +61,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     // addendum: maybe figured it out
 
     // only add a reference if it's a "local" object, indicated by a negative reference count
-    //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
+    //if ((int32_t)obj->get_ref_count() < 0 || (current_ref_count && *current_ref_count > 0)) {
     // addendum: only do it when reference count is > 0, local objects seem buggy...
     if (force || (int32_t)obj->get_ref_count() > 0) {
         if (!force) {
