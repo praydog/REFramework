@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 
 #include "Mod.hpp"
 
@@ -49,18 +50,48 @@ public:
     bool add_on_pre_gui_draw_element(REFOnPreGuiDrawElementCb cb);
 
 private:
+    // Callback lists are immutable once published: registration copies the list, appends and swaps the pointer,
+    // and dispatch iterates a snapshot without holding m_api_cb_mtx. A plugin callback may therefore register
+    // more callbacks (e.g. on its first on_present) without deadlocking on the mutex its dispatcher holds.
+    template <typename T>
+    using CallbackList = std::shared_ptr<const std::vector<T>>;
+
+    template <typename T>
+    static void append_locked(CallbackList<T>& list, T cb) {
+        auto next = list != nullptr ? std::make_shared<std::vector<T>>(*list) : std::make_shared<std::vector<T>>();
+        next->push_back(std::move(cb));
+        list = std::move(next);
+    }
+
+    template <typename T>
+    CallbackList<T> snapshot(const CallbackList<T>& list) {
+        std::scoped_lock _{m_api_cb_mtx};
+        return list;
+    }
+
+    template <typename T>
+    CallbackList<T> snapshot(const std::unordered_map<size_t, CallbackList<T>>& map, size_t hash) {
+        std::scoped_lock _{m_api_cb_mtx};
+
+        if (auto it = map.find(hash); it != map.end()) {
+            return it->second;
+        }
+
+        return nullptr;
+    }
+
     // API Callbacks
-    std::shared_mutex m_api_cb_mtx;
-    std::vector<APIProxy::REFLuaStateCreatedCb> m_on_lua_state_created_cbs;
-    std::vector<APIProxy::REFLuaStateDestroyedCb> m_on_lua_state_destroyed_cbs;
-    std::vector<APIProxy::REFOnPresentCb> m_on_present_cbs{};
-    std::vector<APIProxy::REFOnDeviceResetCb> m_on_device_reset_cbs{};
-    std::vector<APIProxy::REFOnMessageCb> m_on_message_cbs{};
-    std::vector<APIProxy::REFOnImGuiFrameCb> m_on_imgui_frame_cbs{};
-    std::vector<APIProxy::REFOnImGuiDrawUICb> m_on_imgui_draw_ui_cbs{};
-    std::vector<APIProxy::REFOnPreGuiDrawElementCb> m_on_pre_gui_draw_element_cbs{};
+    std::mutex m_api_cb_mtx;
+    CallbackList<APIProxy::REFLuaStateCreatedCb> m_on_lua_state_created_cbs{};
+    CallbackList<APIProxy::REFLuaStateDestroyedCb> m_on_lua_state_destroyed_cbs{};
+    CallbackList<APIProxy::REFOnPresentCb> m_on_present_cbs{};
+    CallbackList<APIProxy::REFOnDeviceResetCb> m_on_device_reset_cbs{};
+    CallbackList<APIProxy::REFOnMessageCb> m_on_message_cbs{};
+    CallbackList<APIProxy::REFOnImGuiFrameCb> m_on_imgui_frame_cbs{};
+    CallbackList<APIProxy::REFOnImGuiDrawUICb> m_on_imgui_draw_ui_cbs{};
+    CallbackList<APIProxy::REFOnPreGuiDrawElementCb> m_on_pre_gui_draw_element_cbs{};
 
     // Application Entry Callbacks
-    std::unordered_map<size_t, std::vector<APIProxy::REFOnPreApplicationEntryCb>> m_on_pre_application_entry_cbs{};
-    std::unordered_map<size_t, std::vector<APIProxy::REFOnPostApplicationEntryCb>> m_on_post_application_entry_cbs{};
+    std::unordered_map<size_t, CallbackList<APIProxy::REFOnPreApplicationEntryCb>> m_on_pre_application_entry_cbs{};
+    std::unordered_map<size_t, CallbackList<APIProxy::REFOnPostApplicationEntryCb>> m_on_post_application_entry_cbs{};
 };
