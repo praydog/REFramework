@@ -132,6 +132,14 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
         return {};
     }
 
+    // The C runtime stops at the first NUL, so "x.dll\0.txt" would pass the extension check below as .txt and then
+    // open x.dll.
+    if (filepath.find('\0') != std::string::npos) {
+        lua_pushstring(l, "This API does not allow NUL characters in paths");
+        lua_error(l);
+        return {};
+    }
+
     // has_root_path, not is_absolute: on Windows "\\foo" (root directory only) and "C:foo" (drive only) are not
     // absolute, but appending either to the data directory replaces it, escaping to the drive root or to the
     // drive's current directory.
@@ -157,7 +165,15 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
 
     const auto path = api::fs::detail::get_datadir(filepath) / corrected_subpath;
     const auto extension_lower = [&]() {
-        auto ext = path.extension().string();
+        // Windows drops trailing dots and spaces from file names ("x.dll." and "x.dll " both create x.dll), so take
+        // the extension of the name that will actually be used.
+        auto name = path.filename().wstring();
+
+        while (!name.empty() && (name.back() == L'.' || name.back() == L' ')) {
+            name.pop_back();
+        }
+
+        auto ext = ::fs::path{name}.extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         return ext;
     }();
@@ -340,7 +356,7 @@ void bindings::open_fs(ScriptState* s) {
 
     sol::function old_loadlib = lua["package"]["loadlib"];
 
-    lua["package"]["loadlib"] = [=](sol::this_state l, const std::string& filepath, const std::string& funcname) -> sol::unsafe_function_result {
+    lua["package"]["loadlib"] = [=](sol::this_state l, const std::string& filepath, const std::string& funcname) -> sol::variadic_results {
         const auto path = get_correct_subpath(l, filepath, true);
 
         if (!path) {
@@ -361,7 +377,15 @@ void bindings::open_fs(ScriptState* s) {
 
         // Load the validated path inside the data directory, not the raw argument (LoadLibrary would search the game
         // directory, system directories and PATH for it). Return every result: on failure loadlib returns nil plus
-        // the error message and the failing step.
-        return old_loadlib(path->string(), funcname);
+        // the error message and the failing step. old_loadlib runs on the main thread's stack, so copy the results
+        // into references before returning them: the caller may be a coroutine with a different stack.
+        const auto result = old_loadlib(path->string(), funcname);
+        sol::variadic_results out{};
+
+        for (int i = 0; i < result.return_count(); ++i) {
+            out.push_back(sol::object{result.lua_state(), result.stack_index() + i});
+        }
+
+        return out;
     };
 }
