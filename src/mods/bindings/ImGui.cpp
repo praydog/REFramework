@@ -137,7 +137,7 @@ void text_colored(const char* text, unsigned int color) {
     auto b = (color >> 16) & 0xFF;
     auto a = (color >> 24) & 0xFF;
 
-    ImGui::TextColored(ImVec4{ (float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, (float)a / 255.0f }, text);
+    ImGui::TextColored(ImVec4{ (float)r / 255.0f, (float)g / 255.0f, (float)b / 255.0f, (float)a / 255.0f }, "%s", text);
 }
 
 sol::variadic_results checkbox(sol::this_state s, const char* label, bool v) {
@@ -400,7 +400,7 @@ bool tree_node_ptr_id(const void* id, const char* label) {
         label = "";
     }
 
-    return ImGui::TreeNode(id, label);
+    return ImGui::TreeNode(id, "%s", label);
 }
 
 bool tree_node_str_id(const char* id, const char* label) {
@@ -411,7 +411,7 @@ bool tree_node_str_id(const char* id, const char* label) {
     return reframework::ui::persistent_tree_item(
         reframework::ui::TreeStateSource::Lua,
         id != nullptr ? id : "",
-        [id, label]() { return ImGui::TreeNode(id, label); });
+        [id, label]() { return ImGui::TreeNode(id, "%s", label); });
 }
 
 void tree_pop() {
@@ -511,7 +511,7 @@ void end_rect(sol::object additional_size_obj, sol::object rounding_obj) {
     maxs.x += additional_size;
     maxs.y += additional_size;
 
-    ImGui::GetWindowDrawList()->AddRect(mins, maxs, ImGui::GetColorU32(ImGuiCol_Border), ImGui::GetStyle().FrameRounding, ImDrawFlags_RoundCornersAll, 1.0f);
+    ImGui::GetWindowDrawList()->AddRect(mins, maxs, ImGui::GetColorU32(ImGuiCol_Border), rounding, ImDrawFlags_RoundCornersAll, 1.0f);
 }
 
 void begin_disabled(sol::object disabled_obj) {
@@ -904,7 +904,7 @@ void pop_id() {
 
 ImGuiID get_id(sol::object id) {
     if (id.is<int>()) {
-        return id.as<ImGuiID>();
+        return ImGui::GetID(id.as<int>());
     } else if (id.is<const char*>()) {
         return ImGui::GetID(id.as<const char*>());
     } else if (id.is<void*>()) {
@@ -957,11 +957,11 @@ bool is_mouse_double_clicked(int button) {
     return ImGui::IsMouseDoubleClicked(button);
 }
 
-void indent(int indent_width) {
+void indent(float indent_width) {
     ImGui::Indent(indent_width);
 }
 
-void unindent(int indent_width) {
+void unindent(float indent_width) {
     ImGui::Unindent(indent_width);
 }
 
@@ -978,7 +978,7 @@ void set_tooltip(const char* text) {
         text = "";
     }
 
-    ImGui::SetTooltip(text);
+    ImGui::SetTooltip("%s", text);
 }
 
 void open_popup(const char* str_id, sol::object flags_obj) {
@@ -1363,7 +1363,9 @@ int table_get_row_index() {
     return ImGui::TableGetRowIndex();
 }
 
-const char* table_get_column_name(int column = -1) {
+// sol does not apply C++ default arguments: a missing argument arrives as 0 (the first column), not -1.
+const char* table_get_column_name(sol::object column_obj) {
+    const int column = column_obj.is<int>() ? column_obj.as<int>() : -1;
     return ImGui::TableGetColumnName(column);
 }
 
@@ -2534,7 +2536,7 @@ void bindings::open_imgui(ScriptState* s) {
             draw_list->AddNgonFilled(::api::imgui::create_imvec2(center), radius, col, num_segments);
         },
         "add_ellipse", [](ImDrawList* draw_list, sol::object center, sol::object radius, uint32_t col, float rot, int num_segments, float thickness) {
-            draw_list->AddEllipse(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), col, num_segments, rot, thickness);
+            draw_list->AddEllipse(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), col, rot, num_segments, thickness);
         },
         "add_ellipse_filled", [](ImDrawList* draw_list, sol::object center, sol::object radius, uint32_t col, float rot, int num_segments) {
             draw_list->AddEllipseFilled(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), col, rot, num_segments);
@@ -2568,7 +2570,8 @@ void bindings::open_imgui(ScriptState* s) {
             draw_list->PathArcToFast(::api::imgui::create_imvec2(center), radius, a_min_of_12, a_max_of_12);
         },
         "path_elliptical_arc_to", [](ImDrawList* draw_list, sol::object center, sol::object radius, float a_min, float a_max, int num_segments) {
-            draw_list->PathEllipticalArcTo(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), a_min, a_max, num_segments);
+            // The Lua signature has no rotation; ImDrawList takes rot before a_min.
+            draw_list->PathEllipticalArcTo(::api::imgui::create_imvec2(center), ::api::imgui::create_imvec2(radius), 0.0f, a_min, a_max, num_segments);
         },
         "path_bezier_cubic_curve_to", [](ImDrawList* draw_list, sol::object p2, sol::object p3, sol::object p4, int num_segments) {
             draw_list->PathBezierCubicCurveTo(::api::imgui::create_imvec2(p2), ::api::imgui::create_imvec2(p3), ::api::imgui::create_imvec2(p4), num_segments);
