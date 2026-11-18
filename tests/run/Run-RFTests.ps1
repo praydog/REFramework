@@ -41,11 +41,16 @@ param(
     # Defaults: tests\plugin\out\rftest_plugin.dll and rftest_loadlib.dll (built by tests\plugin\build.bat).
     [string] $PluginDll,
     [string] $LoadlibDll,
+    # The C# API build output (csharp-api\build\bin) for the csharp suite. Its files are installed only if the game does
+    # not already have REFramework.NET, and removed again afterwards.
+    [string] $CSharpBin,
     [int] $TimeoutSeconds = 900,
     [string] $OutDir
 )
 
 $ErrorActionPreference = 'Stop'
+# powershell -File passes "api,csharp" as one string.
+$Suites = @($Suites | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 # Windows PowerShell 5.1 leaves $PSScriptRoot empty while binding parameter defaults.
 $TestsDir = Split-Path -Parent $PSScriptRoot
 if (-not $PluginDll) { $PluginDll = Join-Path $TestsDir 'plugin\out\rftest_plugin.dll' }
@@ -58,6 +63,10 @@ $Plugins = Join-Path $Rf 'plugins'
 $Results = Join-Path $Data 'rftest\results'
 $LuaDir = Join-Path $TestsDir 'lua'
 $Backup = Join-Path $GameDir 'rftest-config-backup.txt'
+$CSharpInstalled = Join-Path $GameDir 'rftest-csharp-installed.txt'
+$CSharpPluginFiles = 'REFramework.NET.dll', 'REFramework.NET.runtimeconfig.json', 'Ijwhost.dll'
+$CSharpDependencyFiles = 'AssemblyGenerator.dll', 'REFCoreDeps.dll', 'Microsoft.CodeAnalysis.CSharp.dll', 'Microsoft.CodeAnalysis.dll',
+    'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll'
 
 function Get-ConfigPath {
     $cfg = Get-ChildItem -LiteralPath $GameDir -Filter '*_fw_config.txt' -File -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -81,6 +90,7 @@ function Get-ExpectedSuites {
     if ($Suites -contains 'api') { $names += 'api' }
     if ($Suites -contains 'regression') { $names += 'regression' }
     if ($Suites -contains 'plugin') { $names += 'plugin_api', 'plugin_regression' }
+    if ($Suites -contains 'csharp') { $names += 'csharp' }
     return $names
 }
 
@@ -101,6 +111,21 @@ function Install-Suites {
         if (-not (Test-Path -LiteralPath $PluginDll)) { throw "$PluginDll not found: build it with tests\plugin\build.bat" }
         Copy-Item -LiteralPath $PluginDll -Destination (Join-Path $Plugins 'rftest_plugin.dll') -Force
     }
+    if ($Suites -contains 'csharp') {
+        $source = Join-Path $Plugins 'source'
+        New-Item -ItemType Directory -Force -Path $source | Out-Null
+        if (-not (Test-Path -LiteralPath (Join-Path $Plugins 'REFramework.NET.dll'))) {
+            if (-not $CSharpBin -or -not (Test-Path -LiteralPath (Join-Path $CSharpBin 'REFramework.NET.dll'))) {
+                throw "the csharp suite needs REFramework.NET: pass -CSharpBin <csharp-api\build\bin> or install it into the game"
+            }
+            $deps = Join-Path $Plugins 'managed\dependencies'
+            New-Item -ItemType Directory -Force -Path $deps | Out-Null
+            foreach ($f in $CSharpPluginFiles) { Copy-Item -LiteralPath (Join-Path $CSharpBin $f) -Destination $Plugins -Force }
+            foreach ($f in $CSharpDependencyFiles) { Copy-Item -LiteralPath (Join-Path $CSharpBin $f) -Destination $deps -Force }
+            Set-Content -LiteralPath $CSharpInstalled -Value 'REFramework.NET installed by Run-RFTests.ps1'
+        }
+        Copy-Item -LiteralPath (Join-Path $TestsDir 'csharp\rftest_csharp.cs') -Destination $source -Force
+    }
 
     $cfg = Get-ConfigPath
     if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination $Backup -Force }
@@ -114,6 +139,15 @@ function Uninstall-Suites {
     Remove-Item -LiteralPath (Join-Path $Autorun 'rftest') -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -Path (Join-Path $Autorun 'rftest_*.lua') -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $Plugins 'rftest_plugin.dll') -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $Plugins 'source\rftest_csharp.cs') -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $CSharpInstalled) {
+        # Ours, so the generated reference assemblies and the compiled script cache go too.
+        foreach ($f in $CSharpPluginFiles) { Remove-Item -LiteralPath (Join-Path $Plugins $f) -Force -ErrorAction SilentlyContinue }
+        Remove-Item -LiteralPath (Join-Path $Plugins 'managed') -Recurse -Force -ErrorAction SilentlyContinue
+        $source = Join-Path $Plugins 'source'
+        if ((Test-Path -LiteralPath $source) -and -not (Get-ChildItem -LiteralPath $source -Force)) { Remove-Item -LiteralPath $source -Force }
+        Remove-Item -LiteralPath $CSharpInstalled -Force
+    }
     Remove-Item -LiteralPath (Join-Path $Data 'rftest_loadlib.dll') -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $Data 'rftest') -Recurse -Force -ErrorAction SilentlyContinue
     # Builds without the rooted-path fix write here (see tests/lua/rftest_regression.lua).
