@@ -230,8 +230,12 @@ function Save-Results($Summary) {
     if (Test-Path -LiteralPath $Results) { Copy-Item -Path (Join-Path $Results '*.json') -Destination $OutDir -Force }
     $log = Join-Path $GameDir 're2_framework_log.txt'
     if (Test-Path -LiteralPath $log) {
-        Select-String -LiteralPath $log -Pattern '\[rftest\]|\[error\]' | ForEach-Object { $_.Line } |
-            Set-Content -LiteralPath (Join-Path $OutDir 'log-excerpt.txt')
+        $resets = 0
+        $lines = Select-String -LiteralPath $log -Pattern '\[rftest\]|\[error\]|\] Reset!$' | ForEach-Object {
+            if ($_.Line.EndsWith('] Reset!')) { $resets++ } else { $_.Line }
+        }
+        # A swap chain reset every frame means the game is stuck resizing and may not be updating.
+        @($lines) + "device resets: $resets" | Set-Content -LiteralPath (Join-Path $OutDir 'log-excerpt.txt')
     }
     $text = @($Summary.Rows | Format-Table -AutoSize | Out-String) + @($Summary.Failed | ForEach-Object { "FAIL $_" })
     Set-Content -LiteralPath (Join-Path $OutDir 'summary.txt') -Value $text

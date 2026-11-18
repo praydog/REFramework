@@ -438,9 +438,11 @@ do
 
     local function i64(p) return sdk.to_int64(p) end
     local function i32(p) return sdk.to_int64(p) & 0xFFFFFFFF end
+    local function dbl(x) return sdk.to_ptr((string.unpack("<i8", string.pack("<d", x)))) end
 
-    -- def: args (list), this (instance object or nil), pre(args, seen) (reads into seen, may change args, may return
-    -- a PreHookResult), post(retval, seen) (may return a replacement), check(result, seen) (assertions).
+    -- def: args (list), this (instance object or nil), invoke(this, ...) (calls the method; default m:call), pre(args,
+    -- seen) (reads into seen, may change args, may return a PreHookResult), post(retval, seen) (may return a
+    -- replacement), check(result, seen) (assertions).
     local function hook_case(name, tn, sig, def)
         local t = sdk.find_type_definition(tn)
         local m = t and t:get_method(sig)
@@ -466,7 +468,8 @@ do
             c.seen = {}
             local this = def.this and def.this() or nil
             armed_case, armed_tid = c, thread.get_id()
-            local ok, result = pcall(m.call, m, this, table.unpack(def.args()))
+            local call = def.invoke or function(obj, ...) return m:call(obj, ...) end
+            local ok, result = pcall(call, this, table.unpack(def.args()))
             armed_case = nil
             if not ok then error(result, 0) end
             if not c.seen.pre then H.skip("the hook did not fire for a call through invoke") end
@@ -582,6 +585,64 @@ do
             H.eq(seen.ax, 1, "args[3] points at the first vector"); H.eq(seen.bz, 6, "args[4] points at the second vector")
             H.eq(i64(seen.retval), seen.ret_buffer, "post-hook retval is the return buffer")
             H.eq(result.x, 5); H.eq(result.y, 7); H.eq(result.z, 9)
+        end,
+    })
+
+    -- Instance method of a value type returning a struct: return buffer, context, this, then the Double in xmm3.
+    hook_case("value-type instance, struct return (DateTime) + Double: args[4] is the Double", "System.DateTime", "AddHours(System.Double)", {
+        this = function() return ValueType.new(sdk.find_type_definition("System.DateTime")) end,
+        invoke = function(this, ...) return this:call("AddHours(System.Double)", ...) end,
+        args = function() return { 2.5 } end,
+        pre = function(args, seen)
+            seen.ret_buffer = i64(args[1])
+            seen.hours = sdk.to_double(args[4])
+            args[4] = dbl(1.0)
+        end,
+        check = function(result, seen)
+            H.eq(seen.hours, 2.5, "args[4]")
+            H.eq(i64(seen.retval), seen.ret_buffer, "post-hook retval is the return buffer")
+            -- The top two bits of DateTime's data are its Kind (some games set Local); the rest are ticks.
+            H.eq(result:read_qword(0) & 0x3FFFFFFFFFFFFFFF, 36000000000, "ticks of AddHours(1.0) after changing args[4]")
+        end,
+    })
+
+    -- Four Single parameters after context and this: two in xmm2/xmm3, two on the stack.
+    hook_case("value-type instance, 4 Single (2 on the stack): read them, change a register and a stack one", "via.vec4",
+        ".ctor(System.Single, System.Single, System.Single, System.Single)", {
+        this = function() return ValueType.new(sdk.find_type_definition("via.vec4")) end,
+        invoke = function(this, ...) this:call(".ctor(System.Single, System.Single, System.Single, System.Single)", ...); return this end,
+        args = function() return { 1.0, 2.0, 3.0, 4.0 } end,
+        pre = function(args, seen)
+            seen.f = { sdk.to_float(args[3]), sdk.to_float(args[4]), sdk.to_float(args[5]), sdk.to_float(args[6]) }
+            args[3] = sdk.float_to_ptr(0.5)
+            args[6] = sdk.float_to_ptr(8.0)
+        end,
+        check = function(v, seen)
+            H.eq(seen.f[1], 1.0, "args[3] (xmm2)"); H.eq(seen.f[2], 2.0, "args[4] (xmm3)")
+            H.eq(seen.f[3], 3.0, "args[5] (stack)"); H.eq(seen.f[4], 4.0, "args[6] (stack)")
+            H.eq(v:read_float(0), 0.5, "x after changing args[3]"); H.eq(v:read_float(4), 2.0, "y")
+            H.eq(v:read_float(8), 3.0, "z"); H.eq(v:read_float(12), 8.0, "w after changing args[6]")
+        end,
+    })
+
+    hook_case("static: replace the Double return (xmm0)", "System.Math", "Sqrt(System.Double)", {
+        args = function() return { 16.0 } end,
+        pre = function(args, seen) seen.d = sdk.to_double(args[2]) end,
+        post = function() return dbl(2.5) end,
+        check = function(result, seen)
+            H.eq(seen.d, 16.0, "args[2]")
+            H.eq(result, 2.5, "replaced return value")
+        end,
+    })
+
+    -- Skipping a struct-returning method leaves the caller's return buffer unwritten (invoke's buffer holds whatever
+    -- was there), so only check that the original did not run.
+    hook_case("static, struct return: SKIP_ORIGINAL skips the original", "via.vec3", "op_Subtraction(via.vec3, via.vec3)", {
+        args = function() return { Vector3f.new(9, 9, 9), Vector3f.new(1, 2, 3) } end,
+        pre = function(args, seen) seen.ret_buffer = i64(args[1]); return sdk.PreHookResult.SKIP_ORIGINAL end,
+        post = function(retval, seen) return sdk.to_ptr(seen.ret_buffer) end,
+        check = function(result)
+            H.truthy(not (result.x == 8 and result.y == 7 and result.z == 6), "result is not the original's (8, 7, 6)")
         end,
     })
 end

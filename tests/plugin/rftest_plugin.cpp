@@ -496,6 +496,13 @@ void on_present() {
     const auto frame = ++g_presents;
     ++g_stage_frame;
 
+    // Progress trail for runs that stall: what the plugin is waiting on and whether the game thread is still updating.
+    if (frame % 300 == 0 && g_stage.load() != Stage::Done) {
+        g_param->functions->log_info("[rftest] plugin: frame %d stage %d (%d frames in) pre_update %d post_update %d lua_done %d hooks_tested %d",
+            frame, (int)g_stage.load(), g_stage_frame.load(), g_pre_update.load(), g_post_update.load(), (int)lua_suites_done(),
+            (int)g_hooks_tested.load());
+    }
+
     switch (g_stage.load()) {
     case Stage::WaitGame:
         if (frame >= 30) {
