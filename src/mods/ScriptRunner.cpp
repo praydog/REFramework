@@ -196,7 +196,11 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
         "normalized", [](Vector2f& v) { return glm::normalize(v); },
         sol::meta_function::addition, [](Vector2f& lhs, Vector2f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector2f& lhs, Vector2f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector2f& lhs, float scalar) { return lhs * scalar; },
+        // __mul also fires for scalar * vector, with the operands swapped; a single (vector, float) signature bound
+        // the number as the vector (crash inside the binding) and a vector as the scalar (0).
+        sol::meta_function::multiplication, sol::overload(
+            [](Vector2f& lhs, float scalar) { return lhs * scalar; },
+            [](float scalar, Vector2f& rhs) { return rhs * scalar; }),
         "to_vec3", [](Vector2f& v) { return Vector3f{v.x, v.y, 0.0f}; },
         "to_vec4", [](Vector2f& v) { return Vector4f{v.x, v.y, 0.0f, 0.0f}; });
 
@@ -217,7 +221,9 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
         "lerp", [](Vector3f& v1, Vector3f& v2, float t) { return glm::lerp(v1, v2, t); },
         sol::meta_function::addition, [](Vector3f& lhs, Vector3f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector3f& lhs, Vector3f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector3f& lhs, float scalar) { return lhs * scalar; },
+        sol::meta_function::multiplication, sol::overload(
+            [](Vector3f& lhs, float scalar) { return lhs * scalar; },
+            [](float scalar, Vector3f& rhs) { return rhs * scalar; }),
         "to_vec2", [](Vector3f& v) { return Vector2f{v.x, v.y}; },
         "to_vec4", [](Vector3f& v) { return Vector4f{v.x, v.y, v.z, 0.0f}; },
         "to_mat", [](Vector3f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, v, Vector3f{0.0f, 1.0f, 0.0f})); },
@@ -245,7 +251,9 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
         "lerp", [](Vector4f& v1, Vector4f& v2, float t) { return glm::lerp(v1, v2, t); },
         sol::meta_function::addition, [](Vector4f& lhs, Vector4f& rhs) { return lhs + rhs; },
         sol::meta_function::subtraction, [](Vector4f& lhs, Vector4f& rhs) { return lhs - rhs; },
-        sol::meta_function::multiplication, [](Vector4f& lhs, float scalar) { return lhs * scalar; },
+        sol::meta_function::multiplication, sol::overload(
+            [](Vector4f& lhs, float scalar) { return lhs * scalar; },
+            [](float scalar, Vector4f& rhs) { return rhs * scalar; }),
         "to_vec2", [](Vector4f& v) { return Vector2f{v.x, v.y}; },
         "to_vec3", [](Vector4f& v) { return Vector3f{v.x, v.y, v.z}; },
         "to_mat", [](Vector4f& v) { return glm::rowMajor4(glm::lookAtLH(Vector3f{0.0f, 0.0f, 0.0f}, Vector3f{v.x, v.y, v.z}, Vector3f{0.0f, 1.0f, 0.0f})); },
@@ -289,13 +297,17 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
 
             const auto index = index_obj.as<int>();
 
-            if (index >= 4) {
+            if (index < 0 || index >= 4) {
                 return sol::make_object(s, sol::lua_nil);
             }
 
             return sol::make_object(s, &lhs[index]);
         },
         sol::meta_function::new_index, [](Matrix4x4f& lhs, int index, Vector4f& rhs) {
+            if (index < 0 || index >= 4) {
+                throw sol::error("Matrix4x4f index out of range (0-3)");
+            }
+
             lhs[index] = rhs;
         }
     );
@@ -337,13 +349,17 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
 
             const auto index = index_obj.as<int>();
 
-            if (index >= 4) {
+            if (index < 0 || index >= 4) {
                 return sol::make_object(s, sol::lua_nil);
             }
 
             return sol::make_object(s, lhs[index]);
         },
         sol::meta_function::new_index, [](glm::quat& lhs, int index, float rhs) {
+            if (index < 0 || index >= 4) {
+                throw sol::error("Quaternion index out of range (0-3)");
+            }
+
             lhs[index] = rhs;
         }
     );
