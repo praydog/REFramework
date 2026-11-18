@@ -10,6 +10,7 @@ installed game.
 | `regression` | `lua/rftest_regression.lua` | One test per Lua bug fixed in the 2026-11 bug hunt | all PASS (FAIL on builds without the fixes) |
 | `plugin_api` | `plugin/rftest_plugin.cpp` | The C plugin API (`include/reframework/API.h`) and its C++ wrapper `API.hpp` (which the C# API uses): type database, invoke, managed objects, singletons, arrays, hooks, callbacks | all PASS |
 | `plugin_regression` | `plugin/rftest_plugin.cpp` | Plugin API bugs fixed in the same bug hunt, including two callback deadlocks | all PASS (the game hangs on builds without the deadlock fix; see below) |
+| `csharp` | `csharp/rftest_csharp.cs` | The C# API (REFramework.NET), untyped: type database, method and field lookup, static/instance invoke, managed strings, struct arguments and returns, `ValueType` and boxed value-type instance calls, `MethodHook` (args, return replacement, `Skip`, a struct return with a Double), the `UpdateBehavior` callback | all PASS. Not in the default `-Suites`; needs REFramework.NET (`-CSharpBin`). The first launch in a game generates its reference assemblies, which takes a few minutes |
 | `config` | `run/Run-RFTests.ps1 -Scenario MalformedConfig` | A non-numeric value for a numeric config key must not stop REFramework from starting or discard later settings (kananlib `Config::get`) | PASS |
 
 Everything is game-agnostic: only `System.*` and `via.*` types that exist in every RE Engine game are used, so the
@@ -34,9 +35,11 @@ same suites run over every supported game. Game-specific suites are a later step
    `tests\out\<game>-<time>\` and removes everything it installed (the config file is restored). Exit code 0 means
    no failures.
 
-   `-Suites api,regression,plugin` picks suites; `-Scenario MalformedConfig` adds the config check; `-Action
-   Install|Wait|Collect|Uninstall` splits the run for setups where the game is started some other way (e.g. over
-   SSH into a VM's console session: `Install`, start the game, `Wait`, close the game, `Collect`, `Uninstall`).
+   `-Suites api,regression,plugin` picks suites (add `csharp` for the C# suite, with `-CSharpBin <csharp-api\build\bin>`
+   if the game doesn't have REFramework.NET installed: the runner then installs it and removes it afterwards);
+   `-Scenario MalformedConfig` adds the config check; `-Action Install|Wait|Collect|Uninstall` splits the run for
+   setups where the game is started some other way (e.g. over SSH into a VM's console session: `Install`, start the
+   game, `Wait`, close the game, `Collect`, `Uninstall`).
 
 3. Over several games:
 
