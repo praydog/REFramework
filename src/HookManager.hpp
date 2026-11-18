@@ -58,6 +58,20 @@ public:
         //uintptr_t ret_val{};
         sdk::REMethodDefinition* fn_def{};
         sdk::RETypeDefinition* ret_ty{};
+        size_t num_arg_slots{}; // get_arg_slots(fn_def).size(), the size of each thread's args array.
+
+        // One native argument of a hooked call; the args array a hook sees holds argument i in slot i.
+        struct ArgSlot {
+            uint32_t position{}; // argument position in the native call: 0-3 registers, 4+ stack
+            bool is_float{};     // by-value float/double: xmm register instead of the integer one
+        };
+
+        // The native arguments a hook sees, in call order: the return buffer for methods that return a struct through
+        // one (passed ahead of everything else), the thread context, this (instance methods), the parameters, then 2
+        // spare slots for hidden arguments we may not know about.
+        static std::vector<ArgSlot> get_arg_slots(sdk::REMethodDefinition* fn);
+        static bool is_float_type(sdk::RETypeDefinition* t);
+
         std::recursive_mutex mux{};
         std::shared_mutex access_mux{};
 
@@ -119,7 +133,7 @@ public:
             std::unique_lock _{fn->storage_mux};
             auto& ts = fn->thread_storage[tid];
             ts = std::make_unique<HookStorage>();
-            ts->args_impl.resize(size_t(2) + 2 + fn->fn_def->get_num_params());
+            ts->args_impl.resize(fn->num_arg_slots);
             ts->args = ts->args_impl.data();
 
             return ts.get();

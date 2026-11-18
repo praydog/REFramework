@@ -195,9 +195,59 @@ void HookManager::HookedFn::on_post_hook() {
     }
 }
 
+bool HookManager::HookedFn::is_float_type(sdk::RETypeDefinition* t) {
+    if (t == nullptr) {
+        return false;
+    }
+
+    const auto name = t->get_full_name();
+    return name == "System.Single" || name == "System.Double";
+}
+
+std::vector<HookManager::HookedFn::ArgSlot> HookManager::HookedFn::get_arg_slots(sdk::REMethodDefinition* fn) {
+    // Hidden arguments that we may not know about, after the parameters.
+    constexpr uint32_t HIDDEN_ARGUMENT_COUNT = 2;
+
+    const auto num_params = fn->get_num_params();
+    const auto param_types = fn->get_param_types();
+    const auto param_modifiers = fn->get_param_modifiers();
+
+    // Value types other than primitives and enums are returned through a buffer the caller passes first, ahead of
+    // the thread context (the same rule invoke() uses for its out buffer). System.Void counts as a non-primitive
+    // value type there, but void methods take no buffer.
+    const auto ret_ty = fn->get_return_type();
+    const bool returns_through_buffer = ret_ty != nullptr && ret_ty->is_value_type() && ret_ty->should_pass_by_pointer() &&
+        ret_ty->get_full_name() != "System.Void";
+
+    std::vector<ArgSlot> slots{};
+    uint32_t position = 0;
+
+    if (returns_through_buffer) {
+        slots.push_back({position++, false}); // return buffer
+    }
+
+    slots.push_back({position++, false}); // thread context
+
+    if (!fn->is_static()) {
+        slots.push_back({position++, false}); // this
+    }
+
+    for (uint32_t i = 0; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
+        // Only by-value floats travel in XMM; out/ref/pointer floats are pointers in the integer registers.
+        const bool by_value = i >= param_modifiers.size() || param_modifiers[i] == sdk::REMethodDefinition::ParamModifier::None;
+        const bool is_float = i < num_params && i < param_types.size() && by_value && is_float_type(param_types[i]);
+
+        slots.push_back({position++, is_float});
+    }
+
+    return slots;
+}
+
 void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedFn>& hook, sdk::REMethodDefinition* fn, std::function<uintptr_t ()> hook_initialization, std::function<void ()> hook_create) {
+    const auto slots = HookedFn::get_arg_slots(fn);
+    hook->num_arg_slots = slots.size(); // before get_storage creates this thread's args array
+
     auto& args = hook->get_storage(hook.get())->args_impl;
-    auto& arg_tys = hook->arg_tys;
     auto& fn_hook = hook->fn_hook;
 
     using namespace asmjit;
@@ -208,12 +258,6 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     code.init(m_jit.environment());
 
     Assembler a{&code};
-
-    // Make sure we have room to store the arguments.
-    // + 2 for the thread context + this pointer.
-    // Another + 2 for hidden arguments that we may not know about.
-    constexpr auto HIDDEN_ARGUMENT_COUNT = 2;
-    //args.resize(size_t(2) + HIDDEN_ARGUMENT_COUNT + fn->get_num_params());
 
     // Generate the facilitator function that will store the arguments, call on_hook, 
     // restore the arguments, and call the original function.
@@ -320,83 +364,35 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     constexpr auto hook_args_offset = offsetof(HookedFn::HookStorage, args);
     static_assert(hook_args_offset == 0, "HookedFn::HookStorage::args offset is not 0");
 
-    // Store args.
-    // TODO: Handle all the arguments the function takes.
-    //a.mov(rax, ptr(args_label));
-    a.mov(ptr(rax), rcx); // current thread context.
+    // Store args. Slot i of the args array is native argument i: positions 0-3 are rcx/rdx/r8/r9 (xmm0-3 for
+    // by-value floats), the rest are on the stack.
+    auto save_arg = [&a](const HookedFn::ArgSlot& slot) {
+        const auto args_offset = slot.position * 8;
 
-    auto args_start_offset = 8;
-
-    if (!fn->is_static()) {
-        args_start_offset = 16;
-        a.mov(ptr(rax, 8), rdx); // this ptr... probably.
-    }
-
-    auto save_arg = [&a](uint32_t args_offset, bool is_float) {
-        switch (args_offset) {
-        case 8: // rdx/xmm1
-            if (is_float) {
-                a.movq(ptr(rax, args_offset), xmm1);
-            } else {
-                a.mov(ptr(rax, args_offset), rdx);
-            }
+        switch (slot.position) {
+        case 0:
+            slot.is_float ? a.movq(ptr(rax, args_offset), xmm0) : a.mov(ptr(rax, args_offset), rcx);
             break;
-
-        case 16: // r8/xmm2
-            if (is_float) {
-                a.movq(ptr(rax, args_offset), xmm2);
-            } else {
-                a.mov(ptr(rax, args_offset), r8);
-            }
+        case 1:
+            slot.is_float ? a.movq(ptr(rax, args_offset), xmm1) : a.mov(ptr(rax, args_offset), rdx);
             break;
-
-        case 24: // r9/xmm3
-            if (is_float) {
-                a.movq(ptr(rax, args_offset), xmm3);
-            } else {
-                a.mov(ptr(rax, args_offset), r9);
-            }
+        case 2:
+            slot.is_float ? a.movq(ptr(rax, args_offset), xmm2) : a.mov(ptr(rax, args_offset), r8);
             break;
-
+        case 3:
+            slot.is_float ? a.movq(ptr(rax, args_offset), xmm3) : a.mov(ptr(rax, args_offset), r9);
+            break;
         default:
-            // stack args
-            if (args_offset >= 32) {
-                a.mov(r11, ptr(rsp, sizeof(void*) + (args_offset)));
-                a.mov(ptr(rax, args_offset), r11);
-            }
-
+            // Stack arguments, above the return address and the 4 home slots.
+            a.mov(r11, ptr(rsp, sizeof(void*) + slot.position * 8));
+            a.mov(ptr(rax, args_offset), r11);
             break;
         }
     };
-    
-    const auto num_params = fn->get_num_params();
-    const auto param_modifiers = fn->get_param_modifiers();
 
-    auto is_float_type = [](sdk::RETypeDefinition* t) {
-        const auto name = t->get_full_name();
-        return name == "System.Single" || name == "System.Double";
-    };
-
-    // Only by-value floats travel in XMM; out/ref/pointer floats are pointers in the integer registers.
-    auto is_float_arg = [&](uint32_t i) {
-        if (i >= num_params) {
-            return false;
-        }
-
-        if (i < param_modifiers.size() && param_modifiers[i] != sdk::REMethodDefinition::ParamModifier::None) {
-            return false;
-        }
-
-        return is_float_type(arg_tys[i]);
-    };
-
-    // +2 for buffer params to fix possible corruption.
-    for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
-        const auto args_offset = args_start_offset + (i * 8);
-
-        save_arg(args_offset, is_float_arg(i));
+    for (const auto& slot : slots) {
+        save_arg(slot);
     }
-
 
     a.mov(rax, rsp);
     a.mov(rax, ptr(rax)); // return address.
@@ -421,58 +417,40 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
 
     a.pop(r12); // restore storage
 
-    // Restore args.
-    a.mov(rax, ptr(r10)); // set up args ptr from storage.
-    a.mov(rcx, ptr(rax)); // current thread context.
-
-    if (!fn->is_static()) {
-        a.mov(rdx, ptr(rax, 8)); // this ptr... probably.
+    // Restore args. Stack slots first: they use rax as scratch, which then holds the args ptr for the registers.
+    for (const auto& slot : slots) {
+        if (slot.position >= 4) {
+            a.mov(rax, ptr(r10));
+            a.mov(rax, ptr(rax, slot.position * 8));
+            a.mov(ptr(rsp, sizeof(void*) + slot.position * 8), rax);
+        }
     }
 
-    auto restore_arg = [&a](uint32_t args_offset, bool is_float) {
-        switch (args_offset) {
-        case 8: // rdx/xmm1
-            if (is_float) {
-                a.movq(xmm1, ptr(rax, args_offset));
-            } else {
-                a.mov(rdx, ptr(rax, args_offset));
-            }
-            break;
+    a.mov(rax, ptr(r10)); // set up args ptr from storage.
 
-        case 16: // r8/xmm2
-            if (is_float) {
-                a.movq(xmm2, ptr(rax, args_offset));
-            } else {
-                a.mov(r8, ptr(rax, args_offset));
-            }
-            break;
+    auto restore_arg = [&a](const HookedFn::ArgSlot& slot) {
+        const auto args_offset = slot.position * 8;
 
-        case 24: // r9/xmm3
-            if (is_float) {
-                a.movq(xmm3, ptr(rax, args_offset));
-            } else {
-                a.mov(r9, ptr(rax, args_offset));
-            }
+        switch (slot.position) {
+        case 0:
+            slot.is_float ? a.movq(xmm0, ptr(rax, args_offset)) : a.mov(rcx, ptr(rax, args_offset));
             break;
-
+        case 1:
+            slot.is_float ? a.movq(xmm1, ptr(rax, args_offset)) : a.mov(rdx, ptr(rax, args_offset));
+            break;
+        case 2:
+            slot.is_float ? a.movq(xmm2, ptr(rax, args_offset)) : a.mov(r8, ptr(rax, args_offset));
+            break;
+        case 3:
+            slot.is_float ? a.movq(xmm3, ptr(rax, args_offset)) : a.mov(r9, ptr(rax, args_offset));
+            break;
         default:
-            if (args_offset >= 32) {
-                a.mov(rax, ptr(r10));
-                a.mov(rax, ptr(rax, args_offset));
-                a.mov(ptr(rsp, sizeof(void*) + (args_offset)), rax);
-                //a.mov(rax, ptr(r10)); // deref storage.
-            }
-
-            // TODO: handle stack args.
             break;
         }
     };
 
-    // +2 for buffer params to fix possible corruption.
-    for (auto i = 0u; i < num_params + HIDDEN_ARGUMENT_COUNT; ++i) {
-        auto args_offset = args_start_offset + (i * 8);
-        
-        restore_arg(args_offset, is_float_arg(i));
+    for (const auto& slot : slots) {
+        restore_arg(slot);
     }
 
     // Call original function.
@@ -512,7 +490,7 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     constexpr auto ret_val_offset = offsetof(HookedFn::HookStorage, ret_val);
     //a.lea(rcx, ptr(r10, ret_val_offset));
 
-    auto is_ret_ty_float = is_float_type(hook->ret_ty);
+    auto is_ret_ty_float = HookedFn::is_float_type(hook->ret_ty);
 
     if (is_ret_ty_float) {
         a.movq(ptr(r10, ret_val_offset), xmm0);
