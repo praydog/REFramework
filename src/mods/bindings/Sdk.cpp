@@ -12,6 +12,7 @@
 #include "sdk/ResourceManager.hpp"
 #include "sdk/MotionFsm2Layer.hpp"
 #include "sdk/TDBVer.hpp"
+#include "sdk/GameIdentity.hpp"
 #include "utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
@@ -435,12 +436,15 @@ struct ValueType {
 
         const auto mo_runtime_size = REManagedObject::runtime_size();
 
-        if (!def->is_static()) {
-            // For instance methods on value types, we need to construct a fake boxed object.
-            // The native invoke() expects a ManagedObject* with a 0x10 byte header:
-            //   0x00: REObjectInfo* (type info / vtable pointer)
-            //   0x08: uint32_t refcount + padding
-            //   0x10: actual value type data starts here
+        // Since TDB 74, invoke() treats `this` of a value-type instance method as a boxed object and skips its 0x10
+        // byte header, so we pass a fake boxed object:
+        //   0x00: REObjectInfo* (type info / vtable pointer)
+        //   0x08: uint32_t refcount + padding
+        //   0x10: actual value type data starts here
+        // Before TDB 74 it passes `this` through unchanged and the method read the fake header as the value (seen
+        // with Guid.ToString and via.vec3 get_Item/set_Item in TDB 67-73: dmc5, re8, ggr, re2, re3, re7, re4, sf6,
+        // mhrise, kunitsu, gs456, drdr; TDB 74-83 games need the box), so there the value's own data is `this`.
+        if (!def->is_static() && ::sdk::GameIdentity::get().tdb_ver() >= 74) {
             const auto type_vt_size = type->get_valuetype_size();
 
             // Reduce allocation pressure with thread_local.
@@ -449,8 +453,6 @@ struct ValueType {
             if (fake_boxed_storage.size() < mo_runtime_size + type_vt_size) {
                 fake_boxed_storage.resize(mo_runtime_size + type_vt_size);
             }
-
-            fake_boxed_storage.clear();
 
             // REObject header: REObjectInfo* at offset 0x00
             *(void**)&fake_boxed_storage[0x00] = (void*)type;
@@ -466,7 +468,7 @@ struct ValueType {
             // copy back any changes to the value type from the fake boxed storage
             memcpy(data.data(), &fake_boxed_storage[mo_runtime_size], type_vt_size);
         } else {
-            // Static methods expect the value type to not be boxed.
+            // Static methods, and instance methods before TDB 74, take the unboxed value.
             ret_val = def->invoke((void*)address(), std::span(vec_args));
         }
 
@@ -970,6 +972,25 @@ void* get_real_obj(sol::object obj) {
     return real_obj;
 }
 
+// `this` to pass to fn->invoke() for obj. Before TDB 74, invoke() passes `this` of a value-type instance method
+// through unchanged (see ValueType::call), so a boxed value must be passed as its data, past the object header;
+// since TDB 74 invoke() skips the header itself.
+void* get_invoke_this(sol::object obj, ::sdk::REMethodDefinition* fn) {
+    auto real_obj = get_real_obj(obj);
+
+    if (real_obj == nullptr || fn->is_static() || !obj.is<REManagedObject*>() || ::sdk::GameIdentity::get().tdb_ver() >= 74) {
+        return real_obj;
+    }
+
+    const auto declaring_type = fn->get_declaring_type();
+
+    if (declaring_type == nullptr || !declaring_type->is_value_type()) {
+        return real_obj;
+    }
+
+    return (uint8_t*)real_obj + REManagedObject::runtime_size();
+}
+
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method) {
     if (data_type != nullptr) {
         if (!data_type->is_value_type()) {
@@ -1457,7 +1478,7 @@ sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* 
         return sol::make_object(l, sol::nil);
     }
 
-    auto real_obj = get_real_obj(obj);
+    auto real_obj = get_invoke_this(obj, fn);
     auto ret_val = fn->invoke(real_obj, build_args(va, fn));
 
     if (ret_val.exception_thrown) {
@@ -1927,7 +1948,7 @@ void bindings::open_sdk(ScriptState* s) {
     auto method_call = [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
         auto l = va.lua_state();
 
-        auto real_obj = ::api::sdk::get_real_obj(obj);
+        auto real_obj = ::api::sdk::get_invoke_this(obj, def);
         auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va, def));
 
         if (ret_val.exception_thrown) {
