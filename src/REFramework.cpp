@@ -1717,6 +1717,17 @@ void REFramework::invalidate_device_objects() {
         ImGui_ImplDX12_InvalidateDeviceObjects();
     }
 
+    // The backend just destroyed every texture (TexID cleared, status Destroyed), but this runs on the present thread
+    // after ImGui::Render() built the frame's draw data, which still references them. ImGui would only ask for them
+    // again at the next NewFrame, and the backend's texture catch-up skips Destroyed, so the frame was drawn with a null
+    // texture descriptor (D3D12 debug layer: INVALID_DESCRIPTOR_HANDLE in SetGraphicsRootDescriptorTable). Request them
+    // now, as ImGui's NewFrame does for textures a backend destroyed mid-run.
+    for (auto tex : ImGui::GetPlatformIO().Textures) {
+        if (tex->Status == ImTextureStatus_Destroyed && !tex->WantDestroyNextFrame) {
+            tex->SetStatus(ImTextureStatus_WantCreate);
+        }
+    }
+
     m_wants_device_object_cleanup = false;
 }
 
