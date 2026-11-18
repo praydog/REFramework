@@ -7,9 +7,9 @@
 static uintptr_t go_transform_offset() {
     static const auto offset = []() -> uintptr_t {
         const auto& gi = sdk::GameIdentity::get();
-        // SF6 and RE4 have REGameObject::transform at 0x20 (extra padding before transform).
-        // All other games have it at 0x18.
-        if (gi.is_sf6() || gi.is_re4()) return 0x20;
+        // SF6, RE4 and Apollo Justice: Ace Attorney Trilogy (GS456) have REGameObject::transform at 0x20 (extra padding
+        // before transform). All other games have it at 0x18.
+        if (gi.is_sf6() || gi.is_re4() || gi.game() == sdk::GameID::GS456) return 0x20;
         return 0x18;
     }();
     return offset;
