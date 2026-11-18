@@ -563,7 +563,8 @@ int load_font(sol::object filepath_obj, float size) {
         filepath = filepath_obj.as<const char*>();
     }
 
-    if (std::filesystem::path(filepath).is_absolute()) {
+    // has_root_path: "\\foo" and "C:foo" are not absolute but still replace the fonts directory when appended.
+    if (std::filesystem::path(filepath).has_root_path()) {
         throw std::runtime_error("Font filepath must not be absolute.");
     }
 
