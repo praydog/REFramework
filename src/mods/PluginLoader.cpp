@@ -217,11 +217,12 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
     [](REFrameworkTypeDefinitionHandle tdef, char* out, unsigned int size, unsigned int* out_len) {
         auto full_name = RETYPEDEF(tdef)->get_full_name();
 
-        if (full_name.size() > size) {
+        // The output is a C string: it needs room for the terminator.
+        if (full_name.size() >= size) {
             return REFRAMEWORK_ERROR_OUT_TOO_SMALL;
         }
 
-        memcpy(out, full_name.c_str(), full_name.size());
+        memcpy(out, full_name.c_str(), full_name.size() + 1);
 
         if (out_len != nullptr) {
             *out_len = full_name.size();
@@ -255,6 +256,10 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         auto methods = RETYPEDEF(tdef)->get_methods();
 
         if (methods.size() == 0) {
+            if (out_len != nullptr) {
+                *out_len = 0;
+            }
+
             return REFRAMEWORK_ERROR_NONE;
         }
 
@@ -277,6 +282,10 @@ REFrameworkTDBTypeDefinition g_type_definition_data {
         auto fields = RETYPEDEF(tdef)->get_fields();
 
         if (fields.size() == 0) {
+            if (out_len != nullptr) {
+                *out_len = 0;
+            }
+
             return REFRAMEWORK_ERROR_NONE;
         }
 
@@ -339,6 +348,10 @@ REFrameworkTDBMethod g_tdb_method_data {
         const auto num_params = REMETHOD(method)->get_num_params();
         
         if (REMETHOD(method)->get_num_params() == 0) {
+            if (out_len != nullptr) {
+                *out_len = 0;
+            }
+
             return REFRAMEWORK_ERROR_NONE;
         }
 
@@ -579,6 +592,8 @@ REFrameworkModule g_tdb_module_data {
     .get_types = [](REFrameworkModuleHandle mod) { return (uint32_t*)RE_MODULE(mod)->get_types().data(); },
     .get_num_methods = [](REFrameworkModuleHandle mod) -> uint32_t  { return RE_MODULE(mod)->get_methods().size(); },
     .get_methods = [](REFrameworkModuleHandle mod) { return (uint32_t*)RE_MODULE(mod)->get_methods().data(); },
+    .get_num_instantiated_methods = [](REFrameworkModuleHandle mod) -> uint32_t { return RE_MODULE(mod)->get_instantiated_methods().size(); },
+    .get_instantiated_methods = [](REFrameworkModuleHandle mod) { return (uint32_t*)RE_MODULE(mod)->get_instantiated_methods().data(); },
     .get_num_member_references = [](REFrameworkModuleHandle mod) -> uint32_t  { return RE_MODULE(mod)->get_member_references().size(); },
     .get_member_references = [](REFrameworkModuleHandle mod) { return (uint32_t*)RE_MODULE(mod)->get_member_references().data(); },
 };
