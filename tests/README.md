@@ -70,6 +70,9 @@ The regression suites are meant to fail on such builds, and they do so safely wh
 - The plugin's two callback re-entrancy tests deadlock the game without the fix. They run last, after the Lua suites
   have written their results, and are recorded as FAIL before they start, so a hang still leaves complete results;
   the runner notices the hang and kills the game.
+- The Lua regression test for hooking a struct-returning method with a float parameter (reframework#20) hangs the
+  game without the fix. It is a `last_frame_test`: it runs after the plugin suite finished, with its result
+  pre-recorded as FAIL.
 
 ## Writing tests
 
@@ -86,8 +89,9 @@ S:finish()                                           -- writes results when all 
 ```
 
 Assertions: `H.eq`, `H.ne`, `H.near`, `H.truthy`, `H.raises`, `H.no_raise`; `H.skip(reason)` marks a test skipped
-(use it only for things a game may legitimately lack). New Lua suites need their file name added to
-`Install-Suites` and `Get-ExpectedSuites` in the runner.
+(use it only for things a game may legitimately lack). A test that hangs or crashes the game on a build without its
+fix goes in `S:last_frame_test(name, fn)` (same contract as `frame_test`). New Lua suites need their file name added
+to `Install-Suites` and `Get-ExpectedSuites` in the runner.
 
 Plugin: add a `record(...)` call to the matching stage in `rftest_plugin.cpp`; tests that need the game running go in
 `api_runtime_tests` (game thread) or the `on_present` schedule.

@@ -91,6 +91,8 @@ function H.suite(name, opts)
         name = name,
         results = {},
         pending = {},
+        last = {},
+        stage = "main",
         frame = 0,
         max_frames = opts.max_frames or 900,
         finished = false,
@@ -100,8 +102,14 @@ function H.suite(name, opts)
     return s
 end
 
+-- Records a result, replacing an earlier one with the same name (last tests are pre-recorded as pending).
 function Suite:record(test_name, status, detail)
-    self.results[#self.results + 1] = { name = test_name, status = status, detail = detail or "" }
+    local entry = { name = test_name, status = status, detail = detail or "" }
+    local replaced = false
+    for i, r in ipairs(self.results) do
+        if r.name == test_name then self.results[i] = entry; replaced = true break end
+    end
+    if not replaced then self.results[#self.results + 1] = entry end
     log.info(string.format("[rftest] %s: %s %s%s", self.name, status, test_name, (detail and detail ~= "") and (" -- " .. detail) or ""))
 end
 
@@ -121,6 +129,25 @@ function Suite:frame_test(test_name, fn)
     self.pending[#self.pending + 1] = { name = test_name, fn = fn, frames = 0 }
 end
 
+-- A frame test that hangs or crashes the game on a build without the fix it covers. It runs after every other
+-- test, after this suite's results were written with it pre-recorded as FAIL "pending: ...", and after the plugin
+-- suite finished (or max_frames frames), so a hang or crash costs nothing but these tests.
+function Suite:last_frame_test(test_name, fn)
+    self.last[#self.last + 1] = { name = test_name, fn = fn, frames = 0 }
+end
+
+local function plugin_done()
+    -- fs.read returns "" for a missing file; json.load_file would log a parse error every frame until it exists.
+    local ok, text = pcall(fs.read, RESULTS_DIR .. "plugin_regression.json")
+    if not ok or text == nil or text == "" then return false end
+    local r = json.load_string(text)
+    if type(r) ~= "table" or type(r.tests) ~= "table" then return false end
+    for _, t in ipairs(r.tests) do
+        if type(t.detail) == "string" and t.detail:find("^pending:") then return false end
+    end
+    return true
+end
+
 function Suite:write_results()
     local counts = { PASS = 0, FAIL = 0, SKIP = 0 }
     for _, r in ipairs(self.results) do counts[r.status] = (counts[r.status] or 0) + 1 end
@@ -138,31 +165,49 @@ function Suite:write_results()
         counts.SKIP, ok and "written" or "NOT written"))
 end
 
+function Suite:run_pending()
+    local still = {}
+    for _, t in ipairs(self.pending) do
+        t.frames = t.frames + 1
+        local ok, done = pcall(t.fn, t.frames)
+        if not ok then
+            self:record(t.name, classify(done))
+        elseif done then
+            self:record(t.name, "PASS")
+        elseif t.frames >= self.max_frames then
+            self:record(t.name, "FAIL", "did not finish within " .. self.max_frames .. " frames")
+        else
+            still[#still + 1] = t
+        end
+    end
+    self.pending = still
+end
+
 function Suite:finish()
     re.on_frame(function()
         if self.finished then return end
         self.frame = self.frame + 1
 
-        local still = {}
-        for _, t in ipairs(self.pending) do
-            t.frames = t.frames + 1
-            local ok, done = pcall(t.fn, t.frames)
-            if not ok then
-                self:record(t.name, classify(done))
-            elseif done then
-                self:record(t.name, "PASS")
-            elseif self.frame >= self.max_frames then
-                self:record(t.name, "FAIL", "did not finish within " .. self.max_frames .. " frames")
-            else
-                still[#still + 1] = t
-            end
+        if self.stage == "wait" then
+            -- Wait for the plugin suite (its deadlock tests run last too), then start the last tests.
+            if not plugin_done() and self.frame - self.wait_start < self.max_frames then return end
+            self.pending = self.last
+            self.stage = "last"
         end
-        self.pending = still
 
-        if #self.pending == 0 then
-            self.finished = true
+        self:run_pending()
+        if #self.pending > 0 then return end
+
+        if self.stage == "main" and #self.last > 0 then
+            for _, t in ipairs(self.last) do self:record(t.name, "FAIL", "pending: did not finish (hung or crashed the game?)") end
             self:write_results()
+            self.stage = "wait"
+            self.wait_start = self.frame
+            return
         end
+
+        self.finished = true
+        self:write_results()
     end)
 end
 

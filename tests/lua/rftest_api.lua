@@ -242,6 +242,121 @@ S:test("ValueType method call", function()
 end)
 
 -------------------------------------------------------------------------------------------------------------------
+-- Call variants: parameter counts, types and orders. Every signature below exists in re7, re2, ggr, mhrise, dd2, re9
+-- and gs456 (scan of 2026-11-17); a game without one SKIPs that test.
+-------------------------------------------------------------------------------------------------------------------
+local function method(tn, sig)
+    local t = sdk.find_type_definition(tn)
+    local m = t and t:get_method(sig)
+    if m == nil then H.skip(tn .. "." .. sig .. " is not in this game") end
+    return m
+end
+
+local function scall(tn, sig, ...) return method(tn, sig):call(nil, ...) end
+
+local function string_array(...)
+    local values = { ... }
+    local arr = sdk.create_managed_array("System.String", #values)
+    for i, v in ipairs(values) do arr[i - 1] = sdk.create_managed_string(v) end
+    return arr
+end
+
+S:test("3 integer parameters (Int32, Int64, UInt32)", function()
+    H.eq(scall("via.math", "clamp(System.Int32, System.Int32, System.Int32)", 15, 0, 10), 10, "clamp(15, 0, 10)")
+    H.eq(scall("via.math", "clamp(System.Int32, System.Int32, System.Int32)", -3, 0, 10), 0, "clamp(-3, 0, 10)")
+    H.eq(scall("via.math", "clamp(System.Int64, System.Int64, System.Int64)", 1 << 40, 0, 1 << 35), 1 << 35, "Int64 clamp")
+    H.eq(scall("via.math", "clamp(System.Int64, System.Int64, System.Int64)", -(1 << 40), -(1 << 36), 0), -(1 << 36), "Int64 negative clamp")
+    H.eq(scall("via.math", "clamp(System.UInt32, System.UInt32, System.UInt32)", 5, 1, 3), 3, "UInt32 clamp")
+end)
+
+S:test("3 floating-point parameters (Single, Double)", function()
+    H.eq(scall("via.math", "clamp(System.Single, System.Single, System.Single)", 1.5, 0.0, 1.0), 1.0, "Single clamp high")
+    H.eq(scall("via.math", "clamp(System.Single, System.Single, System.Single)", 0.25, 0.0, 1.0), 0.25, "Single clamp inside")
+    H.near(scall("via.math", "lerp(System.Single, System.Single, System.Single)", 10.0, 20.0, 0.25), 12.5, 1e-5, "Single lerp")
+    H.near(scall("via.math", "inverseLerp(System.Single, System.Single, System.Single)", 10.0, 20.0, 15.0), 0.5, 1e-5, "inverseLerp")
+    H.eq(scall("via.math", "clamp(System.Double, System.Double, System.Double)", 2.5, -1.0, 2.0), 2.0, "Double clamp")
+    H.near(scall("via.math", "lerp(System.Double, System.Double, System.Double)", -1.0, 1.0, 0.75), 0.5, 1e-12, "Double lerp")
+end)
+
+S:test("Single parameters by value and Single returns", function()
+    H.eq(scall("System.Math", "Max(System.Single, System.Single)", 1.5, -2.5), 1.5, "Max")
+    H.eq(scall("System.Math", "Min(System.Single, System.Single)", 1.5, -2.5), -2.5, "Min")
+    H.eq(sdk.create_single(1.5):call("CompareTo(System.Single)", 2.0), -1, "boxed Single.CompareTo(Single)")
+end)
+
+S:test("64-bit integer parameters and returns", function()
+    H.eq(scall("System.Convert", "ToInt64(System.Double)", 1099511627776.0), 1099511627776, "ToInt64(2^40)")
+    H.eq(scall("System.Convert", "ToDouble(System.Int64)", -(1 << 53)), -9007199254740992.0, "ToDouble(Int64 -2^53)")
+    H.eq(scall("System.Convert", "ToDouble(System.UInt64)", -1), 18446744073709551615.0, "ToDouble(UInt64 max)")
+end)
+
+S:test("Boolean parameter after two strings", function()
+    H.eq(scall("System.String", "Compare(System.String, System.String, System.Boolean)", "abc", "ABC", true), 0, "ignoreCase = true")
+    H.ne(scall("System.String", "Compare(System.String, System.String, System.Boolean)", "abc", "ABC", false), 0, "ignoreCase = false")
+end)
+
+S:test("Char parameters and Int32 + Char", function()
+    local s = sdk.create_managed_string("ab")
+    H.eq(s:call("PadLeft(System.Int32, System.Char)", 5, 42), "***ab", "PadLeft(5, '*')")
+    H.eq(sdk.create_managed_string("a.b.c"):call("Replace(System.Char, System.Char)", 46, 45), "a-b-c", "Replace('.', '-')")
+end)
+
+S:test("enum parameter (StringComparison)", function()
+    local s = sdk.create_managed_string("abc")
+    H.eq(s:call("Equals(System.String, System.StringComparison)", "ABC", 5), true, "OrdinalIgnoreCase")
+    H.eq(s:call("Equals(System.String, System.StringComparison)", "ABC", 4), false, "Ordinal")
+end)
+
+S:test("4 string parameters", function()
+    H.eq(scall("System.String", "Concat(System.String, System.String, System.String, System.String)", "a", "b", "c", "d"), "abcd")
+end)
+
+S:test("string + 3 boxed object parameters", function()
+    H.eq(scall("System.String", "Format(System.String, System.Object, System.Object, System.Object)", "{0}-{1}-{2}",
+        sdk.create_int32(1), sdk.create_managed_string("x"), sdk.create_int32(3)), "1-x-3")
+end)
+
+S:test("4 parameters: array, object, Int32, Int32", function()
+    local arr = string_array("a", "b", "c", "d")
+    H.eq(scall("System.Array", "IndexOf(System.Array, System.Object, System.Int32, System.Int32)", arr, arr[2], 1, 3), 2,
+        "IndexOf(arr, arr[2], 1, 3)")
+    H.eq(scall("System.Array", "IndexOf(System.Array, System.Object, System.Int32, System.Int32)", arr, arr[0], 1, 3), -1,
+        "IndexOf outside the range")
+end)
+
+S:test("5 parameters: array, Int32, array, Int32, Int32", function()
+    local src = string_array("a", "b", "c", "d")
+    local dst = string_array("w", "x", "y", "z")
+    scall("System.Array", "Copy(System.Array, System.Int32, System.Array, System.Int32, System.Int32)", src, 1, dst, 2, 2)
+    H.eq(dst[0]:call("ToString"), "w"); H.eq(dst[1]:call("ToString"), "x")
+    H.eq(dst[2]:call("ToString"), "b"); H.eq(dst[3]:call("ToString"), "c")
+end)
+
+S:test("struct parameters and struct returns (via.vec2/vec3, Quaternion, mat4)", function()
+    local v = scall("via.vec3", "op_Addition(via.vec3, via.vec3)", Vector3f.new(1, 2, 3), Vector3f.new(4, 5, 6))
+    H.eq(v.x, 5); H.eq(v.y, 7); H.eq(v.z, 9)
+    local m = scall("via.vec3", "op_Multiply(via.vec3, System.Single)", Vector3f.new(1, 2, 3), 2.0)
+    H.eq(m.x, 2); H.eq(m.z, 6)
+    local m2 = scall("via.vec2", "op_Multiply(via.vec2, System.Single)", Vector2f.new(3, 4), 0.5)
+    H.eq(m2.x, 1.5); H.eq(m2.y, 2)
+    H.eq(scall("via.vec3", "op_Equality(via.vec3, via.vec3)", Vector3f.new(1, 2, 3), Vector3f.new(1, 2, 3)), true, "op_Equality")
+    H.eq(scall("via.vec3", "op_Equality(via.vec3, via.vec3)", Vector3f.new(1, 2, 3), Vector3f.new(1, 2, 4)), false, "op_Equality")
+    local half = math.sqrt(0.5)
+    local q = scall("via.Quaternion", "op_Multiply(via.Quaternion, via.Quaternion)", Quaternion.identity(), Quaternion.new(half, 0, 0, half))
+    H.near(q.w, half, 1e-6, "Quaternion op_Multiply w"); H.near(q.z, half, 1e-6, "Quaternion op_Multiply z")
+    local t = Matrix4x4f.new(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 6, 7, 1)
+    local p = scall("via.mat4", "op_Multiply(via.mat4, via.mat4)", Matrix4x4f.identity(), t)
+    H.eq(p[3].x, 5, "mat4 op_Multiply translation x"); H.eq(p[3].z, 7, "mat4 op_Multiply translation z")
+end)
+
+S:test("ValueType instance call with Int32 + Single", function()
+    local v = ValueType.new(tdef("via.vec3"))
+    v:call("set_Item(System.Int32, System.Single)", 1, 2.5)
+    v:call("set_Item(System.Int32, System.Single)", 2, -4.0)
+    H.eq(v.x, 0, "x untouched"); H.eq(v.y, 2.5, "y"); H.eq(v.z, -4.0, "z")
+end)
+
+-------------------------------------------------------------------------------------------------------------------
 -- Scene access (via.* singletons exist in every game)
 -------------------------------------------------------------------------------------------------------------------
 -- A frame test: some games (re7) have no transforms in the scene yet when autorun scripts load.
@@ -307,6 +422,165 @@ do
         H.eq(run("skip", 3, 7), 42, "SKIP_ORIGINAL with post return value")
         return true
     end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
+-- sdk.hook across signatures: what the pre-hook sees in args (args[1] is the thread context; static methods have
+-- their parameters from args[2], instance methods have this in args[2] and parameters from args[3]), changes to
+-- args and return values, register vs stack arguments, int/float/double/bool/struct returns. Each hook only acts
+-- on our own call (same case, same thread), since the game calls most of these methods too.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local armed_case, armed_tid = nil, nil
+
+    local function i64(p) return sdk.to_int64(p) end
+    local function i32(p) return sdk.to_int64(p) & 0xFFFFFFFF end
+
+    -- def: args (list), this (instance object or nil), pre(args, seen) (reads into seen, may change args, may return
+    -- a PreHookResult), post(retval, seen) (may return a replacement), check(result, seen) (assertions).
+    local function hook_case(name, tn, sig, def)
+        local t = sdk.find_type_definition(tn)
+        local m = t and t:get_method(sig)
+        local c = {}
+
+        if m ~= nil then
+            sdk.hook(m, function(args)
+                if armed_case ~= c or thread.get_id() ~= armed_tid then return end
+                c.seen.pre = true
+                if def.pre then return def.pre(args, c.seen) end
+            end, function(retval)
+                if armed_case ~= c or thread.get_id() ~= armed_tid then return retval end
+                c.seen.post = true
+                c.seen.retval = retval
+                if def.post then return def.post(retval, c.seen) end
+                return retval
+            end)
+        end
+
+        S:frame_test("sdk.hook " .. name, function(frame)
+            if m == nil then H.skip(tn .. "." .. sig .. " is not in this game") end
+            if frame < 3 then return false end
+            c.seen = {}
+            local this = def.this and def.this() or nil
+            armed_case, armed_tid = c, thread.get_id()
+            local ok, result = pcall(m.call, m, this, table.unpack(def.args()))
+            armed_case = nil
+            if not ok then error(result, 0) end
+            if not c.seen.pre then H.skip("the hook did not fire for a call through invoke") end
+            H.truthy(c.seen.post, "post hook ran")
+            c.seen.this = this
+            def.check(result, c.seen)
+            return true
+        end)
+    end
+
+    hook_case("static, 3 Int32: read args, change the last one", "via.math", "clamp(System.Int32, System.Int32, System.Int32)", {
+        args = function() return { 15, 0, 10 } end,
+        pre = function(args, seen) seen.a = { i32(args[2]), i32(args[3]), i32(args[4]) }; args[4] = sdk.to_ptr(5) end,
+        check = function(result, seen)
+            H.eq(seen.a[1], 15, "args[2]"); H.eq(seen.a[2], 0, "args[3]"); H.eq(seen.a[3], 10, "args[4]")
+            H.eq(result, 5, "clamp(15, 0, 5) after changing args[4]")
+        end,
+    })
+
+    hook_case("static, 3 Int32: replace the Int32 return", "via.math", "clamp(System.Int32, System.Int32, System.Int32)", {
+        args = function() return { 15, 0, 10 } end,
+        post = function() return sdk.to_ptr(99) end,
+        check = function(result) H.eq(result, 99, "replaced return value") end,
+    })
+
+    hook_case("static, 3 Single (xmm1-3): read args, change one", "via.math", "clamp(System.Single, System.Single, System.Single)", {
+        args = function() return { 1.5, 0.0, 1.0 } end,
+        pre = function(args, seen)
+            seen.f = { sdk.to_float(args[2]), sdk.to_float(args[3]), sdk.to_float(args[4]) }
+            args[4] = sdk.float_to_ptr(0.5)
+        end,
+        check = function(result, seen)
+            H.eq(seen.f[1], 1.5, "args[2]"); H.eq(seen.f[2], 0.0, "args[3]"); H.eq(seen.f[3], 1.0, "args[4]")
+            H.eq(result, 0.5, "clamp(1.5, 0, 0.5) after changing args[4]")
+        end,
+    })
+
+    hook_case("static, 3 Single: replace the Single return (xmm0)", "via.math", "clamp(System.Single, System.Single, System.Single)", {
+        args = function() return { 0.25, 0.0, 1.0 } end,
+        post = function() return sdk.float_to_ptr(0.75) end,
+        check = function(result) H.eq(result, 0.75, "replaced return value") end,
+    })
+
+    hook_case("static, 3 Double: read args", "via.math", "lerp(System.Double, System.Double, System.Double)", {
+        args = function() return { -1.0, 1.0, 0.75 } end,
+        pre = function(args, seen) seen.d = { sdk.to_double(args[2]), sdk.to_double(args[3]), sdk.to_double(args[4]) } end,
+        check = function(result, seen)
+            H.eq(seen.d[1], -1.0, "args[2]"); H.eq(seen.d[2], 1.0, "args[3]"); H.eq(seen.d[3], 0.75, "args[4]")
+            H.near(result, 0.5, 1e-12, "result")
+        end,
+    })
+
+    do
+        local src, dst
+        hook_case("static, 5 args (2 on the stack): read and change a stack arg", "System.Array",
+            "Copy(System.Array, System.Int32, System.Array, System.Int32, System.Int32)", {
+            args = function()
+                src = string_array("a", "b", "c", "d")
+                dst = string_array("w", "x", "y", "z")
+                return { src, 1, dst, 2, 2 }
+            end,
+            pre = function(args, seen)
+                seen.a = { H.type_name(sdk.to_managed_object(args[2])), i32(args[3]), H.type_name(sdk.to_managed_object(args[4])), i32(args[5]), i32(args[6]) }
+                args[6] = sdk.to_ptr(1) -- length: copy one element instead of two
+            end,
+            check = function(_, seen)
+                H.eq(seen.a[1], "System.String[]", "args[2] is an array"); H.eq(seen.a[2], 1, "args[3]")
+                H.eq(seen.a[3], "System.String[]", "args[4] is an array"); H.eq(seen.a[4], 2, "args[5] (stack)")
+                H.eq(seen.a[5], 2, "args[6] (stack)")
+                H.eq(dst[2]:call("ToString"), "b", "copied element"); H.eq(dst[3]:call("ToString"), "z", "length changed to 1")
+            end,
+        })
+    end
+
+    hook_case("instance, Int32 + Char: this in args[2], change the Char", "System.String", "PadLeft(System.Int32, System.Char)", {
+        this = function() return sdk.create_managed_string("ab") end,
+        args = function() return { 5, 42 } end,
+        pre = function(args, seen) seen.this_addr = i64(args[2]); seen.a = { i32(args[3]), i32(args[4]) & 0xFFFF }; args[4] = sdk.to_ptr(45) end,
+        check = function(result, seen)
+            H.eq(seen.this_addr, seen.this:get_address(), "args[2] is this")
+            H.eq(seen.a[1], 5, "args[3]"); H.eq(seen.a[2], 42, "args[4]")
+            H.eq(result, "---ab", "PadLeft(5, '-') after changing args[4]")
+        end,
+    })
+
+    hook_case("instance, enum arg: change it, Boolean return follows", "System.String", "Equals(System.String, System.StringComparison)", {
+        this = function() return sdk.create_managed_string("abc") end,
+        args = function() return { "ABC", 5 } end,
+        pre = function(args, seen) seen.cmp = i32(args[4]); args[4] = sdk.to_ptr(4) end,
+        check = function(result, seen)
+            H.eq(seen.cmp, 5, "args[4] (OrdinalIgnoreCase)")
+            H.eq(result, false, "Equals with Ordinal after changing args[4]")
+        end,
+    })
+
+    hook_case("instance: replace the Boolean return", "System.String", "Equals(System.String, System.StringComparison)", {
+        this = function() return sdk.create_managed_string("abc") end,
+        args = function() return { "ABC", 4 } end,
+        post = function() return sdk.to_ptr(1) end,
+        check = function(result) H.eq(result, true, "replaced return value") end,
+    })
+
+    -- A method returning a struct gets the return buffer as its first native argument, so for these args[1] is
+    -- that buffer, args[2] the thread context, and the parameters (here pointers to the vectors) follow.
+    hook_case("static, struct return (vec3) with struct args: args[1] is the return buffer", "via.vec3", "op_Addition(via.vec3, via.vec3)", {
+        args = function() return { Vector3f.new(1, 2, 3), Vector3f.new(4, 5, 6) } end,
+        pre = function(args, seen)
+            seen.ret_buffer = i64(args[1])
+            seen.ax = sdk.to_valuetype(args[3], "via.vec3"):read_float(0)
+            seen.bz = sdk.to_valuetype(args[4], "via.vec3"):read_float(8)
+        end,
+        check = function(result, seen)
+            H.eq(seen.ax, 1, "args[3] points at the first vector"); H.eq(seen.bz, 6, "args[4] points at the second vector")
+            H.eq(i64(seen.retval), seen.ret_buffer, "post-hook retval is the return buffer")
+            H.eq(result.x, 5); H.eq(result.y, 7); H.eq(result.z, 9)
+        end,
+    })
 end
 
 -------------------------------------------------------------------------------------------------------------------

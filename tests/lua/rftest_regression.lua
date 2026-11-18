@@ -335,4 +335,44 @@ do
     end)
 end
 
+-------------------------------------------------------------------------------------------------------------------
+-- reframework#20: hooking a method that returns a struct and takes a by-value float. Its native arguments are
+-- (return buffer, thread context, &vec3, float in xmm3); the hook saved and restored registers one slot early, so
+-- r8 (&vec3) and xmm3 were clobbered and the game hung as soon as the hook was installed. args keep the native
+-- order: args[1] return buffer, args[2] thread context, args[3] &vec3, args[4] the float.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local m = sdk.find_type_definition("via.vec3"):get_method("op_Multiply(via.vec3, System.Single)")
+    local installed_frame, game_calls, ours, armed_tid = nil, 0, nil, nil
+
+    S:last_frame_test("hooking a struct-returning method with a float parameter", function(frame)
+        if m == nil then H.skip("via.vec3.op_Multiply(via.vec3, System.Single) is not in this game") end
+
+        if installed_frame == nil then
+            installed_frame = frame
+            sdk.hook(m, function(args)
+                if thread.get_id() == armed_tid then
+                    ours = { v = sdk.to_valuetype(args[3], "via.vec3"):read_float(4), f = sdk.to_float(args[4]) }
+                else
+                    game_calls = game_calls + 1
+                end
+            end, function(retval) return retval end)
+            return false
+        end
+
+        -- Let the game run through the hook for a while; on a broken build it never gets here.
+        if frame - installed_frame < 120 then return false end
+
+        armed_tid = thread.get_id()
+        local product = m:call(nil, Vector3f.new(1, 2, 3), 2.0)
+        armed_tid = nil
+        H.truthy(ours ~= nil, "the hook fired for our call")
+        H.eq(ours.v, 2.0, "args[3] points at the vector (y)")
+        H.eq(ours.f, 2.0, "args[4] is the float")
+        H.eq(product.x, 2.0); H.eq(product.y, 4.0); H.eq(product.z, 6.0)
+        log.info(string.format("[rftest] regression: op_Multiply hook saw %d game calls", game_calls))
+        return true
+    end)
+end
+
 S:finish()
