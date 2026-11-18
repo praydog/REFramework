@@ -184,6 +184,13 @@ public:
             if (!it->second.empty()) {
                 it->second.pop_back();
             }
+
+            // A hooked call made from inside another hook's callback returns here; the enclosing hook's
+            // storage is the new top of this thread's stack and must stay reachable for the rest of its callback.
+            if (!it->second.empty()) {
+                m_current_hook_storage = it->second.back();
+                return;
+            }
         }
 
         m_current_hook_storage = sol::nil;
