@@ -1,18 +1,25 @@
 <#
 .SYNOPSIS
-Runs REFramework's in-game test suites (tests/lua, tests/plugin) against one installed game.
+Runs REFramework's in-game test suites (tests/lua, tests/plugin, tests/csharp) against one installed game.
 
 .DESCRIPTION
-Installs the suites into <GameDir>\reframework, starts the game, waits until every suite has written its results file
+Installs the suites into <game>\reframework, starts the game, waits until every suite has written its results file
 (reframework\data\rftest\results\<suite>.json), closes the game, prints a summary, copies the results to -OutDir and
-removes everything it installed. REFramework itself (dinput8.dll or the game's loader DLL) must already be installed.
+removes everything it installed.
+
+The game is picked with -Game (an alias or Steam app id from games.json; the install folder comes from Steam's own
+manifests) or with -GameDir. REFramework comes from -Build (a dinput8.dll, installed for the run and removed
+afterwards; the game's own dinput8.dll is put back), else from local.json's "build", else whatever the game already has.
+
+The game is started on the logged-in user's desktop, so this also works over SSH (session 0): there the game is
+started and closed through a one-off scheduled task, which needs that user logged in.
 
 Actions (default Run):
   Run        Install, launch, wait, close, collect, uninstall.
-  Install    Only install the suites (for launching the game some other way, e.g. on a remote console session).
+  Install    Only install the suites (and -Build), for launching the game some other way.
   Wait       Wait for results from a game started elsewhere, then collect. Does not start or close the game.
   Collect    Summarize whatever results exist now.
-  Uninstall  Remove the suites and restore the config.
+  Uninstall  Remove the suites, restore the config and the game's own dinput8.dll.
 
 Scenarios:
   Normal           The suites as they are.
@@ -21,40 +28,58 @@ Scenarios:
                    (the suites produce results) and keep the sentinel (regression for kananlib Config::get).
 
 .EXAMPLE
-pwsh tests\run\Run-RFTests.ps1 -GameDir 'D:\SteamLibrary\steamapps\common\RESIDENT EVIL 2  BIOHAZARD RE2' -AppId 883710
+powershell -ExecutionPolicy Bypass -File tests\run\Run-RFTests.ps1 -Game re2 -Build C:\builds\dinput8.dll
 
 .EXAMPLE
-# Several games, one after another (see tests/README.md for app ids)
-'883710:D:\Games\RE2', '601150:D:\Games\Devil May Cry 5' | ForEach-Object {
-    $id, $dir = $_ -split ':', 2; pwsh tests\run\Run-RFTests.ps1 -GameDir $dir -AppId $id }
+powershell -ExecutionPolicy Bypass -File tests\run\Run-RFTests.ps1 -Game mhwilds -Suites api,regression,plugin,csharp -CSharpBin C:\src\REFramework\csharp-api\build\bin
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File tests\run\Run-RFTests.ps1 -GameDir 'D:\Games\RE2' -AppId 883710
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)] [string] $GameDir,
+    # Alias or Steam app id from tests/run/games.json.
+    [string] $Game,
+    # The game's install folder, instead of -Game.
+    [string] $GameDir,
     [ValidateSet('Run', 'Install', 'Wait', 'Collect', 'Uninstall')] [string] $Action = 'Run',
     [ValidateSet('Normal', 'MalformedConfig')] [string] $Scenario = 'Normal',
     [string[]] $Suites = @('api', 'regression', 'plugin'),
-    # Steam app id: launches through steam://rungameid. Without it the game exe (-Exe, or the largest .exe in GameDir)
-    # is started directly.
+    # REFramework build (dinput8.dll) to install for the run. Default: local.json "build", else the game's own.
+    [string] $Build,
+    # Steam app id: launches through Steam. Without it the game exe (-Exe, or the largest .exe in GameDir) is started
+    # directly. Set automatically by -Game.
     [string] $AppId,
     [string] $Exe,
     # Defaults: tests\plugin\out\rftest_plugin.dll and rftest_loadlib.dll (built by tests\plugin\build.bat).
     [string] $PluginDll,
     [string] $LoadlibDll,
     # The C# API build output (csharp-api\build\bin) for the csharp suite. Its files are installed only if the game does
-    # not already have REFramework.NET, and removed again afterwards.
+    # not already have REFramework.NET, and removed again afterwards. Default: local.json "csharpBin".
     [string] $CSharpBin,
     [int] $TimeoutSeconds = 900,
+    # Where results are copied. Default: <local.json "outDir" or tests\out>\<game>-<time>.
     [string] $OutDir
 )
 
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'RFTest.psm1') -Force
 # powershell -File passes "api,csharp" as one string.
 $Suites = @($Suites | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
-# Windows PowerShell 5.1 leaves $PSScriptRoot empty while binding parameter defaults.
-$TestsDir = Split-Path -Parent $PSScriptRoot
+$TestsDir = Get-RFTestsDir
 if (-not $PluginDll) { $PluginDll = Join-Path $TestsDir 'plugin\out\rftest_plugin.dll' }
 if (-not $LoadlibDll) { $LoadlibDll = Join-Path $TestsDir 'plugin\out\rftest_loadlib.dll' }
+if (-not $CSharpBin) { $CSharpBin = Get-RFTestSetting 'csharpBin' }
+if (-not $PSBoundParameters.ContainsKey('Build')) { $Build = Get-RFTestSetting 'build' }
+
+if ($Game) {
+    $g = Resolve-Game $Game
+    if (-not $g.GameDir) { throw "$($g.Name) ($($g.AppId)) is not installed in any Steam library" }
+    $GameDir = $g.GameDir
+    if (-not $AppId) { $AppId = $g.AppId }
+    if (-not $Exe) { $Exe = $g.Exe }
+}
+if (-not $GameDir) { throw 'pass -Game <alias or app id> or -GameDir <install folder>' }
 $GameDir = (Resolve-Path -LiteralPath $GameDir).Path
 $Rf = Join-Path $GameDir 'reframework'
 $Autorun = Join-Path $Rf 'autorun'
@@ -62,11 +87,16 @@ $Data = Join-Path $Rf 'data'
 $Plugins = Join-Path $Rf 'plugins'
 $Results = Join-Path $Data 'rftest\results'
 $LuaDir = Join-Path $TestsDir 'lua'
-$Backup = Join-Path $GameDir 'rftest-config-backup.txt'
-$CSharpInstalled = Join-Path $GameDir 'rftest-csharp-installed.txt'
+# What the game had before Install: the list of paths under reframework\ and copies of the files REFramework writes
+# next to the game. Uninstall removes everything else under reframework\ and puts the files back.
+$State = Join-Path $GameDir 'rftest-state'
+$RootFiles = 're2_fw_config.txt', 're2_framework_log.txt', 're2_framework_log.prev.txt', 'ref_ui.ini',
+    'reframework_accessed_files.txt', 'reframework_loose_files.txt', 'reframework_faulty_files.txt', 'reframework_crash.dmp'
 $CSharpPluginFiles = 'REFramework.NET.dll', 'REFramework.NET.runtimeconfig.json', 'Ijwhost.dll'
 $CSharpDependencyFiles = 'AssemblyGenerator.dll', 'REFCoreDeps.dll', 'Microsoft.CodeAnalysis.CSharp.dll', 'Microsoft.CodeAnalysis.dll',
     'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll'
+
+function Get-RootFiles { @($RootFiles) + (Split-Path -Leaf (Get-ConfigPath)) | Select-Object -Unique }
 
 function Get-ConfigPath {
     $cfg = Get-ChildItem -LiteralPath $GameDir -Filter '*_fw_config.txt' -File -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -95,7 +125,20 @@ function Get-ExpectedSuites {
 }
 
 function Install-Suites {
-    if (-not (Test-Path -LiteralPath $Rf)) { throw "$Rf not found: install REFramework into the game first" }
+    if (Test-Path -LiteralPath $State) { throw "$State exists: a previous run was not uninstalled; run -Action Uninstall first" }
+    New-Item -ItemType Directory -Path $State | Out-Null
+    @(if (Test-Path -LiteralPath $Rf) { $Rf; Get-ChildItem -LiteralPath $Rf -Recurse -Force | ForEach-Object { $_.FullName } }) |
+        Set-Content -LiteralPath (Join-Path $State 'reframework-before.txt')
+    foreach ($f in Get-RootFiles) {
+        $p = Join-Path $GameDir $f
+        if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination $State }
+    }
+    if ($Build) {
+        Install-RFBuild -GameDir $GameDir -Build $Build
+        Write-Host "installed build $Build"
+    } elseif (-not (Test-Path -LiteralPath (Join-Path $GameDir 'dinput8.dll'))) {
+        Write-Warning "no dinput8.dll in $GameDir and no -Build: REFramework will only load if the game has another loader"
+    }
     New-Item -ItemType Directory -Force -Path $Autorun, $Data, $Plugins | Out-Null
     Remove-Item -LiteralPath (Join-Path $Data 'rftest') -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -122,13 +165,10 @@ function Install-Suites {
             New-Item -ItemType Directory -Force -Path $deps | Out-Null
             foreach ($f in $CSharpPluginFiles) { Copy-Item -LiteralPath (Join-Path $CSharpBin $f) -Destination $Plugins -Force }
             foreach ($f in $CSharpDependencyFiles) { Copy-Item -LiteralPath (Join-Path $CSharpBin $f) -Destination $deps -Force }
-            Set-Content -LiteralPath $CSharpInstalled -Value 'REFramework.NET installed by Run-RFTests.ps1'
         }
         Copy-Item -LiteralPath (Join-Path $TestsDir 'csharp\rftest_csharp.cs') -Destination $source -Force
     }
 
-    $cfg = Get-ConfigPath
-    if (Test-Path -LiteralPath $cfg) { Copy-Item -LiteralPath $cfg -Destination $Backup -Force }
     if ($Scenario -eq 'MalformedConfig') {
         Set-ConfigValues @{ 'REFrameworkConfig_MenuKey_V2' = 'abc'; 'ScriptRunner_GarbageCollectionBudget' = '777.000000' }
     }
@@ -136,59 +176,36 @@ function Install-Suites {
 }
 
 function Uninstall-Suites {
-    Remove-Item -LiteralPath (Join-Path $Autorun 'rftest') -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -Path (Join-Path $Autorun 'rftest_*.lua') -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Join-Path $Plugins 'rftest_plugin.dll') -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Join-Path $Plugins 'source\rftest_csharp.cs') -Force -ErrorAction SilentlyContinue
-    if (Test-Path -LiteralPath $CSharpInstalled) {
-        # Ours, so the generated reference assemblies and the compiled script cache go too.
-        foreach ($f in $CSharpPluginFiles) { Remove-Item -LiteralPath (Join-Path $Plugins $f) -Force -ErrorAction SilentlyContinue }
-        Remove-Item -LiteralPath (Join-Path $Plugins 'managed') -Recurse -Force -ErrorAction SilentlyContinue
-        $source = Join-Path $Plugins 'source'
-        if ((Test-Path -LiteralPath $source) -and -not (Get-ChildItem -LiteralPath $source -Force)) { Remove-Item -LiteralPath $source -Force }
-        Remove-Item -LiteralPath $CSharpInstalled -Force
+    if (-not (Test-Path -LiteralPath $State)) { Write-Warning "nothing to uninstall ($State not found)"; return }
+    # Everything under reframework\ that wasn't there before: the suites, REFramework.NET, generated assemblies, fonts...
+    $before = @{}
+    foreach ($p in @(Get-Content -LiteralPath (Join-Path $State 'reframework-before.txt'))) { if ($p) { $before[$p] = $true } }
+    if (Test-Path -LiteralPath $Rf) {
+        Get-ChildItem -LiteralPath $Rf -Recurse -Force | Sort-Object { $_.FullName.Length } -Descending | Where-Object { -not $before[$_.FullName] } |
+            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+        if (-not $before[$Rf]) { Remove-Item -LiteralPath $Rf -Recurse -Force -ErrorAction SilentlyContinue }
     }
-    Remove-Item -LiteralPath (Join-Path $Data 'rftest_loadlib.dll') -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath (Join-Path $Data 'rftest') -Recurse -Force -ErrorAction SilentlyContinue
+    foreach ($f in Get-RootFiles) {
+        $saved = Join-Path $State $f
+        $p = Join-Path $GameDir $f
+        if (Test-Path -LiteralPath $saved) { Copy-Item -LiteralPath $saved -Destination $p -Force }
+        elseif (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }
+    }
     # Builds without the rooted-path fix write here (see tests/lua/rftest_regression.lua).
     Remove-Item -LiteralPath ((Split-Path -Qualifier $GameDir) + '\rftest_escape') -Recurse -Force -ErrorAction SilentlyContinue
-    if (Test-Path -LiteralPath $Backup) {
-        Copy-Item -LiteralPath $Backup -Destination (Get-ConfigPath) -Force
-        Remove-Item -LiteralPath $Backup -Force
-    }
+    Restore-RFBuild -GameDir $GameDir
+    Remove-Item -LiteralPath $State -Recurse -Force
     Write-Host "removed suites from $Rf"
 }
 
-function Get-GameProcess {
-    Get-Process -ErrorAction SilentlyContinue | Where-Object {
-        try { $_.Path -and $_.Path.StartsWith($GameDir, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-    }
-}
+function Get-GameProcesses { Get-GameProcess -GameDir $GameDir }
 
 function Start-Game {
-    if ($AppId) {
-        Start-Process "steam://rungameid/$AppId"
-    } else {
-        $exePath = if ($Exe) { Join-Path $GameDir $Exe } else {
-            (Get-ChildItem -LiteralPath $GameDir -Filter '*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1).FullName
-        }
-        Start-Process -FilePath $exePath -WorkingDirectory $GameDir
-    }
-    $t0 = Get-Date
-    while (-not (Get-GameProcess)) {
-        if (((Get-Date) - $t0).TotalSeconds -gt 120) { throw 'game process did not start within 120 s' }
-        Start-Sleep 2
-    }
-    Write-Host "game started: $((Get-GameProcess | Select-Object -First 1).Path)"
+    $p = Start-RFGame -GameDir $GameDir -AppId $AppId -Exe $Exe
+    Write-Host "game started: $($p.Path)"
 }
 
-function Stop-Game {
-    $procs = @(Get-GameProcess)
-    foreach ($p in $procs) { [void]$p.CloseMainWindow() }
-    $t0 = Get-Date
-    while ((Get-GameProcess) -and ((Get-Date) - $t0).TotalSeconds -lt 30) { Start-Sleep 2 }
-    Get-GameProcess | Stop-Process -Force -ErrorAction SilentlyContinue
-}
+function Stop-Game { Stop-RFGame -GameDir $GameDir }
 
 function Test-SuiteComplete([string] $Name) {
     $path = Join-Path $Results "$Name.json"
@@ -208,7 +225,7 @@ function Wait-Results {
         $done = @($expected | Where-Object { Test-SuiteComplete $_ })
         if ($done.Count -eq $expected.Count) { return $true }
         if ($done.Count -ne $seen) { $seen = $done.Count; $lastChange = Get-Date; Write-Host "results: $($done -join ', ')" }
-        if (Get-GameProcess) { $gameSeen = $true }
+        if (Get-GameProcesses) { $gameSeen = $true }
         elseif ($gameSeen -or $Action -eq 'Run') { Write-Warning 'game exited before all results were written (crash?)'; return $false }
         # REFramework gave up initializing its mods (no Lua, no plugins): nothing will be written.
         $log = Get-Item -LiteralPath (Join-Path $GameDir 're2_framework_log.txt') -ErrorAction SilentlyContinue
@@ -259,12 +276,16 @@ function Get-Summary {
 }
 
 function Save-Results($Summary) {
-    if (-not $OutDir) { $OutDir = Join-Path $TestsDir "out\$(Split-Path -Leaf $GameDir)-$(Get-Date -Format yyyyMMdd-HHmmss)" }
+    if (-not $OutDir) {
+        $root = Get-RFTestSetting 'outDir' (Join-Path $TestsDir 'out')
+        $name = if ($Game) { $Game } else { Split-Path -Leaf $GameDir }
+        $script:OutDir = Join-Path $root "$name-$(Get-Date -Format yyyyMMdd-HHmmss)"
+    }
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
     if (Test-Path -LiteralPath $Results) { Copy-Item -Path (Join-Path $Results '*.json') -Destination $OutDir -Force }
-    $log = Join-Path $GameDir 're2_framework_log.txt'
+    $log = Get-RFLogPath $GameDir
+    $resets = 0
     if (Test-Path -LiteralPath $log) {
-        $resets = 0
         $lines = Select-String -LiteralPath $log -Pattern '\[rftest\]|\[error\]|\] Reset!$' | ForEach-Object {
             if ($_.Line.EndsWith('] Reset!')) { $resets++ } else { $_.Line }
         }
@@ -273,6 +294,11 @@ function Save-Results($Summary) {
     }
     $text = @($Summary.Rows | Format-Table -AutoSize | Out-String) + @($Summary.Failed | ForEach-Object { "FAIL $_" })
     Set-Content -LiteralPath (Join-Path $OutDir 'summary.txt') -Value $text
+    # Machine-readable summary for Run-AllGames.ps1 and other tools.
+    [pscustomobject]@{
+        game = if ($Game) { $Game } else { Split-Path -Leaf $GameDir }; scenario = $Scenario; build = $Build
+        suites = $Summary.Rows; failed = @($Summary.Failed); deviceResets = $resets
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutDir 'summary.json')
     Write-Host ($text -join "`n")
     Write-Host "results: $OutDir"
 }
@@ -283,7 +309,7 @@ switch ($Action) {
     'Collect' { $s = Get-Summary; Save-Results $s; exit [int]($s.Failed.Count -gt 0) }
     'Wait' { [void](Wait-Results); $s = Get-Summary; Save-Results $s; exit [int]($s.Failed.Count -gt 0) }
     'Run' {
-        if (Get-GameProcess) { throw 'the game is already running; close it first' }
+        if (Get-GameProcesses) { throw 'the game is already running; close it first' }
         Install-Suites
         try {
             Start-Game
