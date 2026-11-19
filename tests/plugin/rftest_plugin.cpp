@@ -3,7 +3,7 @@
 //
 // Two suites, written like the Lua ones to reframework/data/rftest/results/<suite>.json:
 //   plugin_api         documented plugin API behavior; every test passes on a healthy build.
-//   plugin_regression  bugs fixed in the 2026-11 bug hunt (Questlog reframework#14); fail without the fixes.
+//   plugin_regression  bugs fixed in the 2026-11 bug hunt; fail without the fixes.
 //
 // The two callback re-entrancy tests run last because, without the fix, they deadlock the game. Before running them
 // the plugin waits for the Lua suites' result files (or a frame budget), writes every result so far, and pre-records
@@ -374,7 +374,7 @@ void api_hook_test() {
 }
 
 // ----------------------------------------------------------------------------------------------------------------
-// plugin_regression (reframework#18, reframework#19)
+// plugin_regression: out-parameters and terminators of the type database functions, and callback re-entrancy.
 // ----------------------------------------------------------------------------------------------------------------
 void regression_init_tests() {
     auto& S = g_regression;

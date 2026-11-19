@@ -1,4 +1,4 @@
--- rftest regression suite: one test per bug fixed in the 2026-11 bug hunt (Questlog reframework#14).
+-- rftest regression suite: one test per bug fixed in the 2026-11 bug hunt.
 -- Game-agnostic: uses only System.*, via.* types and REFramework APIs. Every test FAILS on a build without the
 -- corresponding fix and PASSES with it. See tests/README.md.
 --
@@ -11,7 +11,7 @@ local H = require("rftest.harness")
 local S = H.suite("regression")
 
 -------------------------------------------------------------------------------------------------------------------
--- reframework#15: Lua file APIs must reject rooted paths ("\foo" has a root directory but no drive, "C:foo" a drive
+-- Lua file APIs must reject rooted paths ("\foo" has a root directory but no drive, "C:foo" a drive
 -- but no root directory; neither is absolute, but both replace the data directory when appended to it).
 -------------------------------------------------------------------------------------------------------------------
 S:test("fs.write rejects a root-relative path", function()
@@ -79,7 +79,7 @@ S:test("DLL write check covers names Windows normalizes (trailing dot, trailing 
 end)
 
 -------------------------------------------------------------------------------------------------------------------
--- reframework#21: ValueType field writes and bounds.
+-- ValueType field writes and bounds.
 -------------------------------------------------------------------------------------------------------------------
 S:test("set_field with a ValueType writes only the field (via.vec3.x)", function()
     local vec3 = H.truthy(sdk.find_type_definition("via.vec3"), "via.vec3")
@@ -124,7 +124,7 @@ S:test("ValueType read_* rejects reads that run past the buffer", function()
 end)
 
 -------------------------------------------------------------------------------------------------------------------
--- reframework#22: numbers are encoded by the callee's parameter type.
+-- Numbers are encoded by the callee's parameter type.
 -------------------------------------------------------------------------------------------------------------------
 S:test("integer argument to a System.Double parameter", function()
     local sqrt = H.truthy(sdk.find_type_definition("System.Math"):get_method("Sqrt(System.Double)"), "Math.Sqrt")
@@ -160,7 +160,7 @@ S:test("integer address to an out System.Single / System.Double parameter", func
 end)
 
 -------------------------------------------------------------------------------------------------------------------
--- reframework#24: math type operators and indexing.
+-- Math type operators and indexing.
 -------------------------------------------------------------------------------------------------------------------
 S:test("scalar * vector", function()
     local v = 2.0 * Vector3f.new(1, 2, 3)
@@ -194,7 +194,7 @@ S:test("Matrix4x4f / Quaternion out-of-range writes raise", function()
 end)
 
 -------------------------------------------------------------------------------------------------------------------
--- reframework#23: thread.get_hook_storage() survives a nested hooked call. Hooks install at the end of the frame
+-- thread.get_hook_storage() survives a nested hooked call. Hooks install at the end of the frame
 -- in which they are added, so the check runs from a frame test.
 -------------------------------------------------------------------------------------------------------------------
 do
@@ -238,7 +238,7 @@ do
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- reframework#17: imgui bindings. Each check runs inside a window in a frame test.
+-- imgui bindings. Each check runs inside a window in a frame test.
 -------------------------------------------------------------------------------------------------------------------
 local function width_of(draw)
     -- Width of the item drawn by draw(): cursor x after same_line() minus the start x and the item spacing.
@@ -336,7 +336,7 @@ do
 end
 
 -------------------------------------------------------------------------------------------------------------------
--- reframework#20: hooking a method that returns a struct and takes a by-value float. Its native arguments are
+-- Hooking a method that returns a struct and takes a by-value float. Its native arguments are
 -- (return buffer, thread context, &vec3, float in xmm3); the hook saved and restored registers one slot early, so
 -- r8 (&vec3) and xmm3 were clobbered and the game hung as soon as the hook was installed. args keep the native
 -- order: args[1] return buffer, args[2] thread context, args[3] &vec3, args[4] the float.

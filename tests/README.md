@@ -73,7 +73,7 @@ The regression suites are meant to fail on such builds, and they do so safely wh
 - The plugin's two callback re-entrancy tests deadlock the game without the fix. They run last, after the Lua suites
   have written their results, and are recorded as FAIL before they start, so a hang still leaves complete results;
   the runner notices the hang and kills the game.
-- The Lua regression test for hooking a struct-returning method with a float parameter (reframework#20) hangs the
+- The Lua regression test for hooking a struct-returning method with a float parameter hangs the
   game without the fix. It is a `last_frame_test`: it runs after the plugin suite finished, with its result
   pre-recorded as FAIL.
 

@@ -196,7 +196,7 @@ public class RfTestCsharp {
             return null;
         });
 
-        // reframework#28: before TDB 74 invoke() passes `this` of a value-type method through unchanged.
+        // Before TDB 74, invoke() passes `this` of a value-type method through unchanged.
         Test("ValueType instance call (via.vec3 get_Item / set_Item)", () => {
             var getItem = Find("via.vec3", "get_Item(System.Int32)");
             var setItem = Find("via.vec3", "set_Item(System.Int32, System.Single)");
@@ -255,8 +255,8 @@ public class RfTestCsharp {
             return null;
         });
 
-        // reframework#20: a struct return takes the return buffer as the first native argument, so the Double is in
-        // xmm3. Also needs reframework#28 (value-type `this`).
+        // A struct return takes the return buffer as the first native argument, so the Double is in xmm3. Also needs
+        // the value-type `this` fix above.
         Test("MethodHook: struct return + Double on a value type (DateTime.AddHours)", () => {
             var addHours = Find("System.DateTime", "AddHours(System.Double)");
             double seen = 0;
