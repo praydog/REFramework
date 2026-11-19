@@ -24,31 +24,71 @@ same suites run over every supported game. Game-specific suites are a later step
    tests\plugin\build.bat
    ```
 
-2. Install REFramework into the game as usual, then:
+2. Optionally copy `tests\run\local.example.json` to `tests\run\local.json` (gitignored) and fill in the paths that
+   apply to this machine: the REFramework build to test, the C# API build output, procdump, a results folder. Every
+   key is optional; command-line parameters override them.
+
+3. One game:
 
    ```powershell
-   powershell -ExecutionPolicy Bypass -File tests\run\Run-RFTests.ps1 -GameDir 'D:\SteamLibrary\steamapps\common\RESIDENT EVIL 2  BIOHAZARD RE2' -AppId 883710
+   powershell -ExecutionPolicy Bypass -File tests\run\Run-RFTests.ps1 -Game re2 -Build C:\path\to\dinput8.dll
    ```
 
-   The runner installs the suites into `<game>\reframework`, starts the game (through Steam with `-AppId`, otherwise
-   the game's exe), waits for every suite's results, closes the game, prints a summary, copies the results to
-   `tests\out\<game>-<time>\` and removes everything it installed (the config file is restored). Exit code 0 means
-   no failures.
+   - `-Game` takes an alias or Steam app id from [`run/games.json`](run/games.json). The install folder comes from
+     Steam's library manifests. `-GameDir <folder>` (plus `-AppId` to launch through Steam) works for anything else.
+   - `-Build` installs that `dinput8.dll` for the run and puts the game's own back afterwards. Without it (and without
+     `build` in `local.json`) the REFramework already installed in the game is tested.
+   - The runner installs the suites into `<game>\reframework`, starts the game, waits for every suite's results,
+     closes the game, prints a summary and copies the results to `tests\out\<game>-<time>\` (`summary.txt`,
+     `summary.json`, the suites' JSON files, a log excerpt). Then it puts the game back as it was: everything new
+     under `reframework\` is removed, and the config, logs and `ref_ui.ini` are restored. Exit code 0 means no
+     failures.
+   - `-Suites api,regression,plugin` picks suites. Add `csharp` for the C# suite; `-CSharpBin <csharp-api\build\bin>`
+     installs REFramework.NET for the run if the game doesn't have it.
+   - `-Scenario MalformedConfig` adds the config check.
+   - `-Action Install|Wait|Collect|Uninstall` splits the run for setups where the game is started some other way.
 
-   `-Suites api,regression,plugin` picks suites (add `csharp` for the C# suite, with `-CSharpBin <csharp-api\build\bin>`
-   if the game doesn't have REFramework.NET installed: the runner then installs it and removes it afterwards);
-   `-Scenario MalformedConfig` adds the config check; `-Action Install|Wait|Collect|Uninstall` splits the run for
-   setups where the game is started some other way (e.g. over SSH into a VM's console session: `Install`, start the
-   game, `Wait`, close the game, `Collect`, `Uninstall`).
-
-3. Over several games:
+4. Every installed game, one after another:
 
    ```powershell
-   $games = @{ 883710 = 'D:\Games\RE2'; 601150 = 'D:\Games\Devil May Cry 5'; 2246340 = 'D:\Games\MonsterHunterWilds' }
-   foreach ($id in $games.Keys) { powershell -ExecutionPolicy Bypass -File tests\run\Run-RFTests.ps1 -GameDir $games[$id] -AppId $id }
+   powershell -ExecutionPolicy Bypass -File tests\run\Run-AllGames.ps1 -Build C:\path\to\dinput8.dll -Suites api,regression,plugin,csharp
    ```
+
+   `-Games re2,dmc5` limits the run. The combined results go to `summary.md` (one row per game, pass/fail/skip per
+   suite) and `summary.json`; exit code 0 means every suite passed in every game.
 
 The suites only need the game to reach its title screen; no input is required.
+
+### Over SSH
+
+All Windows tools work from an SSH session, e.g. on a test VM:
+
+```sh
+ssh testbox powershell -ExecutionPolicy Bypass -File C:\src\REFramework\tests\run\Run-AllGames.ps1
+```
+
+SSH sessions can't show windows, so the tools start and close games on the desktop of the logged-in user through a
+one-off scheduled task. Requirements:
+
+- the same user is logged in on the machine's desktop (auto-logon works);
+- Steam is running in that session.
+
+### Linux (Proton, Steam Deck)
+
+[`run/run-rftests.sh`](run/run-rftests.sh) is the same runner for Proton. It needs bash, python3, a running Steam
+client, and the plugin DLLs built on Windows (copy `tests\plugin\out` along with `tests`):
+
+```sh
+bash tests/run/run-rftests.sh -g dd2 -b ~/builds/dinput8.dll
+```
+
+- It installs the build and suites, adds the `dinput8` DLL override to the game's Proton prefix if missing, launches
+  through Steam, and puts everything back afterwards.
+- `-s api,regression,plugin,csharp` with `-c <csharp bin>` runs the C# suite. A Proton prefix has no .NET, so it also
+  needs `-n <dir>`: a portable .NET 10 runtime (the contents of `C:\Program Files\dotnet` from a Windows machine with
+  the .NET 10 runtime), which is copied into the prefix for the run.
+- Over SSH, start it with `systemd-run --user --collect --same-dir` so a dropped connection doesn't stop it half way
+  (`--same-dir` keeps the working directory; the unit starts in `~` otherwise).
 
 ## Results
 
@@ -76,6 +116,40 @@ The regression suites are meant to fail on such builds, and they do so safely wh
 - The Lua regression test for hooking a struct-returning method with a float parameter hangs the
   game without the fix. It is a `last_frame_test`: it runs after the plugin suite finished, with its result
   pre-recorded as FAIL.
+
+## Other tools
+
+| Tool | What it's for |
+|---|---|
+| `run/Compare-ScriptErrors.ps1 -Game <g> -Scripts <dir> -BuildA <dll> -BuildB <dll>` | Lua API compatibility. Runs a folder of real scripts (mods) with two builds and compares the script errors (log lines and the "ScriptRunner Message" boxes, which it dismisses). Exit code 0 means the same distinct messages with both builds. |
+| `run/Find-StartupHang.ps1 -Game <g> -Runs <n> -DumpDir <dir>` | Intermittent startup hangs. Starts the game until the REFramework log stops growing before Lua initializes, then takes a full dump with procdump. |
+| `run/tools/Watch-GameWindow.ps1 -Game <g> -Log <file>` | Logs the game window's size, monitor, style, DPI and focus over time, for games that fight over their window. |
+| `run/tools/Watch-MessageBoxes.ps1` | Dismisses and logs "ScriptRunner Message" boxes (used by Compare-ScriptErrors.ps1). |
+| `run/Set-SteamOffline.ps1 -Mode Offline\|Online` | Keeps a dedicated test machine from syncing Steam Cloud saves (see below). |
+
+## Games stuck resizing
+
+A game that never finishes starting, with thousands of `Reset!` lines in `re2_framework_log.txt` (`deviceResets` in
+`summary.json`), is stuck in a swap chain resize loop. Two causes seen so far, neither in REFramework:
+
+| Cause | Seen with | What helps |
+|---|---|---|
+| Another window in front when the game starts (e.g. a console window) | Ghosts 'n Goblins Resurrection | The tools start their helpers without windows. Keep the test machine's desktop clear. |
+| Cloud-synced options from another PC with a resolution the display can't do (e.g. 3840x2160 on 1080p) | Resident Evil 7, Ghosts 'n Goblins Resurrection | `Set-SteamOffline.ps1` (below) |
+
+`tools/Watch-GameWindow.ps1` shows which one it is: a game that stays windowed and never gets the foreground is the
+first.
+
+### Steam Cloud on a test machine
+
+On a dedicated test machine, `Set-SteamOffline.ps1 -Mode Offline -ResetSaves re7,gngr` keeps cloud saves out of the
+way:
+
+- it backs up the games' Steam userdata folders, removes the local cloud saves of the listed games, and puts Steam
+  in offline mode, so nothing syncs either way;
+- `-Mode Online` restores the backup before going online (for game updates), so nothing a test run wrote is uploaded.
+
+Steam's own cloud switches can't do this: they are stored in the account's roaming settings and apply to every PC.
 
 ## Writing tests
 
