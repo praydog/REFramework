@@ -102,15 +102,25 @@ function H.suite(name, opts)
     return s
 end
 
--- Records a result, replacing an earlier one with the same name (last tests are pre-recorded as pending).
+-- Records a result. It replaces an earlier entry only if that one was pre-recorded as pending (tests that could hang
+-- record their FAIL first); any other repeat of a name is a FAIL of its own, so a PASS can never hide a FAIL.
 function Suite:record(test_name, status, detail)
     local entry = { name = test_name, status = status, detail = detail or "" }
     local replaced = false
     for i, r in ipairs(self.results) do
-        if r.name == test_name then self.results[i] = entry; replaced = true break end
+        if r.name == test_name then
+            if tostring(r.detail):sub(1, 8) == "pending:" then
+                self.results[i] = entry
+            else
+                entry = { name = test_name .. " (duplicate name)", status = "FAIL", detail = "recorded twice; second: " .. status .. " " .. (detail or "") }
+                self.results[#self.results + 1] = entry
+            end
+            replaced = true
+            break
+        end
     end
     if not replaced then self.results[#self.results + 1] = entry end
-    log.info(string.format("[rftest] %s: %s %s%s", self.name, status, test_name, (detail and detail ~= "") and (" -- " .. detail) or ""))
+    log.info(string.format("[rftest] %s: %s %s%s", self.name, entry.status, entry.name, (entry.detail ~= "") and (" -- " .. entry.detail) or ""))
 end
 
 local function classify(err)

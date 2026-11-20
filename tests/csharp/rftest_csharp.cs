@@ -45,9 +45,18 @@ public class RfTestCsharp {
         return sb.ToString();
     }
 
+    // Replaces an earlier entry only if it was pre-recorded as pending; any other repeat of a name is a FAIL of its own,
+    // so a PASS can never hide a FAIL.
     static void Record(string name, string status, string detail = "") {
         lock (s_lock) {
-            s_results.RemoveAll(r => r.Name == name);
+            var earlier = s_results.Find(r => r.Name == name);
+            if (earlier != null && !earlier.Detail.StartsWith("pending:")) {
+                detail = $"recorded twice; second: {status} {detail}";
+                name += " (duplicate name)";
+                status = "FAIL";
+            } else {
+                s_results.RemoveAll(r => r.Name == name);
+            }
             s_results.Add(new Result { Name = name, Status = status, Detail = detail });
         }
         API.LogInfo($"[rftest] csharp: {status} {name}{(string.IsNullOrEmpty(detail) ? "" : " -- " + detail)}");
@@ -220,12 +229,24 @@ public class RfTestCsharp {
             return null;
         });
 
+        // A method System.Enum declares (a reference type) needs a real object as `this`, not the value's data or a
+        // fake object header.
+        Test("ValueType enum calls a method System.Enum declares (DayOfWeek.GetHashCode)", () => {
+            var hash = Find("System.DayOfWeek", "GetHashCode()");
+            var v = new REFrameworkNET.ValueType(Type("System.DayOfWeek"));
+            System.Runtime.InteropServices.Marshal.WriteInt32(Addr(v), 1);
+            Eq(hash.Invoke(v, new object[0]).DWord, 1u, "Monday.GetHashCode()");
+            return null;
+        });
+
         Test("MethodHook: args, changing an arg, replacing the return", () => {
             var max = Find("System.Math", "Max(System.Int32, System.Int32)");
             uint seenA = 0, seenB = 0;
+            bool fired = false;
             bool post = false;
             max.AddHook(false).AddPre(args => {
                 if (t_armed != "max") return PreHookResult.Continue;
+                fired = true;
                 seenA = (uint)args[1]; seenB = (uint)args[2];
                 args[2] = 9;
                 return PreHookResult.Continue;
@@ -237,7 +258,8 @@ public class RfTestCsharp {
             t_armed = "max";
             var r = max.Invoke(null, new object[] { 3, 7 }).DWord;
             t_armed = null;
-            if (seenA == 0 && !post) throw new SkipException("the hook did not fire for a call through Invoke");
+            // The test made this call itself, so a hook that didn't see it is a failure, not an absence.
+            Check(fired, "the hook fired for the test's own call");
             Eq(seenA, 3u, "args[1]"); Eq(seenB, 7u, "args[2]");
             Check(post, "post hook ran");
             Eq(r, 42u, "Max(3, 9) with the return replaced");
@@ -260,8 +282,10 @@ public class RfTestCsharp {
         Test("MethodHook: struct return + Double on a value type (DateTime.AddHours)", () => {
             var addHours = Find("System.DateTime", "AddHours(System.Double)");
             double seen = 0;
+            bool fired = false;
             addHours.AddHook(false).AddPre(args => {
                 if (t_armed != "addhours") return PreHookResult.Continue;
+                fired = true;
                 seen = BitsDouble(args[3]);
                 args[3] = DoubleBits(1.0);
                 return PreHookResult.Continue;
@@ -270,7 +294,7 @@ public class RfTestCsharp {
             t_armed = "addhours";
             var r = addHours.Invoke(dt, new object[] { 2.5 });
             t_armed = null;
-            if (seen == 0) throw new SkipException("the hook did not fire for a call through Invoke");
+            Check(fired, "the hook fired for the test's own call");
             Eq(seen, 2.5, "args[3]");
             // The return buffer is the InvokeRet; the top two bits of DateTime's data are its Kind.
             Eq(r.QWord & 0x3FFFFFFFFFFFFFFF, 36000000000UL, "ticks of AddHours(1.0) after changing args[3]");
