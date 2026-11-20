@@ -2,6 +2,7 @@
 #include <concepts>
 
 #include <hde64.h>
+#include <utility/ScopeGuard.hpp>
 
 #include "HookManager.hpp"
 #include "sdk/REContext.hpp"
@@ -437,22 +438,39 @@ struct ValueType {
 
         const auto mo_runtime_size = REManagedObject::runtime_size();
 
-        // Since TDB 74, invoke() treats `this` of a value-type instance method as a boxed object and skips its 0x10
-        // byte header, so we pass a fake boxed object:
-        //   0x00: REObjectInfo* (type info / vtable pointer)
-        //   0x08: uint32_t refcount + padding
-        //   0x10: actual value type data starts here
-        // Before TDB 74 it passes `this` through unchanged and the method read the fake header as the value (seen
-        // with Guid.ToString and via.vec3 get_Item/set_Item in TDB 67-73: dmc5, re8, ggr, re2, re3, re7, re4, sf6,
-        // mhrise, kunitsu, gs456, drdr; TDB 74-83 games need the box), so there the value's own data is `this` for
-        // methods the value type declares. Methods declared on a reference type (System.Object.GetType) expect an
-        // object, so they keep the box, as get_invoke_this does.
+        // `this` depends on who declares the method:
+        // - The value type itself, since TDB 74: invoke() treats `this` of a value-type instance method as a boxed
+        //   object and skips its 0x10 byte header, so we pass a fake boxed object:
+        //     0x00: REObjectInfo* (type info / vtable pointer)
+        //     0x08: uint32_t refcount + padding
+        //     0x10: actual value type data starts here
+        // - The value type itself, before TDB 74: invoke() passes `this` through unchanged and the method read the fake
+        //   header as the value (seen with Guid.ToString and via.vec3 get_Item/set_Item in TDB 67-73: dmc5, re8, ggr,
+        //   re2, re3, re7, re4, sf6, mhrise, kunitsu, gs456, drdr), so there the value's own data is `this`.
+        // - A reference type (System.Object.GetType, System.Enum.ToString): the method uses `this` as a real object,
+        //   and the fake header isn't one (both threw "Invoke threw an exception" in RE2 and DD2), so the value goes
+        //   into a real boxed object of its type for the call.
         const auto declaring_type = def->get_declaring_type();
-        const bool unboxed_this = ::sdk::GameIdentity::get().tdb_ver() < 74 && declaring_type != nullptr && declaring_type->is_value_type();
+        const bool declared_by_reference_type = declaring_type != nullptr && !declaring_type->is_value_type();
+        const auto type_vt_size = type->get_valuetype_size();
 
-        if (!def->is_static() && !unboxed_this) {
-            const auto type_vt_size = type->get_valuetype_size();
+        if (def->is_static()) {
+            ret_val = def->invoke((void*)address(), std::span(vec_args));
+        } else if (declared_by_reference_type) {
+            auto box = type->create_instance_full();
 
+            if (box == nullptr) {
+                throw sol::error("ValueType:call: could not box the value for " + std::string{name});
+            }
+
+            // Not a global object yet: hold a reference for the call so a GC in between can't take it.
+            box->add_ref();
+            utility::ScopeGuard release{[box] { box->release(); }};
+
+            memcpy((uint8_t*)box + mo_runtime_size, data.data(), type_vt_size);
+            ret_val = def->invoke(box, std::span(vec_args));
+            memcpy(data.data(), (uint8_t*)box + mo_runtime_size, type_vt_size);
+        } else if (::sdk::GameIdentity::get().tdb_ver() >= 74) {
             // Reduce allocation pressure with thread_local.
             thread_local std::vector<uint8_t> fake_boxed_storage(mo_runtime_size + type_vt_size, 0);
 
@@ -474,7 +492,6 @@ struct ValueType {
             // copy back any changes to the value type from the fake boxed storage
             memcpy(data.data(), &fake_boxed_storage[mo_runtime_size], type_vt_size);
         } else {
-            // Static methods, and value-type methods before TDB 74, take the unboxed value.
             ret_val = def->invoke((void*)address(), std::span(vec_args));
         }
 
