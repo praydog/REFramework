@@ -245,7 +245,7 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     std::vector<uint8_t> fake_boxed_storage;
     size_t fake_header_size{};
     uintptr_t fake_object_ptr{};
-    // A real boxed object for methods a reference type declares (see below); released after the call.
+    // A real boxed object for methods a reference type declares (see below).
     ::reframework::API::ManagedObject* real_box{};
 
     if (obj != nullptr) try {
@@ -279,8 +279,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
                     throw gcnew System::Exception("could not box the value for " + this->GetName());
                 }
 
-                // Not a global object yet: hold a reference for the call so a GC in between can't take it.
-                real_box->add_ref();
+                // The new object is local: the engine keeps it until it releases the thread's local objects, after
+                // this call. No add_ref()/release() pair, as in the Lua binding, where one crashed RE9 under load.
                 memcpy((uint8_t*)real_box + 0x10, vt->Ptr(), type_def->ValueTypeSize);
                 obj_ptr = real_box;
             } else if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
@@ -335,10 +335,6 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
             const auto src = real_box != nullptr ? (uint8_t*)real_box + 0x10 : &fake_boxed_storage[fake_header_size];
             memcpy(vt->Ptr(), src, vt_size);
         }
-    }
-
-    if (real_box != nullptr) {
-        real_box->release();
     }
 
     return result;
