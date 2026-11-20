@@ -13,8 +13,10 @@ installed game.
 | `csharp` | `csharp/rftest_csharp.cs` | The C# API (REFramework.NET), untyped: type database, method and field lookup, static/instance invoke, managed strings, struct arguments and returns, `ValueType` and boxed value-type instance calls, `MethodHook` (args, return replacement, `Skip`, a struct return with a Double), the `UpdateBehavior` callback | all PASS. Not in the default `-Suites`; needs REFramework.NET (`-CSharpBin`). The first launch in a game generates its reference assemblies, which takes a few minutes |
 | `config` | `run/Run-RFTests.ps1 -Scenario MalformedConfig` | A non-numeric value for a numeric config key must not stop REFramework from starting or discard later settings (kananlib `Config::get`) | PASS |
 
-Everything is game-agnostic: only `System.*` and `via.*` types that exist in every RE Engine game are used, so the
-same suites run over every supported game. Game-specific suites are a later step.
+Everything is game-agnostic: only `System.*` and `via.*` types that RE Engine games share are used, so the same suites
+run over every supported game. Where a game lacks a method a test needs, that test SKIPs and names it (PRAGMATA has
+no `String.PadLeft(Int32, Char)`, Mega Man Star Force no `via.vec3.set_Item`); games from TDB 81 on skip the plugin's
+instantiated-methods test, as the SDK has no instantiation data there. Game-specific suites are a later step.
 
 ## Running
 
@@ -100,7 +102,7 @@ Each suite writes `reframework\data\rftest\results\<suite>.json`:
 ```
 
 and logs one `[rftest] <suite>: PASS|FAIL|SKIP <test> -- <detail>` line per test to `re2_framework_log.txt`. The
-runner's `summary.txt` lists every failure.
+runner's `summary.txt` lists every failure and every skip with its detail.
 
 ## Builds without the fixes
 
@@ -108,8 +110,8 @@ The regression suites are meant to fail on such builds, and they do so safely wh
 
 - Tests whose failure mode is memory corruption (out-of-range `Matrix4x4f`/`Quaternion` writes) detect the unfixed
   build and fail without performing the write.
-- The rooted-path tests write `\rftest_escape\` at the root of the game's drive when the fix is missing; the runner
-  deletes it.
+- The rooted-path tests write `\rftest_escape\` at the root of the game's drive when the fix is missing; the Windows
+  runner deletes it (the Linux runner doesn't yet).
 - The plugin's two callback re-entrancy tests deadlock the game without the fix. They run last, after the Lua suites
   have written their results, and are recorded as FAIL before they start, so a hang still leaves complete results;
   the runner notices the hang and kills the game.
@@ -166,7 +168,8 @@ S:finish()                                           -- writes results when all 
 ```
 
 Assertions: `H.eq`, `H.ne`, `H.near`, `H.truthy`, `H.raises`, `H.no_raise`; `H.skip(reason)` marks a test skipped
-(use it only for things a game may legitimately lack). A test that hangs or crashes the game on a build without its
+(use it only for something the game lacks, never for behavior that didn't happen; see [TESTING.md](TESTING.md)). A
+test that hangs or crashes the game on a build without its
 fix goes in `S:last_frame_test(name, fn)` (same contract as `frame_test`). New Lua suites need their file name added
 to `Install-Suites` and `Get-ExpectedSuites` in the runner.
 
