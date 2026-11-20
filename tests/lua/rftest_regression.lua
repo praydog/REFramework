@@ -89,6 +89,25 @@ S:test("DLL write check covers names Windows normalizes (trailing dot, trailing 
     H.no_raise(function() fs.write("rftest\\scratch\\dll.notes.txt", "x") end, "fs.write('dll.notes.txt')")
 end)
 
+-- "snbypass.dllx" passes the write check. Where the volume generates 8.3 names (the default on a system drive),
+-- Windows also gives it the short name SNBYPA~1.DLL, which loadlib and require's C searcher would load as a DLL.
+S:test("loadlib and require refuse a file reached by an 8.3 short name ending in .DLL", function()
+    local f = H.truthy(io.open("rftest\\scratch\\snbypass.dllx", "wb"), "io.open('snbypass.dllx')")
+    f:write("{}")
+    f:close()
+
+    -- json.load_file reads any name, so it finds the file under its short name only if the volume made one.
+    local ok, t = pcall(json.load_file, "rftest\\scratch\\SNBYPA~1.DLL")
+    if not ok or type(t) ~= "table" then H.skip("this volume has no 8.3 short names") end
+
+    local err = tostring(H.raises(function() package.loadlib("rftest\\scratch\\SNBYPA~1.DLL", "*") end, "loadlib"))
+    H.truthy(err:find("only DLLs", 1, true), "loadlib refused it as not a DLL, got: " .. err)
+
+    local loaded, rerr = pcall(require, "reframework.data.rftest.scratch.SNBYPA~1")
+    H.eq(loaded, false, "require succeeded")
+    H.truthy(tostring(rerr):find("is not a DLL", 1, true), "require refused it as not a DLL, got: " .. tostring(rerr))
+end)
+
 -------------------------------------------------------------------------------------------------------------------
 -- ValueType field writes and bounds.
 -------------------------------------------------------------------------------------------------------------------

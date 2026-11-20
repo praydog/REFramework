@@ -261,6 +261,15 @@ local function string_array(...)
     return arr
 end
 
+-- A method declared on a reference type (System.Enum), called on a boxed value: `this` must stay the object, not
+-- its data (before TDB 74 calls on a value type's own methods pass the data instead).
+S:test("boxed enum calls a method System.Enum declares (DayOfWeek.ToString)", function()
+    local to_object = method("System.Enum", "ToObject(System.Type, System.Int32)")
+    local o = to_object:call(nil, sdk.typeof("System.DayOfWeek"), 1)
+    H.eq(H.type_name(o), "System.DayOfWeek")
+    H.eq(o:call("ToString()"), "Monday", "ToString")
+end)
+
 S:test("3 integer parameters (Int32, Int64, UInt32)", function()
     H.eq(scall("via.math", "clamp(System.Int32, System.Int32, System.Int32)", 15, 0, 10), 10, "clamp(15, 0, 10)")
     H.eq(scall("via.math", "clamp(System.Int32, System.Int32, System.Int32)", -3, 0, 10), 0, "clamp(-3, 0, 10)")
