@@ -383,6 +383,14 @@ public:
         return m_main_state;
     }
 
+    // Runs fn(main state, possibly null) while holding the lock reset_scripts() takes, so the main state can't be
+    // destroyed or replaced meanwhile.
+    template <typename F>
+    void with_main_state(F&& fn) {
+        std::scoped_lock _{m_access_mutex};
+        fn(m_main_state);
+    }
+
     void lock() {
         m_access_mutex.lock();
         for (auto& state : m_states) {
