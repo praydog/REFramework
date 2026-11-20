@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <bit>
 
 #include "ManagedObject.hpp"
@@ -257,19 +258,23 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
             //   0x08: uint32_t refcount + padding
             //   0x10: actual value type data starts here
             // Before TDB 74 invoke() passes `this` through unchanged: a ValueType goes as its data, and a boxed value
-            // (a ManagedObject of a value type) as its data past the header. ValueType::Ptr() points into a managed
-            // array, so the data is copied to native memory either way.
+            // (a ManagedObject of a value type) as its data past the header, for methods the value type declares.
+            // Methods declared on a reference type (System.Object.GetType) expect an object and keep the box.
+            // ValueType::Ptr() points into a managed array, so the data is copied to native memory either way.
             const bool invoke_skips_header = TDB::Get()->GetVersion() >= 74;
+            const bool declared_by_value_type = this->GetDeclaringType() != nullptr && this->GetDeclaringType()->IsValueType();
 
             if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
                 auto type_def = vt->GetTypeDefinition();
                 auto vt_size = type_def->ValueTypeSize;
+                const bool boxed_this = invoke_skips_header || !declared_by_value_type;
 
-                fake_header_size = invoke_skips_header ? 0x10 : 0;
-                fake_boxed_storage.resize(fake_header_size + vt_size, 0);
+                fake_header_size = boxed_this ? 0x10 : 0;
+                // At least one byte, so a zero-size value type still gets a valid `this`.
+                fake_boxed_storage.resize(std::max<size_t>(fake_header_size + vt_size, 1), 0);
 
-                if (invoke_skips_header) {
+                if (boxed_this) {
                     fake_object_ptr = (uintptr_t)type_def->Ptr();
 
                     // REObject header: REObjectInfo* at offset 0x00
@@ -281,8 +286,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
                 memcpy(&fake_boxed_storage[fake_header_size], vt->Ptr(), vt_size);
 
                 obj_ptr = fake_boxed_storage.data();
-            } else if (!this->IsStatic() && !invoke_skips_header && REFrameworkNET::ManagedObject::typeid->IsAssignableFrom(obj_t) &&
-                       this->GetDeclaringType() != nullptr && this->GetDeclaringType()->IsValueType()) {
+            } else if (!this->IsStatic() && !invoke_skips_header && declared_by_value_type &&
+                       REFrameworkNET::ManagedObject::typeid->IsAssignableFrom(obj_t)) {
                 obj_ptr = (uint8_t*)iobj->Ptr() + 0x10;
             } else {
                 obj_ptr = iobj->Ptr();
