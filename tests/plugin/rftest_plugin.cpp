@@ -373,6 +373,60 @@ void api_hook_test() {
     S.record("remove_hook", after == 7, fmt("Max(3, 7) after remove = %u", after));
 }
 
+// A hook installed from reframework_plugin_initialize (REFramework's init thread, before the game thread runs any
+// script) on a method with by-value float parameters and a float return. Its argument layout must not depend on
+// what the managed runtime can answer at that point: the args must hold the floats.
+std::atomic<bool> g_fhook_observe{false};
+float g_fhook_a{0.0f}, g_fhook_b{0.0f};
+unsigned int g_fhook_id{};
+API::Method* g_fhook_method{};
+
+int fhook_pre(int argc, void** argv, REFrameworkTypeDefinitionHandle*, unsigned long long) {
+    if (g_fhook_observe && argc >= 3) {
+        // argv[0] is the thread context; by-value floats are saved from their XMM registers.
+        memcpy(&g_fhook_a, &argv[1], sizeof(float));
+        memcpy(&g_fhook_b, &argv[2], sizeof(float));
+    }
+    return REFRAMEWORK_HOOK_CALL_ORIGINAL;
+}
+
+void fhook_post(void**, REFrameworkTypeDefinitionHandle, unsigned long long) {}
+
+void api_init_hook_install() {
+    const auto math = API::get()->tdb()->find_type("System.Math");
+    g_fhook_method = math != nullptr ? math->find_method("Max(System.Single, System.Single)") : nullptr;
+    if (g_fhook_method != nullptr) {
+        g_fhook_id = g_fhook_method->add_hook(fhook_pre, fhook_post, false);
+    }
+}
+
+void api_init_hook_test() {
+    auto& S = g_api;
+    constexpr auto name = "add_hook from plugin initialize: by-value Single args (Math.Max)";
+
+    if (g_fhook_method == nullptr) {
+        S.set(name, "SKIP", "System.Math.Max(Single, Single) missing");
+        return;
+    }
+
+    // Single parameters are passed to invoke() as doubles.
+    const double a = 1.5, b = -2.5;
+    void* slots[2]{};
+    memcpy(&slots[0], &a, sizeof(a));
+    memcpy(&slots[1], &b, sizeof(b));
+
+    g_fhook_a = g_fhook_b = 0.0f;
+    g_fhook_observe = true;
+    const auto r = g_fhook_method->invoke(nullptr, std::vector<void*>{slots[0], slots[1]});
+    g_fhook_observe = false;
+    g_fhook_method->remove_hook(g_fhook_id);
+
+    // The return value may come back as a float or widened to a double; the hook's view of the args is the point here.
+    const bool ret_ok = r.f == 1.5f || r.d == 1.5;
+    S.record(name, !r.exception_thrown && ret_ok && g_fhook_a == 1.5f && g_fhook_b == -2.5f,
+        fmt("Max = %f/%f, hook saw (%f, %f)", r.f, r.d, g_fhook_a, g_fhook_b));
+}
+
 // ----------------------------------------------------------------------------------------------------------------
 // plugin_regression: out-parameters and terminators of the type database functions, and callback re-entrancy.
 // ----------------------------------------------------------------------------------------------------------------
@@ -486,6 +540,7 @@ void on_post_update() {
     if (!started && g_stage.load() == Stage::WaitLua && g_stage_frame > 5) {
         started = true;
         api_hook_test();
+        api_init_hook_test();
         g_hooks_tested = true;
     }
 }
@@ -609,6 +664,7 @@ extern "C" __declspec(dllexport) bool reframework_plugin_initialize(const REFram
 
     g_param->functions->log_info("[rftest] plugin: starting");
     api_init_tests();
+    api_init_hook_install();
     regression_init_tests();
 
     const auto f = param->functions;
