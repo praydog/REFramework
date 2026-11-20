@@ -28,29 +28,40 @@ S:test("fs.write rejects a root-relative path", function()
 end)
 
 S:test("fs.read rejects a drive-relative path", function()
-    H.raises(function() fs.read("C:rftest_no_such_file.txt") end)
+    raises_rooted(function() fs.read("C:rftest_no_such_file.txt") end)
 end)
 
 S:test("fs.read rejects a root-relative path", function()
-    H.raises(function() fs.read("\\Windows\\win.ini") end)
+    raises_rooted(function() fs.read("\\Windows\\win.ini") end)
 end)
 
 S:test("io.open rejects a root-relative path", function()
     raises_rooted(function() io.open("\\rftest_escape\\io.txt", "w") end)
 end)
 
--- dump_file returns false for a rejected path, and also when the write fails, so this one can pass on an unfixed
--- build whose drive root isn't writable; the load_file test below covers json on such systems.
+-- A root-relative path to a place that IS writable: this script's own data directory, with the drive dropped. An
+-- unfixed build appends it, which replaces the data directory, and writes there (true); the fix refuses it (false).
+-- A path at the drive root would not do: dump_file also returns false when the write fails.
+local function rooted_writable_path(name)
+    local source = debug.getinfo(1, "S").source:gsub("^@", "")
+    local autorun = source:match("^(.*)[\\/][^\\/]+$")
+    local data = autorun:gsub("[\\/]autorun$", "\\data")
+    return (data:gsub("^%a:", "")) .. "\\rftest\\scratch\\" .. name
+end
+
 S:test("json.dump_file refuses a root-relative path", function()
-    H.eq(json.dump_file("\\rftest_escape\\json.json", { x = 1 }), false, "dump_file return")
+    local path = rooted_writable_path("rooted.json")
+    H.truthy(path:sub(1, 1) == "\\", "test setup: root-relative path " .. path)
+    H.eq(json.dump_file(path, { x = 1 }), false, "dump_file('" .. path .. "')")
 end)
 
 S:test("json.load_file rejects a root-relative path", function()
-    H.raises(function() json.load_file("\\rftest_escape\\json.json") end)
+    raises_rooted(function() json.load_file("\\rftest_escape\\json.json") end)
 end)
 
 S:test("imgui.load_font rejects a root-relative path", function()
-    H.raises(function() imgui.load_font("\\Windows\\Fonts\\arial.ttf", 16) end)
+    local err = tostring(H.raises(function() imgui.load_font("\\Windows\\Fonts\\arial.ttf", 16) end))
+    H.truthy(err:find("must not be absolute", 1, true), "rejected as a rooted path, got: " .. err)
 end)
 
 S:test("relative paths still work (fs, io, json)", function()
@@ -73,6 +84,9 @@ S:test("package.loadlib returns nil plus a message for a missing DLL", function(
     H.eq(type(msg), "string", "error message type")
 end)
 
+-- On master this fails because loadlib never finds a DLL in reframework/data at all. What it guards is the first
+-- version of the data-dir fix, which returned loadlib's own arguments when called from a coroutine (results read
+-- from the wrong stack); that version is the red run for this test.
 S:test("package.loadlib inside a coroutine returns its own results", function()
     local r = coroutine.wrap(function() return package.loadlib("rftest_loadlib.dll", "*") end)()
     H.eq(r, true, "loadlib('rftest_loadlib.dll', '*') in coroutine.wrap")
@@ -96,9 +110,11 @@ S:test("loadlib and require refuse a file reached by an 8.3 short name ending in
     f:write("{}")
     f:close()
 
-    -- json.load_file reads any name, so it finds the file under its short name only if the volume made one.
-    local ok, t = pcall(json.load_file, "rftest\\scratch\\SNBYPA~1.DLL")
-    if not ok or type(t) ~= "table" then H.skip("this volume has no 8.3 short names") end
+    -- json.load_file reads any name, so it finds the file under its short name only if the volume made one. It
+    -- returns nil for a missing file; an error here is a failure, not an absent short name.
+    local t = json.load_file("rftest\\scratch\\SNBYPA~1.DLL")
+    if t == nil then H.skip("this volume has no 8.3 short names") end
+    H.eq(type(t), "table", "the short name read back the JSON written under the long name")
 
     local err = tostring(H.raises(function() package.loadlib("rftest\\scratch\\SNBYPA~1.DLL", "*") end, "loadlib"))
     H.truthy(err:find("only DLLs", 1, true), "loadlib refused it as not a DLL, got: " .. err)
@@ -238,18 +254,21 @@ do
         end
     end
     local outer, inner = picked[1], picked[2]
-    local armed, target, observed = false, nil, nil
+    local armed, nested, inner_fired, target, observed = false, false, false, nil, nil
 
     if outer and inner then
         sdk.hook(outer.method, function(args)
             if not armed then return end
             armed = false
             local before = thread.get_hook_storage()
+            nested = true
             target:call(inner.name)
+            nested = false
             local after = thread.get_hook_storage()
             observed = { before = before, after = after }
         end, function(retval) return retval end)
-        sdk.hook(inner.method, function(args) end, function(retval) return retval end)
+        -- The nested call must really go through a hook: that is what pops a storage table in the middle.
+        sdk.hook(inner.method, function(args) if nested then inner_fired = true end end, function(retval) return retval end)
     end
 
     S:frame_test("thread.get_hook_storage() after a nested hooked call", function(frame)
@@ -259,7 +278,8 @@ do
         armed = true
         target:call(outer.name)
         armed = false
-        if observed == nil then H.skip("hook on " .. outer.name .. " did not fire") end
+        H.truthy(observed ~= nil, "hook on " .. outer.name .. " fired for the test's own call")
+        H.truthy(inner_fired, "hook on " .. inner.name .. " fired for the nested call")
         H.truthy(observed.before ~= nil, "storage before")
         H.truthy(observed.after ~= nil, "storage after the nested call")
         H.truthy(rawequal(observed.before, observed.after), "same storage table")
@@ -285,6 +305,7 @@ S:frame_test("imgui.text_colored shows '%' sequences literally", function(frame)
         local label = "rftest 50%% off 100%d"
         local plain = width_of(function() imgui.text(label) end)
         local colored = width_of(function() imgui.text_colored(label, 0xFFFFFFFF) end)
+        H.truthy(plain > 0, "plain text has a width (" .. tostring(plain) .. ")")
         H.near(colored, plain, 0.5, "text_colored width vs text width")
         return true
     end)
@@ -334,7 +355,12 @@ do
             for i = 1, 60 do
                 if horizontal and i > 1 then imgui.same_line() end
                 imgui.text(string.format("[%02d]", i))
-                if i == 30 and frame == 2 then act(horizontal and imgui.get_cursor_pos().x or imgui.get_cursor_pos().y) end
+                if i == 30 and frame == 2 then
+                    -- After text() the cursor is already at the start of the next line; for x, stay on this line so
+                    -- the position is after item 30, not the window's left edge (that made both x cases scroll 0).
+                    if horizontal then imgui.same_line() end
+                    act(horizontal and imgui.get_cursor_pos().x or imgui.get_cursor_pos().y)
+                end
             end
             pos = horizontal and imgui.get_scroll_x() or imgui.get_scroll_y()
             imgui.end_child_window()
@@ -358,6 +384,7 @@ do
             for _, c in ipairs(cases) do
                 local r = scroll[c[1]]
                 H.truthy(r[1] ~= nil and r[2] ~= nil, c[1] .. ": both child windows visible")
+                H.truthy(r[2] > 0, c[1] .. "(..., 0.5) scrolled (" .. tostring(r[2]) .. ")")
                 H.near(r[1], r[2], 1.0, c[1] .. "() vs " .. c[1] .. "(..., 0.5)")
             end
             return true

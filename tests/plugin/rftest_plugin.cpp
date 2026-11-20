@@ -42,12 +42,19 @@ struct Suite {
         set(test, ok ? "PASS" : "FAIL", detail);
     }
 
+    // Replaces an earlier entry only if it was pre-recorded as pending (the deadlock tests record their FAIL first);
+    // any other repeat of a name is a FAIL of its own, so a PASS can never hide a FAIL.
     void set(const std::string& test, const char* status, const std::string& detail) {
         for (auto& r : results) {
             if (r.name == test) {
-                r.status = status;
-                r.detail = detail;
-                log(r);
+                if (r.detail.rfind("pending:", 0) == 0) {
+                    r.status = status;
+                    r.detail = detail;
+                    log(r);
+                } else {
+                    results.push_back({test + " (duplicate name)", "FAIL", std::string{"recorded twice; second: "} + status + " " + detail});
+                    log(results.back());
+                }
                 return;
             }
         }
@@ -291,6 +298,8 @@ void api_runtime_tests() {
         reframework::InvokeRet out{};
         const auto r = g_param->sdk->method->invoke(*max_m, nullptr, one, sizeof(one), &out, sizeof(out));
         S.record("invoke rejects a wrong argument count", r == REFRAMEWORK_ERROR_IN_ARGS_SIZE_MISMATCH, fmt("result %d", r));
+    } else {
+        S.record("invoke rejects a wrong argument count", false, "System.Math.Max(Int32, Int32) missing");
     }
 
     // Types and singletons.
@@ -376,6 +385,8 @@ void api_hook_test() {
 // A hook installed from reframework_plugin_initialize (REFramework's init thread, before the game thread runs any
 // script) on a method with by-value float parameters and a float return. Its argument layout must not depend on
 // what the managed runtime can answer at that point: the args must hold the floats.
+// Control: it also passes on the build before the hook layout stopped asking the runtime (no red run shown); it
+// guards the init-thread case, which the other hook tests don't reach.
 std::atomic<bool> g_fhook_observe{false};
 float g_fhook_a{0.0f}, g_fhook_b{0.0f};
 unsigned int g_fhook_id{};
@@ -421,10 +432,9 @@ void api_init_hook_test() {
     g_fhook_observe = false;
     g_fhook_method->remove_hook(g_fhook_id);
 
-    // The return value may come back as a float or widened to a double; the hook's view of the args is the point here.
-    const bool ret_ok = r.f == 1.5f || r.d == 1.5;
-    S.record(name, !r.exception_thrown && ret_ok && g_fhook_a == 1.5f && g_fhook_b == -2.5f,
-        fmt("Max = %f/%f, hook saw (%f, %f)", r.f, r.d, g_fhook_a, g_fhook_b));
+    // invoke() returns a Single widened to a double (seen: r.f = 0, r.d = 1.5).
+    S.record(name, !r.exception_thrown && r.d == 1.5 && g_fhook_a == 1.5f && g_fhook_b == -2.5f,
+        fmt("Max = %f, hook saw (%f, %f)", r.d, g_fhook_a, g_fhook_b));
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -438,11 +448,24 @@ void regression_init_tests() {
     S.record("REFrameworkModule instantiated-method functions are set",
         sdk->module->get_num_instantiated_methods != nullptr && sdk->module->get_instantiated_methods != nullptr);
 
-    if (sdk->module->get_num_instantiated_methods != nullptr && sdk->tdb->get_num_modules(tdb) > 0) {
-        const auto m = sdk->tdb->get_module(tdb, 0);
-        const auto n = sdk->module->get_num_instantiated_methods(m);
-        const auto p = sdk->module->get_instantiated_methods(m);
-        S.record("REFrameworkModule instantiated methods callable", n == 0 || p != nullptr, fmt("module 0: %u", n));
+    // A missing or failing case records a FAIL; a test must never silently disappear from the results.
+    constexpr auto callable_name = "REFrameworkModule instantiated methods callable";
+    if (sdk->module->get_num_instantiated_methods == nullptr || sdk->module->get_instantiated_methods == nullptr) {
+        S.record(callable_name, false, "functions not set");
+    } else {
+        bool found = false;
+        for (unsigned int i = 0; i < sdk->tdb->get_num_modules(tdb) && !found; ++i) {
+            const auto m = sdk->tdb->get_module(tdb, i);
+            const auto n = sdk->module->get_num_instantiated_methods(m);
+            if (n == 0) continue;
+            const auto p = sdk->module->get_instantiated_methods(m);
+            S.record(callable_name, p != nullptr, fmt("module %u: %u methods", i, n));
+            found = true;
+        }
+        // REModule::get_instantiated_methods() has no data from TDB 81 on (it logs "This TDB version does not support
+        // ..."), so every module reports 0 there (DD2, MH Wilds): the game can't express the test. Before TDB 81 a
+        // zero for every module would be a bug; the run's skip list shows which games skipped.
+        if (!found) S.set(callable_name, "SKIP", "no module reports instantiated methods (no instantiation data in TDB 81+)");
     }
 
     const auto str_t = sdk->tdb->find_type(tdb, "System.String");
@@ -484,6 +507,9 @@ void regression_init_tests() {
         }
     }
 
+    if (!fields_done) S.record("get_fields writes out_count 0 for a type without fields", false, "no type without fields");
+    if (!methods_done) S.record("get_methods writes out_count 0 for a type without methods", false, "no type without methods");
+
     const auto get_type_m = sdk->type_definition->find_method(sdk->tdb->find_type(tdb, "System.Object"), "GetType");
     if (get_type_m != nullptr) {
         REFrameworkMethodParameter pb[1]{};
@@ -491,6 +517,8 @@ void regression_init_tests() {
         r = sdk->method->get_params(get_type_m, pb, sizeof(pb), &n);
         S.record("get_params writes out_count 0 for a method without parameters", r == REFRAMEWORK_ERROR_NONE && n == 0,
             fmt("System.Object.GetType: r=%d out_count=0x%X", r, n));
+    } else {
+        S.record("get_params writes out_count 0 for a method without parameters", false, "System.Object.GetType missing");
     }
 }
 
