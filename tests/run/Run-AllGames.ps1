@@ -5,7 +5,8 @@ Runs the in-game test suites (Run-RFTests.ps1) on every installed game, one afte
 .DESCRIPTION
 Games come from games.json; by default every one Steam has installed. Each game's results land in
 <OutDir>\<alias>\ (see Run-RFTests.ps1), and the combined results in <OutDir>\summary.md and summary.json.
-Exit code 0 means every suite passed (skips are fine) in every game.
+Exit code 0 means no suite failed in any game. Skips don't fail the run, but every one is listed with its reason
+in summary.md: a skip is lost coverage, and a skip that wasn't there before is a regression until shown otherwise.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File tests\run\Run-AllGames.ps1 -Build C:\builds\dinput8.dll
@@ -58,7 +59,7 @@ foreach ($g in $targets) {
     $summary = Join-Path $gameOut 'summary.json'
     if (Test-Path -LiteralPath $summary) {
         $s = Get-Content -LiteralPath $summary -Raw | ConvertFrom-Json
-        $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @($s.suites); failed = @($s.failed); deviceResets = $s.deviceResets }
+        $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @($s.suites); failed = @($s.failed); skipped = @($s.skipped); deviceResets = $s.deviceResets }
     } else {
         $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @(); failed = @('runner produced no summary'); deviceResets = 0 }
     }
@@ -84,6 +85,12 @@ if ($failures) {
     $md += ''
     $md += '## Failures'
     foreach ($r in $failures) { foreach ($f in $r.failed) { $md += "- $($r.game): $f" } }
+}
+$skips = @($all | Where-Object { $_.skipped.Count -gt 0 })
+if ($skips) {
+    $md += ''
+    $md += '## Skips'
+    foreach ($r in $skips) { foreach ($f in $r.skipped) { $md += "- $($r.game): $f" } }
 }
 Set-Content -LiteralPath (Join-Path $OutDir 'summary.md') -Value $md
 $all | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutDir 'summary.json')

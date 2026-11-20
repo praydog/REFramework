@@ -246,7 +246,8 @@ echo "device resets: $resets" >> "$OUT/log-excerpt.txt"
 python3 - "$OUT" "$ALIAS" "$result" "$secs" "$resets" $EXPECTED <<'EOF'
 import json, os, sys
 out, alias, result, secs, resets = sys.argv[1:6]
-rows, failed, text = [], [], [f"{alias}: {result} after {secs} s"]
+# Every SKIP is listed with its reason: a skip is lost coverage, reported like a failure but not counted as one.
+rows, failed, skipped, text = [], [], [], [f"{alias}: {result} after {secs} s"]
 for s in sys.argv[6:]:
     try:
         r = json.load(open(os.path.join(out, s + ".json")))
@@ -259,11 +260,13 @@ for s in sys.argv[6:]:
     for t in r["tests"]:
         if t["status"] == "FAIL":
             failed.append(f"{s}: {t['name']} -- {t['detail']}"); text.append(f"  FAIL {t['name']} -- {t['detail'][:200]}")
+        elif t["status"] == "SKIP":
+            skipped.append(f"{s}: {t['name']} -- {t['detail']}"); text.append(f"  SKIP {t['name']} -- {t['detail'][:200]}")
 if result != "DONE":
     # The game never started, exited early, or the suites didn't finish in time (e.g. a deadlock).
     failed.append(f"run: {result}")
 open(os.path.join(out, "summary.txt"), "w").write("\n".join(text) + "\n")
-json.dump({"game": alias, "result": result, "seconds": int(secs), "suites": rows, "failed": failed, "deviceResets": int(resets)},
+json.dump({"game": alias, "result": result, "seconds": int(secs), "suites": rows, "failed": failed, "skipped": skipped, "deviceResets": int(resets)},
           open(os.path.join(out, "summary.json"), "w"), indent=2)
 print("\n".join(text))
 EOF
