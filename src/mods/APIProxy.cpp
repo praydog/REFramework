@@ -13,17 +13,20 @@ std::shared_ptr<APIProxy>& APIProxy::get() {
 }
 
 bool APIProxy::add_on_lua_state_created(APIProxy::REFLuaStateCreatedCb cb) {
-    {
-        std::scoped_lock _{m_api_cb_mtx};
-        append_locked(m_on_lua_state_created_cbs, cb);
-    }
+    // Under ScriptRunner's lock, the one reset_scripts() holds while it destroys the state and creates a new one: the
+    // state can't go away while cb runs, and a reset can't land between adding cb and calling it (which would call
+    // it twice for the new state). m_api_cb_mtx is taken inside that lock, in the same order as during a reset.
+    ScriptRunner::get()->with_main_state([&](const auto& state) {
+        {
+            std::scoped_lock _{m_api_cb_mtx};
+            append_locked(m_on_lua_state_created_cbs, cb);
+        }
 
-    // Called without the lock: the callback may register more callbacks.
-    auto& state = ScriptRunner::get()->get_state();
-
-    if (state != nullptr && state->lua().lua_state() != nullptr) {
-        cb(state->lua());
-    }
+        // Called without m_api_cb_mtx: the callback may register more callbacks.
+        if (state != nullptr && state->lua().lua_state() != nullptr) {
+            cb(state->lua());
+        }
+    });
 
     return true;
 }
