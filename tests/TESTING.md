@@ -54,6 +54,11 @@ Running the stricter suite then showed both sides of the exception bar:
   original's result never lands there). The positive control added to the scroll test showed the x case of
   `set_scroll_from_pos` never scrolled: the test passed the window's left edge as the position, so both variants gave 0
   and the comparison was vacuous. It now passes the position after the item, and the control holds.
+- **A fix that passed its test and still broke games.** The first version of that boxing fix passed the one-call
+  test. The full run then crashed RE9 and SF6 and hung DMC5 and Onimusha 2, intermittently. A probe making 2000 such
+  calls per frame crashed both games within a frame: the code took and released a reference on the engine's temporary
+  object. Without that, 602,000 calls in four games were correct. A last-frame load test now pins it. One call proves
+  the value, not the object's lifetime; a fix that creates or frees engine objects needs a test under load.
 
 ## What a test is here
 
