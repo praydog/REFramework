@@ -1,11 +1,13 @@
--- rftest regression suite: one test per bug fixed in the 2026-11 bug hunt.
--- Game-agnostic: uses only System.*, via.* types and REFramework APIs. Every test FAILS on a build without the
--- corresponding fix and PASSES with it. See tests/README.md.
+-- rftest regression suite: tests for the Lua bugs fixed in the 2026-11 bug hunt (some bugs have several).
+-- Game-agnostic: uses only System.*, via.* types and REFramework APIs. The tests fail on a build without the
+-- corresponding fix and pass with it, except two controls ("relative paths still work", "integer address to an out
+-- System.Single / System.Double parameter") that pass on both. See tests/README.md.
 --
 -- Needs from the runner (tests/run/Run-RFTests.ps1):
---   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one), for the package.loadlib test.
+--   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one); without it the package.loadlib
+--                                         tests fail.
 -- Side effect on unfixed builds: the root-relative write tests create \rftest_escape\ at the root of the game's
--- drive; the runner removes it. Tests that would corrupt memory on an unfixed build are not run there.
+-- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there.
 
 local H = require("rftest.harness")
 local S = H.suite("regression")
@@ -14,8 +16,15 @@ local S = H.suite("regression")
 -- Lua file APIs must reject rooted paths ("\foo" has a root directory but no drive, "C:foo" a drive
 -- but no root directory; neither is absolute, but both replace the data directory when appended to it).
 -------------------------------------------------------------------------------------------------------------------
+-- The write tests check the error message: on an unfixed build a write can also fail because the drive root isn't
+-- writable (e.g. Z: = / under Proton), which must not count as a rejection.
+local function raises_rooted(fn)
+    local err = tostring(H.raises(fn))
+    H.truthy(err:find("absolute paths", 1, true), "rejected as a rooted path, got: " .. err)
+end
+
 S:test("fs.write rejects a root-relative path", function()
-    H.raises(function() fs.write("\\rftest_escape\\fs.txt", "x") end)
+    raises_rooted(function() fs.write("\\rftest_escape\\fs.txt", "x") end)
 end)
 
 S:test("fs.read rejects a drive-relative path", function()
@@ -27,9 +36,11 @@ S:test("fs.read rejects a root-relative path", function()
 end)
 
 S:test("io.open rejects a root-relative path", function()
-    H.raises(function() io.open("\\rftest_escape\\io.txt", "w") end)
+    raises_rooted(function() io.open("\\rftest_escape\\io.txt", "w") end)
 end)
 
+-- dump_file returns false for a rejected path, and also when the write fails, so this one can pass on an unfixed
+-- build whose drive root isn't writable; the load_file test below covers json on such systems.
 S:test("json.dump_file refuses a root-relative path", function()
     H.eq(json.dump_file("\\rftest_escape\\json.json", { x = 1 }), false, "dump_file return")
 end)
