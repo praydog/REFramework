@@ -125,6 +125,40 @@ std::string read(sol::this_state l, const std::string& filepath) {
 }
 }
 
+namespace {
+// Whether the file a path names is a .dll on disk. The name is resolved first: an 8.3 short name such as "P~1.DLL"
+// can belong to a file written as "p.dllx" (allowed by the write check), and loading it by the short name would run
+// it as a DLL. Trailing dots and spaces are dropped as Windows does. A path that doesn't exist is judged by its text.
+bool names_a_dll(const ::fs::path& path) {
+    std::wstring name = path.filename().wstring();
+    std::wstring long_path(MAX_PATH, L'\0');
+
+    for (;;) {
+        const auto n = GetLongPathNameW(path.c_str(), long_path.data(), (DWORD)long_path.size());
+
+        if (n == 0) {
+            break; // missing or unreadable: keep the name as written
+        }
+
+        if (n < long_path.size()) {
+            long_path.resize(n);
+            name = ::fs::path{long_path}.filename().wstring();
+            break;
+        }
+
+        long_path.resize(n);
+    }
+
+    while (!name.empty() && (name.back() == L'.' || name.back() == L' ')) {
+        name.pop_back();
+    }
+
+    auto ext = ::fs::path{name}.extension().wstring();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
+    return ext == L".dll";
+}
+}
+
 std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::string& filepath, bool allow_dll) {
     if (filepath.find("..") != std::string::npos) {
         lua_pushstring(l, "This API does not allow access to parent directories");
@@ -335,7 +369,7 @@ void bindings::open_fs(ScriptState* s) {
             lua_error(l);
         }
 
-        if (std::filesystem::path(filepath).is_absolute()) {
+        if (std::filesystem::path(filepath).has_root_path()) {
             lua_pushstring(l, "require does not allow the use of absolute paths");
             lua_error(l);
         }
@@ -349,6 +383,39 @@ void bindings::open_fs(ScriptState* s) {
         sol::table searchers = lua.registry()["package_searchers"];
         for (auto&& [k, v] : searchers) {
             lua["package"]["searchers"][k] = v;
+        }
+
+        // The C searchers (3: the module name, 4: its root before the first '.') load whatever file package.cpath
+        // finds. Refuse files that aren't DLLs on disk, e.g. "reframework.data.P~1" finding the 8.3 short name
+        // P~1.DLL of a script-written "p.dllx".
+        for (int index : {3, 4}) {
+            sol::object original = lua["package"]["searchers"][index];
+
+            if (original.get_type() != sol::type::function) {
+                continue;
+            }
+
+            lua["package"]["searchers"][index] = [original = original.as<sol::function>(), index](sol::this_state ls, const std::string& name) -> sol::variadic_results {
+                auto lv = sol::state_view{ls};
+                const auto lookup = index == 4 ? name.substr(0, name.find('.')) : name;
+                sol::function searchpath = lv["package"]["searchpath"];
+                sol::object found = searchpath(lookup, lv["package"]["cpath"]);
+                sol::variadic_results out{};
+
+                if (found.is<std::string>() && !names_a_dll(::fs::path{found.as<std::string>()})) {
+                    out.push_back(sol::make_object(ls, "\n\tno module '" + name + "': " + found.as<std::string>() + " is not a DLL"));
+                    return out;
+                }
+
+                // Copy the results into references: the searcher's stack may not be the caller's (see loadlib).
+                const auto result = original(name);
+
+                for (int i = 0; i < result.return_count(); ++i) {
+                    out.push_back(sol::object{result.lua_state(), result.stack_index() + i});
+                }
+
+                return out;
+            };
         }
 
         return old_require(filepath.c_str());
@@ -370,7 +437,8 @@ void bindings::open_fs(ScriptState* s) {
             return ext;
         }();
 
-        if (extension_lower != ".dll") {
+        // Judge the name the file has on disk too: a short name like P~1.DLL can belong to a script-written p.dllx.
+        if (extension_lower != ".dll" || !names_a_dll(*path)) {
             lua_pushstring(l, "package.loadlib: only DLLs are allowed");
             lua_error(l);
         }
