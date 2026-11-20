@@ -11,7 +11,8 @@ long as the game ran.
 
 -Scripts is a folder with either a reframework\ subfolder (copied as is: autorun, data, fonts) or Lua files (copied
 into reframework\autorun). Both runs start from the same copy of the scripts' data folder. The game's own autorun,
-data and fonts folders, config and dinput8.dll are put back afterwards.
+data and fonts folders, its dinput8.dll and the files REFramework writes next to it (config, logs, ref_ui.ini) are
+put back afterwards.
 
 Exit code 0 means both builds produced the same distinct messages.
 
@@ -37,11 +38,15 @@ $dir = $g.GameDir
 $rf = Join-Path $dir 'reframework'
 if (-not $OutDir) { $OutDir = Join-Path (Get-RFTestSetting 'outDir' (Join-Path (Get-RFTestsDir) 'out')) "compare-$($g.Alias)-$(Get-Date -Format yyyyMMdd-HHmmss)" }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-$work = Join-Path $OutDir 'work'
-New-Item -ItemType Directory -Force -Path $work | Out-Null
+# Scratch space next to the game, so moving the game's folders aside stays on one volume.
+$work = Join-Path $dir 'rftest-compare'
+if (Test-Path -LiteralPath $work) { throw "$work exists: an earlier run did not finish; put its game-* folders and files back by hand first" }
 $watcher = Join-Path $PSScriptRoot 'tools\Watch-MessageBoxes.ps1'
 $subdirs = 'autorun', 'data', 'fonts'
 $config = Join-Path $dir 're2_fw_config.txt'
+# Files REFramework writes next to the game; saved and put back like the folders above.
+$rootFiles = 're2_fw_config.txt', 're2_framework_log.txt', 're2_framework_log.prev.txt', 'ref_ui.ini',
+    'reframework_accessed_files.txt', 'reframework_loose_files.txt', 'reframework_faulty_files.txt', 'reframework_crash.dmp'
 
 function Set-ConfigValue([string] $Key, [string] $Value) {
     $lines = @(if (Test-Path -LiteralPath $config) { Get-Content -LiteralPath $config })
@@ -52,13 +57,13 @@ function Set-ConfigValue([string] $Key, [string] $Value) {
 
 function Install-Scripts {
     New-Item -ItemType Directory -Force -Path $rf | Out-Null
-    foreach ($s in $subdirs) { if (Test-Path -LiteralPath (Join-Path $rf $s)) { Remove-Item -Recurse -Force (Join-Path $rf $s) } }
+    foreach ($s in $subdirs) { if (Test-Path -LiteralPath (Join-Path $rf $s)) { Remove-Item -LiteralPath (Join-Path $rf $s) -Recurse -Force } }
     $nested = Join-Path $Scripts 'reframework'
     if (Test-Path -LiteralPath $nested) {
         foreach ($s in $subdirs) { if (Test-Path -LiteralPath (Join-Path $nested $s)) { Copy-Item -LiteralPath (Join-Path $nested $s) -Destination $rf -Recurse } }
     } else {
         New-Item -ItemType Directory -Force -Path (Join-Path $rf 'autorun') | Out-Null
-        Copy-Item -Path (Join-Path $Scripts '*') -Destination (Join-Path $rf 'autorun') -Recurse
+        Get-ChildItem -LiteralPath $Scripts -Force | Copy-Item -Destination (Join-Path $rf 'autorun') -Recurse
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $rf 'data') | Out-Null
 }
@@ -66,7 +71,7 @@ function Install-Scripts {
 function Invoke-Run([string] $Tag, [string] $Build) {
     Write-Host "== $Tag ($Build)"
     # Same starting data for both builds.
-    Remove-Item -Recurse -Force (Join-Path $rf 'data')
+    Remove-Item -LiteralPath (Join-Path $rf 'data') -Recurse -Force
     Copy-Item -LiteralPath (Join-Path $work 'pristine-data') -Destination (Join-Path $rf 'data') -Recurse
     Install-RFBuild -GameDir $dir -Build $Build
     $boxes = Join-Path $OutDir "$Tag-messageboxes.txt"
@@ -98,7 +103,7 @@ function Invoke-Run([string] $Tag, [string] $Build) {
     }
     Start-Sleep 2
     $box = @(if (Test-Path -LiteralPath $boxes) { Get-Content -LiteralPath $boxes | ForEach-Object { 'MSGBOX ' + ($_ -replace '\b[0-9A-Fa-f]{12,}\b', '<hex>') } })
-    $grouped = ($lines + $box) | Group-Object | Sort-Object Name
+    $grouped = (@($lines) + $box) | Group-Object | Sort-Object Name
     $grouped | ForEach-Object { '{0,6} {1}' -f $_.Count, $_.Name } | Set-Content -LiteralPath (Join-Path $OutDir "$Tag-errors.txt")
     Write-Host "$($grouped.Count) distinct messages"
     @($grouped | ForEach-Object { $_.Name })
@@ -107,11 +112,16 @@ function Invoke-Run([string] $Tag, [string] $Build) {
 if (Get-GameProcess $dir) { throw 'the game is already running; close it first' }
 
 # Set the game's own files aside.
+New-Item -ItemType Directory -Path $work | Out-Null
+$hadRf = Test-Path -LiteralPath $rf
 foreach ($s in $subdirs) {
     $p = Join-Path $rf $s
     if (Test-Path -LiteralPath $p) { Move-Item -LiteralPath $p -Destination (Join-Path $work "game-$s") }
 }
-if (Test-Path -LiteralPath $config) { Copy-Item -LiteralPath $config -Destination (Join-Path $work 'game-config.txt') }
+foreach ($f in $rootFiles) {
+    $p = Join-Path $dir $f
+    if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination (Join-Path $work "game-$f") }
+}
 
 try {
     Install-Scripts
@@ -123,13 +133,17 @@ try {
 } finally {
     foreach ($s in $subdirs) {
         $p = Join-Path $rf $s
-        if (Test-Path -LiteralPath $p) { Remove-Item -Recurse -Force $p }
+        if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Recurse -Force }
         $saved = Join-Path $work "game-$s"
         if (Test-Path -LiteralPath $saved) { Move-Item -LiteralPath $saved -Destination $p }
     }
-    $savedConfig = Join-Path $work 'game-config.txt'
-    if (Test-Path -LiteralPath $savedConfig) { Copy-Item -LiteralPath $savedConfig -Destination $config -Force }
-    elseif (Test-Path -LiteralPath $config) { Remove-Item -LiteralPath $config -Force }
+    if (-not $hadRf -and (Test-Path -LiteralPath $rf) -and -not (Get-ChildItem -LiteralPath $rf -Force)) { Remove-Item -LiteralPath $rf -Force }
+    foreach ($f in $rootFiles) {
+        $saved = Join-Path $work "game-$f"
+        $p = Join-Path $dir $f
+        if (Test-Path -LiteralPath $saved) { Copy-Item -LiteralPath $saved -Destination $p -Force }
+        elseif (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }
+    }
     # Only reached when everything above was put back.
     Remove-Item -LiteralPath $work -Recurse -Force
 }
