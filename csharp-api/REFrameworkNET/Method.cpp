@@ -245,6 +245,8 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     std::vector<uint8_t> fake_boxed_storage;
     size_t fake_header_size{};
     uintptr_t fake_object_ptr{};
+    // A real boxed object for methods a reference type declares (see below); released after the call.
+    ::reframework::API::ManagedObject* real_box{};
 
     if (obj != nullptr) try {
         const auto obj_t = obj->GetType();
@@ -259,16 +261,33 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
             //   0x10: actual value type data starts here
             // Before TDB 74 invoke() passes `this` through unchanged: a ValueType goes as its data, and a boxed value
             // (a ManagedObject of a value type) as its data past the header, for methods the value type declares.
-            // Methods declared on a reference type (System.Object.GetType) expect an object and keep the box.
+            // Methods declared on a reference type (System.Object.GetType, System.Enum.ToString) use `this` as a real
+            // object, which the fake header isn't, so a ValueType goes into a real boxed object of its type.
             // ValueType::Ptr() points into a managed array, so the data is copied to native memory either way.
             const bool invoke_skips_header = TDB::Get()->GetVersion() >= 74;
             const bool declared_by_value_type = this->GetDeclaringType() != nullptr && this->GetDeclaringType()->IsValueType();
+            const bool declared_by_reference_type = this->GetDeclaringType() != nullptr && !this->GetDeclaringType()->IsValueType();
 
-            if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
+            if (!this->IsStatic() && declared_by_reference_type && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
+                auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
+                auto type_def = vt->GetTypeDefinition();
+                auto native_type = (::reframework::API::TypeDefinition*)type_def->Ptr();
+
+                real_box = native_type->create_instance(0);
+
+                if (real_box == nullptr) {
+                    throw gcnew System::Exception("could not box the value for " + this->GetName());
+                }
+
+                // Not a global object yet: hold a reference for the call so a GC in between can't take it.
+                real_box->add_ref();
+                memcpy((uint8_t*)real_box + 0x10, vt->Ptr(), type_def->ValueTypeSize);
+                obj_ptr = real_box;
+            } else if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
                 auto type_def = vt->GetTypeDefinition();
                 auto vt_size = type_def->ValueTypeSize;
-                const bool boxed_this = invoke_skips_header || !declared_by_value_type;
+                const bool boxed_this = invoke_skips_header;
 
                 fake_header_size = boxed_this ? 0x10 : 0;
                 // At least one byte, so a zero-size value type still gets a valid `this`.
@@ -308,13 +327,18 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     auto result = m_method->invoke((::reframework::API::ManagedObject*)obj_ptr, std::span<void*>(args2.data(), argcount));
 
     // If we passed a native copy of a ValueType, copy any mutations back to it
-    if (!fake_boxed_storage.empty() && obj != nullptr) {
+    if ((!fake_boxed_storage.empty() || real_box != nullptr) && obj != nullptr) {
         auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
         if (REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj->GetType())) {
             auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
             auto vt_size = vt->GetTypeDefinition()->ValueTypeSize;
-            memcpy(vt->Ptr(), &fake_boxed_storage[fake_header_size], vt_size);
+            const auto src = real_box != nullptr ? (uint8_t*)real_box + 0x10 : &fake_boxed_storage[fake_header_size];
+            memcpy(vt->Ptr(), src, vt_size);
         }
+    }
+
+    if (real_box != nullptr) {
+        real_box->release();
     }
 
     return result;
