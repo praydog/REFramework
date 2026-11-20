@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <concepts>
+#include <unordered_map>
 
 #include <hde64.h>
 
@@ -1354,6 +1355,33 @@ NumericParam classify_numeric_param(::sdk::RETypeDefinition* t) {
         return NumericParam::OTHER;
     }
 }
+
+// How each parameter of a method takes a Lua number, computed once per method: build_args runs for every call from
+// Lua, often per frame, and get_param_types/get_param_modifiers allocate. Methods live as long as the type database,
+// so the pointer is a stable key. thread_local because scripts can run on several threads.
+const std::vector<NumericParam>& numeric_param_kinds(::sdk::REMethodDefinition* fn) {
+    thread_local std::unordered_map<::sdk::REMethodDefinition*, std::vector<NumericParam>> cache{};
+
+    if (auto it = cache.find(fn); it != cache.end()) {
+        return it->second;
+    }
+
+    const auto param_types = fn->get_param_types();
+    const auto param_modifiers = fn->get_param_modifiers();
+    std::vector<NumericParam> kinds(param_types.size(), NumericParam::OTHER);
+
+    for (size_t i = 0; i < param_types.size(); ++i) {
+        // An out/ref/pointer parameter takes an address: a Lua number passed there is a pointer, not a value of the
+        // pointed-to type.
+        if (i < param_modifiers.size() && param_modifiers[i] != ::sdk::REMethodDefinition::ParamModifier::None) {
+            continue;
+        }
+
+        kinds[i] = classify_numeric_param(param_types[i]);
+    }
+
+    return cache.emplace(fn, std::move(kinds)).first->second;
+}
 }
 
 std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn) {
@@ -1365,29 +1393,19 @@ std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition*
     args.clear();
     vec_storage.clear();
 
-    // Parameter types and modifiers, fetched only if a number argument needs them.
-    std::vector<::sdk::RETypeDefinition*> param_types{};
-    std::vector<::sdk::REMethodDefinition::ParamModifier> param_modifiers{};
-    bool param_types_loaded = false;
+    // Per-parameter number encoding, looked up only if a number argument needs it.
+    const std::vector<NumericParam>* kinds = nullptr;
 
     const auto numeric_param = [&](size_t index) {
         if (fn == nullptr) {
             return NumericParam::OTHER;
         }
 
-        if (!param_types_loaded) {
-            param_types = fn->get_param_types();
-            param_modifiers = fn->get_param_modifiers();
-            param_types_loaded = true;
+        if (kinds == nullptr) {
+            kinds = &numeric_param_kinds(fn);
         }
 
-        // An out/ref/pointer parameter takes an address: a Lua number passed there is a pointer, not a value of the
-        // pointed-to type.
-        if (index < param_modifiers.size() && param_modifiers[index] != ::sdk::REMethodDefinition::ParamModifier::None) {
-            return NumericParam::OTHER;
-        }
-
-        return index < param_types.size() ? classify_numeric_param(param_types[index]) : NumericParam::OTHER;
+        return index < kinds->size() ? (*kinds)[index] : NumericParam::OTHER;
     };
 
     for (auto&& arg : va) {
