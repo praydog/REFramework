@@ -15,8 +15,6 @@
 #include "utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
-#include <lstate.h> // weird include order because of sol
-#include <lgc.h>
 
 #include "Sdk.hpp"
 
@@ -201,13 +199,11 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
         sol::lua_table objects = sv["_sol_lua_push_objects"];
 
         if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // renew the reference so it doesn't get collected
-            // had to dig deep in the lua source to figure out this nonsense
+            // Push the cached wrapper as it is. It used to be "touched" here by clearing its GC color bits directly,
+            // which also stopped Lua's write barrier from seeing it: stored into an old table (held[#held + 1] =
+            // arr:add_ref()), the wrapper was swept and finalized under the generational collector while still
+            // referenced, and its __gc released the engine object under the script.
             lua_obj.push();
-            auto g = G(l);
-            auto tv = s2v(l->top - 1);
-            auto& gc = tv->value_.gc;
-            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
 
             return 1;
         } else {
@@ -297,13 +293,8 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
         sol::lua_table objects = objects_top[function_sig];
 
         if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // renew the reference so it doesn't get collected
-            // had to dig deep in the lua source to figure out this nonsense
+            // Push the cached wrapper as it is; see the managed object push above for why it isn't "touched".
             lua_obj.push();
-            auto g = G(l);
-            auto tv = s2v(l->top - 1);
-            auto& gc = tv->value_.gc;
-            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
 
             return 1;
         } else {
