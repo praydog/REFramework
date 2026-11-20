@@ -3,7 +3,6 @@
 #include <unordered_map>
 
 #include <hde64.h>
-#include <utility/ScopeGuard.hpp>
 
 #include "HookManager.hpp"
 #include "sdk/REContext.hpp"
@@ -463,9 +462,9 @@ struct ValueType {
                 throw sol::error("ValueType:call: could not box the value for " + std::string{name});
             }
 
-            // Not a global object yet: hold a reference for the call so a GC in between can't take it.
-            box->add_ref();
-            utility::ScopeGuard release{[box] { box->release(); }};
+            // The new object is local: the engine keeps it until it releases the thread's local objects, after this
+            // call. No add_ref()/release() pair here: with one, 2000 of these calls per frame raised SEH exceptions
+            // in RE9 within a frame and then crashed the game.
 
             memcpy((uint8_t*)box + mo_runtime_size, data.data(), type_vt_size);
             ret_val = def->invoke(box, std::span(vec_args));
