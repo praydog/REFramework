@@ -59,6 +59,9 @@ Running the stricter suite then showed both sides of the exception bar:
   calls per frame crashed both games within a frame: the code took and released a reference on the engine's temporary
   object. Without that, 602,000 calls in four games were correct. A last-frame load test now pins it. One call proves
   the value, not the object's lifetime; a fix that creates or frees engine objects needs a test under load.
+  That test first also checked that arrays the script held across frames stayed intact. In Kunitsu-Gami they didn't,
+  in every run. An array-only probe corrupted them on `master` too, without a single boxing call, so the check measured
+  a different, older bug and was dropped from this test; that bug is tracked on its own.
 
 ## What a test is here
 

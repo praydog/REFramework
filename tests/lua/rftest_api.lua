@@ -814,9 +814,10 @@ end)
 -- The box a ValueType gets for a System.Enum method is a temporary engine object. A first version of that code took
 -- and released a reference on it: one call returned the right string, but 2000 calls per frame raised exceptions and
 -- crashed RE9 and SF6 within a frame. Runs last, recorded as FAIL before it starts, because the failure is a crash.
+-- (It doesn't check other objects for corruption: arrays a script holds across frames with add_ref() get corrupted
+-- without any of these calls, on master too, so such a check can't tell the box apart.)
 do
     local names = { [0] = "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }
-    local held = {}
     S:last_frame_test("ValueType System.Enum calls stay correct under load (2000 per frame, 30 frames)", function(frame)
         local dow = tdef("System.DayOfWeek")
         for i = 1, 2000 do
@@ -824,14 +825,7 @@ do
             v:write_dword(0, i % 7)
             H.eq(v:call("ToString()"), names[i % 7], string.format("frame %d call %d", frame, i))
         end
-        -- Objects that outlive the calls must stay intact.
-        local arr = sdk.create_managed_array("System.String", 4)
-        for i = 0, 3 do arr[i] = sdk.create_managed_string("s" .. i) end
-        held[#held + 1] = arr:add_ref()
-        for _, a in ipairs(held) do H.eq(a:get_size(), 4, "array created earlier") end
-        if frame < 30 then return false end
-        for _, a in ipairs(held) do a:release() end
-        return true
+        return frame >= 30
     end)
 end
 
