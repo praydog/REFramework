@@ -1,5 +1,7 @@
 #include <malloc.h>
+#include <algorithm>
 #include <ranges>
+#include <string_view>
 
 #include <hde64.h>
 #include <spdlog/spdlog.h>
@@ -204,6 +206,39 @@ bool HookManager::HookedFn::is_float_type(sdk::RETypeDefinition* t) {
     return name == "System.Single" || name == "System.Double";
 }
 
+// Whether a method returning `t` takes a hidden return buffer as its first native argument: value types other than
+// primitives and enums, or any value type larger than 8 bytes (the rule invoke() applies). Decided from type metadata
+// only. RETypeDefinition::is_primitive() asks the managed runtime, which must not happen here: hooks are installed
+// under m_map_mux, possibly from a plugin's init thread, and is_primitive() caches "not primitive" for good when the
+// runtime type isn't available yet, which would lay out e.g. bool f(float) as buffer-returning.
+static bool returns_through_buffer(sdk::RETypeDefinition* t) {
+    if (t == nullptr || !t->is_value_type()) {
+        return false;
+    }
+
+    const auto name = t->get_full_name();
+
+    // invoke() counts System.Void as a non-primitive value type, but void methods take no buffer.
+    if (name == "System.Void") {
+        return false;
+    }
+
+    if (t->get_valuetype_size() > sizeof(void*)) {
+        return true;
+    }
+
+    if (t->is_enum()) {
+        return false;
+    }
+
+    static constexpr std::string_view primitives[] = {
+        "System.Boolean", "System.Char", "System.SByte", "System.Byte", "System.Int16", "System.UInt16", "System.Int32",
+        "System.UInt32", "System.Int64", "System.UInt64", "System.IntPtr", "System.UIntPtr", "System.Single", "System.Double",
+    };
+
+    return std::ranges::find(primitives, name) == std::end(primitives);
+}
+
 std::vector<HookManager::HookedFn::ArgSlot> HookManager::HookedFn::get_arg_slots(sdk::REMethodDefinition* fn) {
     // Hidden arguments that we may not know about, after the parameters.
     constexpr uint32_t HIDDEN_ARGUMENT_COUNT = 2;
@@ -212,12 +247,8 @@ std::vector<HookManager::HookedFn::ArgSlot> HookManager::HookedFn::get_arg_slots
     const auto param_types = fn->get_param_types();
     const auto param_modifiers = fn->get_param_modifiers();
 
-    // Value types other than primitives and enums are returned through a buffer the caller passes first, ahead of
-    // the thread context (the same rule invoke() uses for its out buffer). System.Void counts as a non-primitive
-    // value type there, but void methods take no buffer.
-    const auto ret_ty = fn->get_return_type();
-    const bool returns_through_buffer = ret_ty != nullptr && ret_ty->is_value_type() && ret_ty->should_pass_by_pointer() &&
-        ret_ty->get_full_name() != "System.Void";
+    // A struct return buffer comes first, ahead of the thread context.
+    const bool returns_through_buffer = ::returns_through_buffer(fn->get_return_type());
 
     std::vector<ArgSlot> slots{};
     uint32_t position = 0;
