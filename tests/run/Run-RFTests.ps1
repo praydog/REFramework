@@ -66,6 +66,8 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'RFTest.psm1') -Force
 # powershell -File passes "api,csharp" as one string.
 $Suites = @($Suites | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
+$unknown = @($Suites | Where-Object { $_ -notin 'api', 'regression', 'plugin', 'csharp' })
+if ($unknown -or -not $Suites) { throw "unknown or no suites: '$($unknown -join ', ')'; use api, regression, plugin, csharp" }
 $TestsDir = Get-RFTestsDir
 if (-not $PluginDll) { $PluginDll = Join-Path $TestsDir 'plugin\out\rftest_plugin.dll' }
 if (-not $LoadlibDll) { $LoadlibDll = Join-Path $TestsDir 'plugin\out\rftest_loadlib.dll' }
@@ -96,13 +98,7 @@ $CSharpPluginFiles = 'REFramework.NET.dll', 'REFramework.NET.runtimeconfig.json'
 $CSharpDependencyFiles = 'AssemblyGenerator.dll', 'REFCoreDeps.dll', 'Microsoft.CodeAnalysis.CSharp.dll', 'Microsoft.CodeAnalysis.dll',
     'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll'
 
-function Get-RootFiles { @($RootFiles) + (Split-Path -Leaf (Get-ConfigPath)) | Select-Object -Unique }
-
-function Get-ConfigPath {
-    $cfg = Get-ChildItem -LiteralPath $GameDir -Filter '*_fw_config.txt' -File -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cfg) { return $cfg.FullName }
-    return Join-Path $GameDir 're2_fw_config.txt'
-}
+function Get-ConfigPath { Join-Path $GameDir 're2_fw_config.txt' }
 
 function Set-ConfigValues([hashtable] $Values) {
     $path = Get-ConfigPath
@@ -124,12 +120,25 @@ function Get-ExpectedSuites {
     return $names
 }
 
-function Install-Suites {
+# Everything Install-Suites needs, checked before it changes anything in the game.
+function Test-InstallInputs {
     if (Test-Path -LiteralPath $State) { throw "$State exists: a previous run was not uninstalled; run -Action Uninstall first" }
+    if ($Build -and -not (Test-Path -LiteralPath $Build)) { throw "build not found: $Build" }
+    if ($Suites -contains 'plugin' -and -not (Test-Path -LiteralPath $PluginDll)) { throw "$PluginDll not found: build it with tests\plugin\build.bat" }
+    if ($Suites -contains 'csharp') {
+        $installed = Test-Path -LiteralPath (Join-Path $Plugins 'REFramework.NET.dll')
+        $given = $CSharpBin -and (Test-Path -LiteralPath (Join-Path $CSharpBin 'REFramework.NET.dll'))
+        if (-not $installed -and -not $given) { throw "the csharp suite needs REFramework.NET: pass -CSharpBin <csharp-api\build\bin> or install it into the game" }
+        if ($installed -and $CSharpBin) { Write-Warning "the game already has REFramework.NET; the csharp suite tests that copy, not -CSharpBin" }
+    }
+}
+
+function Install-Suites {
     New-Item -ItemType Directory -Path $State | Out-Null
+    # UTF-8: Windows PowerShell's default code page would turn non-ANSI names into '?', and Uninstall would delete them.
     @(if (Test-Path -LiteralPath $Rf) { $Rf; Get-ChildItem -LiteralPath $Rf -Recurse -Force | ForEach-Object { $_.FullName } }) |
-        Set-Content -LiteralPath (Join-Path $State 'reframework-before.txt')
-    foreach ($f in Get-RootFiles) {
+        Set-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8
+    foreach ($f in $RootFiles) {
         $p = Join-Path $GameDir $f
         if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination $State }
     }
@@ -148,19 +157,15 @@ function Install-Suites {
     }
     if ($Suites -contains 'regression') {
         if (Test-Path -LiteralPath $LoadlibDll) { Copy-Item -LiteralPath $LoadlibDll -Destination (Join-Path $Data 'rftest_loadlib.dll') -Force }
-        else { Write-Warning "$LoadlibDll not found (build tests\plugin\build.bat); the package.loadlib test will SKIP" }
+        else { Write-Warning "$LoadlibDll not found (build tests\plugin\build.bat); the package.loadlib tests will FAIL" }
     }
     if ($Suites -contains 'plugin') {
-        if (-not (Test-Path -LiteralPath $PluginDll)) { throw "$PluginDll not found: build it with tests\plugin\build.bat" }
         Copy-Item -LiteralPath $PluginDll -Destination (Join-Path $Plugins 'rftest_plugin.dll') -Force
     }
     if ($Suites -contains 'csharp') {
         $source = Join-Path $Plugins 'source'
         New-Item -ItemType Directory -Force -Path $source | Out-Null
         if (-not (Test-Path -LiteralPath (Join-Path $Plugins 'REFramework.NET.dll'))) {
-            if (-not $CSharpBin -or -not (Test-Path -LiteralPath (Join-Path $CSharpBin 'REFramework.NET.dll'))) {
-                throw "the csharp suite needs REFramework.NET: pass -CSharpBin <csharp-api\build\bin> or install it into the game"
-            }
             $deps = Join-Path $Plugins 'managed\dependencies'
             New-Item -ItemType Directory -Force -Path $deps | Out-Null
             foreach ($f in $CSharpPluginFiles) { Copy-Item -LiteralPath (Join-Path $CSharpBin $f) -Destination $Plugins -Force }
@@ -179,13 +184,13 @@ function Uninstall-Suites {
     if (-not (Test-Path -LiteralPath $State)) { Write-Warning "nothing to uninstall ($State not found)"; return }
     # Everything under reframework\ that wasn't there before: the suites, REFramework.NET, generated assemblies, fonts...
     $before = @{}
-    foreach ($p in @(Get-Content -LiteralPath (Join-Path $State 'reframework-before.txt'))) { if ($p) { $before[$p] = $true } }
+    foreach ($p in @(Get-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8)) { if ($p) { $before[$p] = $true } }
     if (Test-Path -LiteralPath $Rf) {
         Get-ChildItem -LiteralPath $Rf -Recurse -Force | Sort-Object { $_.FullName.Length } -Descending | Where-Object { -not $before[$_.FullName] } |
             ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
         if (-not $before[$Rf]) { Remove-Item -LiteralPath $Rf -Recurse -Force -ErrorAction SilentlyContinue }
     }
-    foreach ($f in Get-RootFiles) {
+    foreach ($f in $RootFiles) {
         $saved = Join-Path $State $f
         $p = Join-Path $GameDir $f
         if (Test-Path -LiteralPath $saved) { Copy-Item -LiteralPath $saved -Destination $p -Force }
@@ -282,7 +287,14 @@ function Save-Results($Summary) {
         $script:OutDir = Join-Path $root "$name-$(Get-Date -Format yyyyMMdd-HHmmss)"
     }
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-    if (Test-Path -LiteralPath $Results) { Copy-Item -Path (Join-Path $Results '*.json') -Destination $OutDir -Force }
+    if (Test-Path -LiteralPath $Results) { Get-ChildItem -LiteralPath $Results -Filter '*.json' | Copy-Item -Destination $OutDir -Force }
+    # The full log and a crash dump, before Uninstall puts the game's own files back.
+    foreach ($f in 're2_framework_log.txt', 'reframework_crash.dmp') {
+        $p = Join-Path $GameDir $f
+        if ((Test-Path -LiteralPath $p) -and (Get-Item -LiteralPath $p).LastWriteTime -gt (Get-Item -LiteralPath $State -ErrorAction SilentlyContinue).CreationTime) {
+            Copy-Item -LiteralPath $p -Destination $OutDir -Force
+        }
+    }
     $log = Get-RFLogPath $GameDir
     $resets = 0
     if (Test-Path -LiteralPath $log) {
@@ -304,14 +316,15 @@ function Save-Results($Summary) {
 }
 
 switch ($Action) {
-    'Install' { Install-Suites }
+    'Install' { Test-InstallInputs; Install-Suites }
     'Uninstall' { Uninstall-Suites }
     'Collect' { $s = Get-Summary; Save-Results $s; exit [int]($s.Failed.Count -gt 0) }
     'Wait' { [void](Wait-Results); $s = Get-Summary; Save-Results $s; exit [int]($s.Failed.Count -gt 0) }
     'Run' {
         if (Get-GameProcesses) { throw 'the game is already running; close it first' }
-        Install-Suites
+        Test-InstallInputs
         try {
+            Install-Suites
             Start-Game
             [void](Wait-Results)
             Stop-Game

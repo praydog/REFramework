@@ -69,11 +69,15 @@ PFX="$LIB/steamapps/compatdata/$APPID/pfx"
 RF="$GAME/reframework"
 LOG="$GAME/re2_framework_log.txt"
 [ -n "$OUT" ] || OUT="$TESTS/out/$ALIAS-$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$OUT"
-WORK="$OUT/.restore"
-mkdir -p "$WORK"
+# What the game had before the run; next to the game so a crashed run is noticed by the next one.
+WORK="$GAME/rftest-state"
+[ -e "$WORK" ] && die "$WORK exists: an earlier run did not finish; put its saved files back (or delete it) first"
 
 IFS=',' read -r -a SUITE_LIST <<< "$SUITES_ARG"
+for s in "${SUITE_LIST[@]}"; do
+  case $s in api|regression|plugin|csharp) ;; *) die "unknown suite '$s'; use api, regression, plugin, csharp" ;; esac
+done
+[ ${#SUITE_LIST[@]} -gt 0 ] || die "no suites"
 has() { local s; for s in "${SUITE_LIST[@]}"; do [ "$s" = "$1" ] && return 0; done; return 1; }
 EXPECTED=""
 has api && EXPECTED="$EXPECTED api"
@@ -168,6 +172,7 @@ wait_idle || die "another game is still running; close it first"
 # Install (everything the game had is saved in $WORK and put back by restore).
 old_link="" dotnet_installed="" override_added=""
 DOTNET="$PFX/drive_c/Program Files/dotnet"
+mkdir -p "$OUT" "$WORK"
 find "$RF" -print 2>/dev/null > "$WORK/rf-before"
 for f in $ROOT_FILES; do [ -f "$GAME/$f" ] && cp -p "$GAME/$f" "$WORK/$f"; done
 old_link=$(readlink "$GAME/dinput8.dll" || true)
@@ -183,7 +188,7 @@ has api && cp "$TESTS/lua/rftest_api.lua" "$RF/autorun/"
 if has regression; then
   cp "$TESTS/lua/rftest_regression.lua" "$RF/autorun/"
   if [ -f "$PLUGINDIR/rftest_loadlib.dll" ]; then cp "$PLUGINDIR/rftest_loadlib.dll" "$RF/data/rftest_loadlib.dll"
-  else echo "warning: $PLUGINDIR/rftest_loadlib.dll not found; the package.loadlib test will SKIP"; fi
+  else echo "warning: $PLUGINDIR/rftest_loadlib.dll not found; the package.loadlib tests will FAIL"; fi
 fi
 has plugin && cp "$PLUGINDIR/rftest_plugin.dll" "$RF/plugins/rftest_plugin.dll"
 if has csharp; then
@@ -233,6 +238,8 @@ secs=$(( $(date +%s) - t0 ))
 
 # Collect
 cp "$RF"/data/rftest/results/*.json "$OUT/" 2>/dev/null
+# The full log and a crash dump, before restore puts the game's own files back.
+for f in re2_framework_log.txt reframework_crash.dmp; do [ "$GAME/$f" -nt "$WORK/rf-before" ] && cp "$GAME/$f" "$OUT/"; done
 grep -E '\[rftest\]|\[error\]' "$LOG" > "$OUT/log-excerpt.txt" 2>/dev/null
 resets=$(grep -c '\] Reset!$' "$LOG" 2>/dev/null); resets=${resets:-0}
 echo "device resets: $resets" >> "$OUT/log-excerpt.txt"
