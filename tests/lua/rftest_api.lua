@@ -237,8 +237,8 @@ S:test("ValueType method call", function()
     local g = ValueType.new(tdef("System.Guid"))
     for i = 0, 15 do g:write_byte(i, i) end
     local str = g:call("ToString()")
-    H.eq(type(str), "string", "Guid.ToString type")
-    H.eq(#str, 36, "Guid.ToString length " .. tostring(str))
+    -- Guid layout: Data1 (Int32), Data2 and Data3 (Int16) little-endian, then 8 bytes in order.
+    H.eq(str, "03020100-0504-0706-0809-0a0b0c0d0e0f", "Guid.ToString of bytes 00..0f")
 end)
 
 -------------------------------------------------------------------------------------------------------------------
@@ -268,6 +268,14 @@ S:test("boxed enum calls a method System.Enum declares (DayOfWeek.ToString)", fu
     local o = to_object:call(nil, sdk.typeof("System.DayOfWeek"), 1)
     H.eq(H.type_name(o), "System.DayOfWeek")
     H.eq(o:call("ToString()"), "Monday", "ToString")
+end)
+
+-- The same call through a ValueType (no object header of its own). Before TDB 74 a value type's own methods take its
+-- data as `this`; this one is declared on System.Enum, a reference type, so it must get a box.
+S:test("ValueType enum calls a method System.Enum declares (DayOfWeek.ToString)", function()
+    local v = ValueType.new(tdef("System.DayOfWeek"))
+    v:write_dword(0, 1)
+    H.eq(v:call("ToString()"), "Monday", "ToString")
 end)
 
 S:test("3 integer parameters (Int32, Int64, UInt32)", function()
@@ -304,18 +312,21 @@ S:test("Boolean parameter after two strings", function()
     H.ne(scall("System.String", "Compare(System.String, System.String, System.Boolean)", "abc", "ABC", false), 0, "ignoreCase = false")
 end)
 
-S:test("Char parameters and Int32 + Char", function()
-    local pad = method("System.String", "PadLeft(System.Int32, System.Char)")
-    local replace = method("System.String", "Replace(System.Char, System.Char)")
-    H.eq(pad:call(sdk.create_managed_string("ab"), 5, 42), "***ab", "PadLeft(5, '*')")
-    H.eq(replace:call(sdk.create_managed_string("a.b.c"), 46, 45), "a-b-c", "Replace('.', '-')")
+S:test("Char parameters (Replace)", function()
+    method("System.String", "Replace(System.Char, System.Char)")
+    H.eq(sdk.create_managed_string("a.b.c"):call("Replace(System.Char, System.Char)", 46, 45), "a-b-c", "Replace('.', '-')")
+end)
+
+S:test("Int32 + Char parameters (PadLeft)", function()
+    method("System.String", "PadLeft(System.Int32, System.Char)")
+    H.eq(sdk.create_managed_string("ab"):call("PadLeft(System.Int32, System.Char)", 5, 42), "***ab", "PadLeft(5, '*')")
 end)
 
 S:test("enum parameter (StringComparison)", function()
-    local equals = method("System.String", "Equals(System.String, System.StringComparison)")
+    method("System.String", "Equals(System.String, System.StringComparison)")
     local s = sdk.create_managed_string("abc")
-    H.eq(equals:call(s, "ABC", 5), true, "OrdinalIgnoreCase")
-    H.eq(equals:call(s, "ABC", 4), false, "Ordinal")
+    H.eq(s:call("Equals(System.String, System.StringComparison)", "ABC", 5), true, "OrdinalIgnoreCase")
+    H.eq(s:call("Equals(System.String, System.StringComparison)", "ABC", 4), false, "Ordinal")
 end)
 
 S:test("4 string parameters", function()
@@ -481,7 +492,8 @@ do
             local ok, result = pcall(call, this, table.unpack(def.args()))
             armed_case = nil
             if not ok then error(result, 0) end
-            if not c.seen.pre then H.skip("the hook did not fire for a call through invoke") end
+            -- The test made this call itself, so a hook that didn't see it is a failure, not an absence.
+            H.truthy(c.seen.pre, "the hook fired for the test's own call")
             H.truthy(c.seen.post, "post hook ran")
             c.seen.this = this
             def.check(result, c.seen)
@@ -644,14 +656,15 @@ do
         end,
     })
 
-    -- Skipping a struct-returning method leaves the caller's return buffer unwritten (invoke's buffer holds whatever
-    -- was there), so only check that the original did not run.
+    -- Skipping a struct-returning method leaves the return buffer unwritten, so it holds whatever invoke's buffer held
+    -- before: not zeros (seen -1.0e-26, -5.1e-26 and 3.7e-40 for x across builds). The defined outcome is that the
+    -- original's result (9,9,9) - (1,2,3) = (8,7,6) never lands there.
     hook_case("static, struct return: SKIP_ORIGINAL skips the original", "via.vec3", "op_Subtraction(via.vec3, via.vec3)", {
         args = function() return { Vector3f.new(9, 9, 9), Vector3f.new(1, 2, 3) } end,
         pre = function(args, seen) seen.ret_buffer = i64(args[1]); return sdk.PreHookResult.SKIP_ORIGINAL end,
         post = function(retval, seen) return sdk.to_ptr(seen.ret_buffer) end,
         check = function(result)
-            H.truthy(not (result.x == 8 and result.y == 7 and result.z == 6), "result is not the original's (8, 7, 6)")
+            H.truthy(not (result.x == 8.0 and result.y == 7.0 and result.z == 6.0), "the original ran and returned (8, 7, 6)")
         end,
     })
 end

@@ -185,11 +185,21 @@ function Uninstall-Suites {
     # Everything under reframework\ that wasn't there before: the suites, REFramework.NET, generated assemblies, fonts...
     $before = @{}
     foreach ($p in @(Get-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8)) { if ($p) { $before[$p] = $true } }
-    if (Test-Path -LiteralPath $Rf) {
-        Get-ChildItem -LiteralPath $Rf -Recurse -Force | Sort-Object { $_.FullName.Length } -Descending | Where-Object { -not $before[$_.FullName] } |
-            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
-        if (-not $before[$Rf]) { Remove-Item -LiteralPath $Rf -Recurse -Force -ErrorAction SilentlyContinue }
+    # A file or folder can stay in use for a moment after the game exits; retry, and name whatever still can't go.
+    $new = @()
+    for ($try = 0; $try -lt 5; ++$try) {
+        $new = @(if (Test-Path -LiteralPath $Rf) {
+            Get-ChildItem -LiteralPath $Rf -Recurse -Force | Where-Object { -not $before[$_.FullName] } | ForEach-Object { $_.FullName }
+            if (-not $before[$Rf]) { $Rf }
+        })
+        if (-not $new) { break }
+        foreach ($p in $new | Sort-Object Length -Descending) {
+            Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Milliseconds (500 * $try)
     }
+    $left = @($new | Where-Object { Test-Path -LiteralPath $_ })
+    if ($left) { Write-Warning "could not remove (still in use?): $($left -join '; ')" }
     foreach ($f in $RootFiles) {
         $saved = Join-Path $State $f
         $p = Join-Path $GameDir $f
@@ -254,6 +264,8 @@ function Wait-Results {
 function Get-Summary {
     $rows = @()
     $failed = @()
+    # Every SKIP with its reason: a skip hides coverage, so it is reported like a failure, just not counted as one.
+    $skipped = @()
     foreach ($name in Get-ExpectedSuites) {
         $path = Join-Path $Results "$name.json"
         if (-not (Test-Path -LiteralPath $path)) {
@@ -268,6 +280,7 @@ function Get-Summary {
             Skip = @($r.tests | Where-Object { $_.status -eq 'SKIP' }).Count; Note = $r.game
         }
         foreach ($t in $fail) { $failed += "${name}: $($t.name) -- $($t.detail)" }
+        foreach ($t in @($r.tests | Where-Object { $_.status -eq 'SKIP' })) { $skipped += "${name}: $($t.name) -- $($t.detail)" }
     }
 
     if ($Scenario -eq 'MalformedConfig') {
@@ -277,7 +290,7 @@ function Get-Summary {
         $rows += [pscustomobject]@{ Suite = 'config'; Pass = [int]$ok; Fail = [int](-not $ok); Skip = 0; Note = "GarbageCollectionBudget: $($budget.Line)" }
         if (-not $ok) { $failed += "config: malformed REFrameworkConfig_MenuKey_V2 lost later settings ($($budget.Line))" }
     }
-    return [pscustomobject]@{ Rows = $rows; Failed = $failed }
+    return [pscustomobject]@{ Rows = $rows; Failed = $failed; Skipped = $skipped }
 }
 
 function Save-Results($Summary) {
@@ -304,12 +317,13 @@ function Save-Results($Summary) {
         # A swap chain reset every frame means the game is stuck resizing and may not be updating.
         @($lines) + "device resets: $resets" | Set-Content -LiteralPath (Join-Path $OutDir 'log-excerpt.txt')
     }
-    $text = @($Summary.Rows | Format-Table -AutoSize | Out-String) + @($Summary.Failed | ForEach-Object { "FAIL $_" })
+    $text = @($Summary.Rows | Format-Table -AutoSize | Out-String) + @($Summary.Failed | ForEach-Object { "FAIL $_" }) +
+        @($Summary.Skipped | ForEach-Object { "SKIP $_" })
     Set-Content -LiteralPath (Join-Path $OutDir 'summary.txt') -Value $text
     # Machine-readable summary for Run-AllGames.ps1 and other tools.
     [pscustomobject]@{
         game = if ($Game) { $Game } else { Split-Path -Leaf $GameDir }; scenario = $Scenario; build = $Build
-        suites = $Summary.Rows; failed = @($Summary.Failed); deviceResets = $resets
+        suites = $Summary.Rows; failed = @($Summary.Failed); skipped = @($Summary.Skipped); deviceResets = $resets
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutDir 'summary.json')
     Write-Host ($text -join "`n")
     Write-Host "results: $OutDir"
