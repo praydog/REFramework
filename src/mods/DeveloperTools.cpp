@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include "tools/GameObjectsDisplay.hpp"
 #include "tools/ChainViewer.hpp"
 #include "tools/ObjectExplorer.hpp"
@@ -14,7 +15,7 @@ DeveloperTools::DeveloperTools() {
 }
 
 void DeveloperTools::on_draw_ui() {
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 

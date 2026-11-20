@@ -1,0 +1,10 @@
+{
+  "default": "English",
+  "languages": [
+    {"id": "English", "tag": "en", "name": "English", "catalog": null},
+    {"id": "SimplifiedChinese", "tag": "zh-CN", "name": "简体中文", "catalog": "zh-CN.json"},
+    {"id": "TraditionalChinese", "tag": "zh-TW", "name": "繁體中文", "catalog": "zh-TW.json"},
+    {"id": "Japanese", "tag": "ja-JP", "name": "日本語", "catalog": "ja-JP.json"},
+    {"id": "Korean", "tag": "ko-KR", "name": "한국어", "catalog": "ko-KR.json"}
+  ]
+}
