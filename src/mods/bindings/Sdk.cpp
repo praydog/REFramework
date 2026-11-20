@@ -444,8 +444,13 @@ struct ValueType {
         //   0x10: actual value type data starts here
         // Before TDB 74 it passes `this` through unchanged and the method read the fake header as the value (seen
         // with Guid.ToString and via.vec3 get_Item/set_Item in TDB 67-73: dmc5, re8, ggr, re2, re3, re7, re4, sf6,
-        // mhrise, kunitsu, gs456, drdr; TDB 74-83 games need the box), so there the value's own data is `this`.
-        if (!def->is_static() && ::sdk::GameIdentity::get().tdb_ver() >= 74) {
+        // mhrise, kunitsu, gs456, drdr; TDB 74-83 games need the box), so there the value's own data is `this` for
+        // methods the value type declares. Methods declared on a reference type (System.Object.GetType) expect an
+        // object, so they keep the box, as get_invoke_this does.
+        const auto declaring_type = def->get_declaring_type();
+        const bool unboxed_this = ::sdk::GameIdentity::get().tdb_ver() < 74 && declaring_type != nullptr && declaring_type->is_value_type();
+
+        if (!def->is_static() && !unboxed_this) {
             const auto type_vt_size = type->get_valuetype_size();
 
             // Reduce allocation pressure with thread_local.
@@ -469,7 +474,7 @@ struct ValueType {
             // copy back any changes to the value type from the fake boxed storage
             memcpy(data.data(), &fake_boxed_storage[mo_runtime_size], type_vt_size);
         } else {
-            // Static methods, and instance methods before TDB 74, take the unboxed value.
+            // Static methods, and value-type methods before TDB 74, take the unboxed value.
             ret_val = def->invoke((void*)address(), std::span(vec_args));
         }
 
