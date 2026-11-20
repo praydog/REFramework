@@ -129,8 +129,9 @@ function Invoke-ScriptInDesktopSession([Parameter(Mandatory)] [string] $Script, 
 }
 
 function Get-GameProcess([Parameter(Mandatory)] [string] $GameDir) {
+    $prefix = $GameDir.TrimEnd('\') + '\'
     Get-Process -ErrorAction SilentlyContinue | Where-Object {
-        try { $_.Path -and $_.Path.StartsWith($GameDir, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
+        try { $_.Path -and $_.Path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
     }
 }
 
@@ -174,22 +175,31 @@ function Stop-RFGame([Parameter(Mandatory)] [string] $GameDir, [int] $GraceSecon
 }
 
 # Puts a REFramework build (dinput8.dll) into the game for a run. An existing dinput8.dll (file or symlink) is moved
-# aside and comes back with Restore-RFBuild.
+# aside and comes back with Restore-RFBuild; if there was none, a marker makes Restore-RFBuild delete the build.
 function Install-RFBuild([Parameter(Mandatory)] [string] $GameDir, [Parameter(Mandatory)] [string] $Build) {
     if (-not (Test-Path -LiteralPath $Build)) { throw "build not found: $Build" }
     $dll = Join-Path $GameDir 'dinput8.dll'
     $backup = Join-Path $GameDir 'dinput8.dll.rftest-backup'
-    if ((Test-Path -LiteralPath $dll) -and -not (Test-Path -LiteralPath $backup)) { Move-Item -LiteralPath $dll -Destination $backup }
-    elseif (Test-Path -LiteralPath $dll) { Remove-Item -LiteralPath $dll -Force }
+    $none = Join-Path $GameDir 'dinput8.dll.rftest-none'
+    if (-not (Test-Path -LiteralPath $backup) -and -not (Test-Path -LiteralPath $none)) {
+        if (Test-Path -LiteralPath $dll) { Move-Item -LiteralPath $dll -Destination $backup }
+        else { Set-Content -LiteralPath $none -Value 'the game had no dinput8.dll before Run-RFTests.ps1 installed a build' }
+    }
+    if (Test-Path -LiteralPath $dll) { Remove-Item -LiteralPath $dll -Force }
     Copy-Item -LiteralPath $Build -Destination $dll
 }
 
 function Restore-RFBuild([Parameter(Mandatory)] [string] $GameDir) {
     $dll = Join-Path $GameDir 'dinput8.dll'
     $backup = Join-Path $GameDir 'dinput8.dll.rftest-backup'
-    if (-not (Test-Path -LiteralPath $backup)) { return }
-    if (Test-Path -LiteralPath $dll) { Remove-Item -LiteralPath $dll -Force }
-    Move-Item -LiteralPath $backup -Destination $dll
+    $none = Join-Path $GameDir 'dinput8.dll.rftest-none'
+    if (Test-Path -LiteralPath $backup) {
+        if (Test-Path -LiteralPath $dll) { Remove-Item -LiteralPath $dll -Force }
+        Move-Item -LiteralPath $backup -Destination $dll
+    } elseif (Test-Path -LiteralPath $none) {
+        if (Test-Path -LiteralPath $dll) { Remove-Item -LiteralPath $dll -Force }
+        Remove-Item -LiteralPath $none -Force
+    }
 }
 
 function Get-RFLogPath([Parameter(Mandatory)] [string] $GameDir) { Join-Path $GameDir 're2_framework_log.txt' }

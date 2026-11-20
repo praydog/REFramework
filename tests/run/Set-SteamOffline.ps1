@@ -11,15 +11,21 @@ settings, so they can't be turned off for one machine. Offline mode stops all sy
 
 -Mode Offline:
   1. Closes Steam.
-  2. Backs up the userdata folders (cloud saves + remotecache.vdf) of the games in games.json to -BackupDir.
+  2. Backs up the userdata folders (cloud saves + remotecache.vdf) of the games in games.json to -BackupDir. Refuses a
+     non-empty -BackupDir that isn't one of its own backups.
   3. Removes the local cloud saves of the -ResetSaves games, so they start with default settings.
   4. Sets Steam's offline-mode flag for the last-logged-in account and starts Steam on the user's desktop.
   Refuses to run while Steam is already in offline mode, so the backup always holds the last synced state.
 
 -Mode Online:
-  1. Closes Steam.
-  2. Restores the backed-up userdata folders, so nothing written while offline is uploaded.
-  3. Clears the offline-mode flag and starts Steam.
+  1. Closes Steam. Refuses unless Steam is in offline mode and -BackupDir holds one of its backups.
+  2. Restores the backed-up userdata folders and removes the ones created while offline, so nothing written while
+     offline is uploaded.
+  3. Clears the offline-mode flag, renames the backup to <BackupDir>.restored-<time> so it can't be restored twice,
+     and starts Steam.
+
+Go online only with -Mode Online: going online from Steam's own menu can upload whatever changed while offline,
+including the removal of saves by -ResetSaves.
 
 Use only on a machine dedicated to testing. -WhatIf shows what would happen.
 
@@ -70,37 +76,54 @@ function Stop-Steam {
     if (Get-Process steam -ErrorAction SilentlyContinue) { throw 'Steam did not shut down within 60 s' }
 }
 
+# Marks a folder as this script's backup, so it never deletes a folder it didn't create.
+$marker = Join-Path $BackupDir 'rftest-steam-backup.txt'
+
 if ($Mode -eq 'Offline') {
     if (Test-OfflineFlag) { throw 'Steam is already in offline mode; run -Mode Online first (that restores the backup)' }
+    if ((Test-Path -LiteralPath $BackupDir) -and (Get-ChildItem -LiteralPath $BackupDir -Force) -and -not (Test-Path -LiteralPath $marker)) {
+        throw "$BackupDir is not empty and is not a backup made by this script; pass an empty or new -BackupDir"
+    }
     if ($PSCmdlet.ShouldProcess($steam, 'close Steam')) { Stop-Steam }
     if ($PSCmdlet.ShouldProcess($BackupDir, "back up the userdata folders of $($appids.Count) games")) {
-        if (Test-Path -LiteralPath $BackupDir) { Remove-Item -Recurse -Force $BackupDir }
+        # An old backup from an earlier offline period is stale once Steam has been online since.
+        if (Test-Path -LiteralPath $BackupDir) { Remove-Item -LiteralPath $BackupDir -Recurse -Force }
         New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
         foreach ($id in $appids) {
             $src = Join-Path $userdata $id
             if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $BackupDir $id) -Recurse }
         }
+        Set-Content -LiteralPath $marker -Value "Steam userdata backup made by Set-SteamOffline.ps1 on $(Get-Date -Format o) from $userdata"
     }
     foreach ($alias in $ResetSaves) {
         $remote = Join-Path $userdata "$((Resolve-Game $alias).AppId)\remote"
         if ((Test-Path -LiteralPath $remote) -and $PSCmdlet.ShouldProcess($remote, "remove the local cloud saves of $alias")) {
-            Remove-Item -Recurse -Force $remote
+            Remove-Item -LiteralPath $remote -Recurse -Force
         }
     }
     if ($PSCmdlet.ShouldProcess($users, 'set offline mode')) { Set-OfflineFlag $true }
     if ($PSCmdlet.ShouldProcess($steamExe, 'start Steam')) { Invoke-InDesktopSession -FilePath $steamExe -Arguments '-silent' }
     Write-Host "Steam is offline; backup in $BackupDir"
 } else {
-    if (-not (Test-Path -LiteralPath $BackupDir)) { throw "no backup in $BackupDir; Set-SteamOffline.ps1 -Mode Offline makes it" }
+    if (-not (Test-Path -LiteralPath $marker)) { throw "no backup made by this script in $BackupDir (Set-SteamOffline.ps1 -Mode Offline makes it)" }
+    if (-not (Test-OfflineFlag)) { throw 'Steam is not in offline mode, so the backup may be older than the saves; nothing restored' }
     if ($PSCmdlet.ShouldProcess($steam, 'close Steam')) { Stop-Steam }
-    foreach ($saved in Get-ChildItem -LiteralPath $BackupDir -Directory) {
-        $target = Join-Path $userdata $saved.Name
-        if ($PSCmdlet.ShouldProcess($target, 'restore from backup')) {
-            if (Test-Path -LiteralPath $target) { Remove-Item -Recurse -Force $target }
-            Copy-Item -LiteralPath $saved.FullName -Destination $target -Recurse
+    foreach ($id in $appids) {
+        $saved = Join-Path $BackupDir $id
+        $target = Join-Path $userdata $id
+        if (Test-Path -LiteralPath $saved) {
+            if ($PSCmdlet.ShouldProcess($target, 'restore from backup')) {
+                if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+                Copy-Item -LiteralPath $saved -Destination $target -Recurse
+            }
+        } elseif ((Test-Path -LiteralPath $target) -and $PSCmdlet.ShouldProcess($target, 'remove (created while offline)')) {
+            Remove-Item -LiteralPath $target -Recurse -Force
         }
     }
     if ($PSCmdlet.ShouldProcess($users, 'clear offline mode')) { Set-OfflineFlag $false }
+    # Retire the backup so a later -Mode Online can't roll the saves back to it.
+    $retired = "$($BackupDir.TrimEnd('\')).restored-$(Get-Date -Format yyyyMMdd-HHmmss)"
+    if ($PSCmdlet.ShouldProcess($BackupDir, "rename to $retired")) { Rename-Item -LiteralPath $BackupDir -NewName (Split-Path -Leaf $retired) }
     if ($PSCmdlet.ShouldProcess($steamExe, 'start Steam')) { Invoke-InDesktopSession -FilePath $steamExe -Arguments '-silent' }
     Write-Host 'Steam is online'
 }

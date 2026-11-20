@@ -481,9 +481,12 @@ void on_post_update() {
     ++g_post_update;
 
     // add_hook installs immediately; exercise it from the game thread a few frames after installing.
-    if (!g_hooks_tested && g_stage.load() == Stage::WaitLua && g_stage_frame > 5) {
-        g_hooks_tested = true;
+    // g_hooks_tested is set only once the test has recorded its results: on_present writes the file as soon as it sees it.
+    static bool started = false;
+    if (!started && g_stage.load() == Stage::WaitLua && g_stage_frame > 5) {
+        started = true;
         api_hook_test();
+        g_hooks_tested = true;
     }
 }
 
