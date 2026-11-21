@@ -549,6 +549,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
     if (gi.is_reengine_at()) {
         utility::ThreadSuspender suspender{};
+        IntegrityCheckBypass::PristineSyscalls pristine_syscalls{};
         IntegrityCheckBypass::ignore_application_entries();
 
         if (gi.is_re8() || gi.is_re4() || gi.is_sf6()) {
@@ -574,6 +575,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
         // Seen in SF6
         IntegrityCheckBypass::remove_stack_destroyer();
+        pristine_syscalls.restore();
         suspender.resume();
     }
 

@@ -143,6 +143,7 @@ BOOL APIENTRY DllMain(HANDLE handle, DWORD reason, LPVOID reserved) {
         sdk::GameIdentity::initialize();
 
         IntegrityCheckBypass::setup_pristine_syscall();
+        IntegrityCheckBypass::record_pristine_syscalls();
         IntegrityCheckBypass::hook_add_vectored_exception_handler();
         IntegrityCheckBypass::hook_rtl_exit_user_process();
         IntegrityCheckBypass::hook_crt_exit();
