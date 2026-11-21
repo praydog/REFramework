@@ -1301,6 +1301,7 @@ XrResult OpenXR::end_frame() {
 
     std::vector<XrCompositionLayerBaseHeader*> layers{};
     std::vector<XrCompositionLayerProjectionView> projection_layer_views{};
+    XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
 
     // we CANT push the layers every time, it cause some layer error
     // in xrEndFrame, so we must only do it when shouldRender is true
@@ -1318,7 +1319,6 @@ XrResult OpenXR::end_frame() {
             projection_layer_views[i].subImage.imageRect.extent = {swapchain.width, swapchain.height};
         }
 
-        XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
         layer.space = this->stage_space;
         layer.viewCount = (uint32_t)projection_layer_views.size();
         layer.views = projection_layer_views.data();
