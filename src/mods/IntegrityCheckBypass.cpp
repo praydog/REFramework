@@ -2376,6 +2376,109 @@ void IntegrityCheckBypass::setup_pristine_syscall() {
     spdlog::info("[IntegrityCheckBypass]: Copied NtProtectVirtualMemory to 0x{:X}", (uintptr_t)s_pristine_protect_virtual_memory);
 }
 
+namespace {
+// The syscalls REFramework makes from the frozen startup region: file system access (the pak patch file scan), logging
+// (NtWriteFile) and memory queries (VirtualQuery, in kananlib's read checks during scans). Onimusha 2 hooks all of them.
+constexpr std::array<const char*, 15> s_frozen_syscall_names{
+    "NtCreateFile", "NtOpenFile", "NtClose", "NtQueryAttributesFile", "NtQueryFullAttributesFile", "NtQueryDirectoryFile",
+    "NtQueryDirectoryFileEx", "NtQueryInformationFile", "NtSetInformationFile", "NtQueryVolumeInformationFile",
+    "NtReadFile", "NtWriteFile", "NtFsControlFile", "NtDeviceIoControlFile", "NtQueryVirtualMemory",
+};
+
+// Only the first 8 bytes of a stub are swapped, with one atomic store, so threads the suspender didn't freeze (created
+// after its snapshot) never run a half-written stub. The 8 bytes after them must be unchanged, or the game's patch is
+// longer than the swap and the stub is left alone. Nothing assumes what a stub looks like (Wine generates its own).
+constexpr size_t RECORDED_SIZE = 2 * sizeof(uint64_t);
+
+struct PristineSyscall {
+    uint8_t* stub{nullptr};
+    std::array<uint8_t, RECORDED_SIZE> bytes{};
+    uint64_t game_bytes{};
+    bool misaligned{false};
+    bool swapped{false};
+};
+
+std::array<PristineSyscall, s_frozen_syscall_names.size()> s_pristine_syscalls{};
+}
+
+void IntegrityCheckBypass::record_pristine_syscalls() {
+    const auto ntdll = GetModuleHandleW(L"ntdll.dll");
+
+    if (ntdll == nullptr) {
+        return;
+    }
+
+    for (size_t i = 0; i < s_frozen_syscall_names.size(); ++i) {
+        // Not every ntdll exports all of them (Wine has no NtQueryDirectoryFileEx); missing ones are skipped.
+        const auto stub = (uint8_t*)GetProcAddress(ntdll, s_frozen_syscall_names[i]);
+
+        if (stub == nullptr) {
+            continue;
+        }
+
+        if (((uintptr_t)stub % sizeof(uint64_t)) != 0) {
+            s_pristine_syscalls[i].misaligned = true;
+            continue;
+        }
+
+        s_pristine_syscalls[i].stub = stub;
+        memcpy(s_pristine_syscalls[i].bytes.data(), stub, RECORDED_SIZE);
+    }
+}
+
+IntegrityCheckBypass::PristineSyscalls::PristineSyscalls() {
+    for (size_t i = 0; i < s_pristine_syscalls.size(); ++i) {
+        auto& syscall = s_pristine_syscalls[i];
+        const auto name = s_frozen_syscall_names[i];
+
+        if (syscall.misaligned) {
+            spdlog::warn("[IntegrityCheckBypass]: {} isn't 8-byte aligned, leaving it as it is while threads are frozen", name);
+            continue;
+        }
+
+        if (syscall.stub == nullptr) {
+            continue;
+        }
+
+        const auto current = *(volatile uint64_t*)syscall.stub;
+
+        if (current == *(const uint64_t*)syscall.bytes.data()) {
+            continue;
+        }
+
+        if (memcmp(syscall.stub + sizeof(uint64_t), syscall.bytes.data() + sizeof(uint64_t), sizeof(uint64_t)) != 0) {
+            spdlog::warn("[IntegrityCheckBypass]: {} is changed beyond its first 8 bytes, leaving it as it is while threads are frozen", name);
+            continue;
+        }
+
+        ProtectionOverride _{syscall.stub, sizeof(uint64_t), PAGE_EXECUTE_READWRITE};
+        InterlockedExchange64((volatile LONG64*)syscall.stub, *(const LONG64*)syscall.bytes.data());
+        syscall.game_bytes = current;
+        syscall.swapped = true;
+
+        spdlog::info("[IntegrityCheckBypass]: {} is hooked by the game, using its original bytes while threads are frozen", name);
+    }
+}
+
+void IntegrityCheckBypass::PristineSyscalls::restore() {
+    size_t restored = 0;
+
+    for (auto& syscall : s_pristine_syscalls) {
+        if (!syscall.swapped) {
+            continue;
+        }
+
+        ProtectionOverride _{syscall.stub, sizeof(uint64_t), PAGE_EXECUTE_READWRITE};
+        InterlockedExchange64((volatile LONG64*)syscall.stub, (LONG64)syscall.game_bytes);
+        syscall.swapped = false;
+        ++restored;
+    }
+
+    if (restored > 0) {
+        spdlog::info("[IntegrityCheckBypass]: Gave the game back its hooks on {} syscalls", restored);
+    }
+}
+
 // hahahah i hate this
 void IntegrityCheckBypass::fix_virtual_protect() try {
     spdlog::info("[IntegrityCheckBypass]: Fixing VirtualProtect...");

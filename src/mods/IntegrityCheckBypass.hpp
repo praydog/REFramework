@@ -40,6 +40,25 @@ public:
     static void setup_pristine_syscall();
     static void fix_virtual_protect();
 
+    // Records the start of each syscall stub REFramework calls while the game's threads are frozen at startup, as it is
+    // in DllMain, before the game can hook it.
+    static void record_pristine_syscalls();
+
+    // Some games' anti-tamper hooks those syscalls behind locks of its own (Onimusha 2: NtOpenFile,
+    // NtQueryAttributesFile and others share a reader-writer spinlock). A game thread frozen by ThreadSuspender inside
+    // such a hook keeps its lock, so the same call from the frozen region (the pak patch file scan) waited on it forever.
+    // While alive, this puts the recorded bytes back on every stub the game changed; restore() (or the destructor) gives
+    // the game its hooks back. Create it only while every other thread is frozen, and restore before they resume.
+    class PristineSyscalls {
+    public:
+        PristineSyscalls();
+        ~PristineSyscalls() { restore(); }
+        PristineSyscalls(const PristineSyscalls&) = delete;
+        PristineSyscalls& operator=(const PristineSyscalls&) = delete;
+
+        void restore();
+    };
+
     static void hook_add_vectored_exception_handler();
     static void hook_rtl_exit_user_process();
     static void hook_crt_exit();
