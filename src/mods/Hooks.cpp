@@ -920,9 +920,13 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
     }
 
     if (hash == "BeginRendering"_fnv) {
-        // Last engine releases REFramework queued (REManagedObject::release). Here: the game thread, outside the
-        // engine's update scopes, once a frame, before this frame's scripts run (run_imgui_frame below).
+        // Last engine releases REFramework queued (REManagedObject::release). Here: the game thread, once a frame,
+        // before this frame's scripts run (run_imgui_frame below). Usually outside the engine's update scopes; where
+        // one is active (RE9), the engine delays the release once more itself, which is harmless.
         REManagedObject::drain_deferred_releases();
+    } else if (hash == "EndRendering"_fnv) {
+        // Frame ends without a drain while releases are queued mean the drain stopped; logged once.
+        REManagedObject::note_frame_end();
     }
 
     const auto should_allow_ignore = sdk::VM::s_tdb_version >= 73 ?

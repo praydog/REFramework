@@ -2205,7 +2205,8 @@ void bindings::open_sdk(ScriptState* s) {
 
             return obj->deserialize_native(data.data(), data.size(), objects);
         },
-        // Without a last release REFramework still owes the engine: 0 right after the last release(), as before.
+        // Without a last release REFramework still owes the engine: 0 right after the last release() (see
+        // REManagedObject::get_visible_ref_count for a game where the engine delays it once more).
         "get_reference_count", [] (::REManagedObject* obj) { return obj->get_visible_ref_count(); },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", [](::REManagedObject* obj) { return obj->get_type_definition(); },

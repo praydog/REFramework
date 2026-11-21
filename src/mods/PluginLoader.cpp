@@ -457,7 +457,8 @@ REFrameworkManagedObject g_managed_object_data {
     [](REFrameworkManagedObjectHandle obj) { return (REFrameworkTypeDefinitionHandle)REMANAGEDOBJECT(obj)->get_type_definition(); },
     [](void* potential_obj) { return REManagedObject::is_managed_object(potential_obj); },
     // get_ref_count: without a last release REFramework still owes the engine (REManagedObject::release), so it reads
-    // 0 right after the last release, as before. C#'s GetReferenceCount and its local/global checks read this too.
+    // 0 right after the last release (see get_visible_ref_count). C#'s GetReferenceCount and its local/global checks
+    // read this too.
     [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->get_visible_ref_count(); },
     [](REFrameworkManagedObjectHandle obj) { return REMANAGEDOBJECT(obj)->get_size(); },
     [](REFrameworkManagedObjectHandle obj) { return (unsigned int)REMANAGEDOBJECT(obj)->get_vm_type(); },

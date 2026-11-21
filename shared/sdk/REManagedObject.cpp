@@ -1,5 +1,4 @@
 #include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -51,9 +50,10 @@ namespace {
 // meanwhile.
 //
 // What callers see: get_visible_ref_count() is the engine count minus the queued reference, so a count reads 0 right
-// after its last release as before, and a release at visible count 0 is the over-release that is dropped. Internal
-// code that decides whether an object is local or global reads the engine count (get_ref_count): a queued object is
-// still a counted, global object, and an add_ref() on it is an ordinary increment.
+// after its last release (as it did before this queue in games where the engine destroys the object at once), and a
+// release at visible count 0 is the over-release that is dropped. Internal code that decides whether an object is
+// local or global reads the engine count (get_ref_count): a queued object is still a counted, global object, and an
+// add_ref() on it is an ordinary increment.
 //
 // Limits (none of them a regression: each case behaves as before this queue):
 // - The count check in release() is not atomic with the engine call. If another owner (a second REFramework thread,
@@ -65,9 +65,21 @@ namespace {
 //   the page.
 // - Last releases the engine makes itself inside calls REFramework starts outside a scope (method invokes, an
 //   array's set method replacing an element) don't pass through here.
-// - If the drain stops running (no BeginRendering), nothing queued is released; that is logged once.
+// - If the drain stops running (no BeginRendering while frames still end), nothing queued is released. That is
+//   logged once, after STALL_FRAMES frame ends (EndRendering, note_frame_end) without a drain while something is
+//   queued. Frames, not time: the first BeginRendering can run for tens of seconds (plugin initialization, e.g. the
+//   C# runtime compiling its assemblies, and the first script frame run inside it), and no frame ends meanwhile.
+//
+// After the drain hands a release to the engine, the engine may delay it once more: it does so while any thread is
+// inside one of its update scopes (RE9 at BeginRendering, for one), keeping the object at count 1 in its own list until
+// it flushes that list. From then on get_visible_ref_count() reads the engine's count, 1, as it did before this queue
+// in that game. It can't tell that delay from a reference another owner holds without reading the engine's own list,
+// whose layout differs per game, so it doesn't try.
 class DeferredReleases {
 public:
+    // Frame ends without a drain, with something queued, before the stall is logged (about 5 s at 60 fps).
+    static constexpr uint32_t STALL_FRAMES = 300;
+
     // Called from any thread, with the caller's last reference (count 1).
     void push(::REManagedObject* obj) {
         std::scoped_lock _{m_mtx};
@@ -85,13 +97,26 @@ public:
         insert(obj);
         publish();
 
-        if (!m_warned_stall) {
-            const auto since_drain = std::chrono::steady_clock::now() - m_last_drain;
+        if (!m_warned_size && m_set_count >= 100000) {
+            m_warned_size = true;
+            spdlog::warn("[REManagedObject] {} last releases queued at once (logged once)", m_set_count);
+        }
+    }
 
-            if ((m_epoch > 0 && since_drain > std::chrono::seconds{10}) || m_set_count >= 100000) {
+    // Game thread, at every EndRendering: counts frame ends without a drain while something is queued. One relaxed
+    // atomic load when nothing is queued.
+    void note_frame_end() {
+        if (m_queued.load(std::memory_order_relaxed) == 0) {
+            return;
+        }
+
+        if (m_frames_without_drain.fetch_add(1, std::memory_order_relaxed) + 1 == STALL_FRAMES) {
+            std::scoped_lock _{m_mtx};
+
+            if (!m_warned_stall) {
                 m_warned_stall = true;
-                spdlog::warn("[REManagedObject] {} last releases queued, {} drains so far, the last one {} ms ago; if the drain at BeginRendering stopped running, they stay unreleased (logged once)",
-                    m_set_count, m_epoch, std::chrono::duration_cast<std::chrono::milliseconds>(since_drain).count());
+                spdlog::warn("[REManagedObject] {} frames ended without a drain while {} last releases are queued: the drain at BeginRendering isn't running, so they stay unreleased (logged once)",
+                    STALL_FRAMES, m_set_count);
             }
         }
     }
@@ -123,7 +148,7 @@ public:
             std::scoped_lock _{m_mtx};
             m_draining.swap(m_buckets[(m_epoch + 1) & 1]);
             ++m_epoch;
-            m_last_drain = std::chrono::steady_clock::now();
+            m_frames_without_drain.store(0, std::memory_order_relaxed);
         }
 
         // One at a time, outside m_mtx (an engine release can run destructors that call back into REFramework). Each
@@ -242,8 +267,9 @@ private:
     ::REManagedObject* m_in_flight{nullptr}; // the object the drain is releasing right now
     std::atomic<size_t> m_queued{0}; // see publish(); read without the lock
     uint32_t m_epoch{0};
-    std::chrono::steady_clock::time_point m_last_drain{std::chrono::steady_clock::now()};
+    std::atomic<uint32_t> m_frames_without_drain{0}; // frame ends since the last drain while something was queued
     bool m_warned_over_release{false};
+    bool m_warned_size{false};
     bool m_warned_stall{false};
 };
 
@@ -372,6 +398,10 @@ void REManagedObject::drain_deferred_releases() {
     }
 
     deferred_releases().drain([](::REManagedObject* obj) { release_func(obj); });
+}
+
+void REManagedObject::note_frame_end() {
+    deferred_releases().note_frame_end();
 }
 
 std::vector<::REManagedObject*> REManagedObject::deserialize(const uint8_t* data, size_t size, bool add_references) {
