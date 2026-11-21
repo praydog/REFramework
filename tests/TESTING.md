@@ -24,7 +24,8 @@ following are PROHIBITED as a way to get to green, because each one deletes the 
 - adding a SKIP path for the case that fails, or turning "the behavior didn't happen" into a SKIP;
 - pre-recording a PASS, or dropping the suite from `Get-ExpectedSuites` / `EXPECTED`;
 - special-casing the code so the asserted value matches broken output;
-- deleting or commenting out the test.
+- deleting or commenting out the test, or removing a check because its failure looks pre-existing, unrelated or
+  out of scope. A check in the wrong test moves to its own test and stays red; it never disappears.
 
 The ONE exception is a test that is *itself* wrong: a wrong expected value, an assertion that encodes a
 misunderstanding of the engine, a test that depends on game state it doesn't control. The bar is high. You must state
@@ -59,9 +60,18 @@ Running the stricter suite then showed both sides of the exception bar:
   calls per frame crashed both games within a frame: the code took and released a reference on the engine's temporary
   object. Without that, 602,000 calls in four games were correct. A last-frame load test now pins it. One call proves
   the value, not the object's lifetime; a fix that creates or frees engine objects needs a test under load.
-  That test first also checked that arrays the script held across frames stayed intact. In Kunitsu-Gami they didn't,
-  in every run. An array-only probe corrupted them on `master` too, without a single boxing call, so the check measured
-  a different, older bug and was dropped from this test; that bug is tracked on its own.
+- **A red check that was removed, and shouldn't have been.** That load test also checked that arrays the script kept
+  with `add_ref()` stayed intact. In Kunitsu-Gami they didn't, in every run, and an array-only probe corrupted them on
+  `master` too, without a single boxing call. The check was then deleted as "a different, older bug". That was wrong:
+  it asserted documented behavior (the book says `add_ref()` keeps "a newly created object returned by the engine,
+  e.g. an array" alive), and deleting it removed coverage of a real bug before anyone knew its cause. Investigated
+  instead, it was REFramework's Lua binding: Lua finalized wrappers the script still held, and their `__gc` released
+  the arrays. The check is back as its own regression test, red before the fix and green after.
+- **A test that has to force the failure.** The first two versions of that regression test passed on the unfixed
+  build. The bug needs a minor collection while the wrapper is unreachable to the collector, and inside a busy suite
+  Lua ran full collections instead. The test now runs one full collection, stores the arrays, and forces two steps,
+  which fails the unfixed build every time (8 of 8 arrays). A test for a timing-dependent bug must create the timing,
+  not hope for it, and must be shown red on the unfixed build before it is trusted.
 
 ## What a test is here
 
