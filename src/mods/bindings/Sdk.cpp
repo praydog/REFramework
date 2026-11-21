@@ -1002,13 +1002,15 @@ void* get_real_obj(sol::object obj) {
 void* get_invoke_this(sol::object obj, ::sdk::REMethodDefinition* fn) {
     auto real_obj = get_real_obj(obj);
 
-    if (real_obj == nullptr || fn->is_static() || !obj.is<REManagedObject*>() || ::sdk::GameIdentity::get().tdb_ver() >= 74) {
+    // Runs for every method called from Lua, and only a value-type instance method before TDB 74 needs anything but
+    // real_obj: check the cheap conditions first and leave the sol type check (a metatable lookup) for last.
+    if (real_obj == nullptr || ::sdk::GameIdentity::get().tdb_ver() >= 74 || fn->is_static()) {
         return real_obj;
     }
 
     const auto declaring_type = fn->get_declaring_type();
 
-    if (declaring_type == nullptr || !declaring_type->is_value_type()) {
+    if (declaring_type == nullptr || !declaring_type->is_value_type() || !obj.is<REManagedObject*>()) {
         return real_obj;
     }
 
