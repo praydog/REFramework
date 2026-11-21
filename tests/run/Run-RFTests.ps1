@@ -7,6 +7,10 @@ Installs the suites into <game>\reframework, starts the game, waits until every 
 (reframework\data\rftest\results\<suite>.json), closes the game, prints a summary, copies the results to -OutDir and
 removes everything it installed.
 
+A reframework_crash.dmp written during the run fails it, also when the game crashed only while being closed after
+every suite had passed (the suites' own counts stay as they are). Closing waits for a crashing game to finish writing
+its dump. A dump from an earlier session is moved aside at Install and put back at Uninstall.
+
 The game is picked with -Game (an alias or Steam app id from games.json; the install folder comes from Steam's own
 manifests) or with -GameDir. REFramework comes from -Build (a dinput8.dll, installed for the run and removed
 afterwards; the game's own dinput8.dll is put back), else from local.json's "build", else whatever the game already has.
@@ -142,6 +146,8 @@ function Install-Suites {
         $p = Join-Path $GameDir $f
         if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination $State }
     }
+    # A crash dump from an earlier session would look like this run's: it is saved above and comes back with Uninstall.
+    Remove-Item -LiteralPath (Get-RFCrashDumpPath $GameDir) -Force -ErrorAction SilentlyContinue
     if ($Build) {
         Install-RFBuild -GameDir $GameDir -Build $Build
         Write-Host "installed build $Build"
@@ -220,7 +226,33 @@ function Start-Game {
     Write-Host "game started: $($p.Path)"
 }
 
-function Stop-Game { Stop-RFGame -GameDir $GameDir }
+# When Install began (the state folder's creation): anything REFramework wrote after it belongs to this run.
+function Get-RunStart {
+    $s = Get-Item -LiteralPath $State -ErrorAction SilentlyContinue
+    if ($s) { $s.CreationTime }
+}
+
+function Stop-Game {
+    $now = Get-Date
+    if (-not (Get-GameProcesses)) { return }
+    if (-not $script:CloseRequested) { $script:CloseRequested = $now }
+    $start = Get-RunStart
+    if ($start) { Stop-RFGame -GameDir $GameDir -DumpSince $start } else { Stop-RFGame -GameDir $GameDir }
+}
+
+# REFramework's crash dump, if this run produced one: the game crashed, even if every suite had passed (e.g. while the
+# runner closed it). That fails the run without changing any suite's counts. Without a state folder (no Install) a
+# dump can't be told apart from an earlier session's, so it isn't reported.
+function Get-CrashNote {
+    $start = Get-RunStart
+    if (-not $start) { return $null }
+    $dump = Get-RFCrashDump -GameDir $GameDir -Since $start
+    if (-not $dump) { return $null }
+    $when = if (-not $script:CloseRequested) { 'crashed' }
+        elseif ($dump.CreationTime -ge $script:CloseRequested) { 'crashed during shutdown' }
+        else { 'crashed before the runner closed the game' }
+    "${when}: reframework_crash.dmp ($([math]::Round($dump.Length / 1MB, 1)) MB, written $($dump.LastWriteTime.ToString('HH:mm:ss')))"
+}
 
 function Test-SuiteComplete([string] $Name) {
     $path = Join-Path $Results "$Name.json"
@@ -290,7 +322,9 @@ function Get-Summary {
         $rows += [pscustomobject]@{ Suite = 'config'; Pass = [int]$ok; Fail = [int](-not $ok); Skip = 0; Note = "GarbageCollectionBudget: $($budget.Line)" }
         if (-not $ok) { $failed += "config: malformed REFrameworkConfig_MenuKey_V2 lost later settings ($($budget.Line))" }
     }
-    return [pscustomobject]@{ Rows = $rows; Failed = $failed; Skipped = $skipped }
+    $crash = Get-CrashNote
+    if ($crash) { $failed += $crash }
+    return [pscustomobject]@{ Rows = $rows; Failed = $failed; Skipped = $skipped; Crash = $crash }
 }
 
 function Save-Results($Summary) {
@@ -323,7 +357,8 @@ function Save-Results($Summary) {
     # Machine-readable summary for Run-AllGames.ps1 and other tools.
     [pscustomobject]@{
         game = if ($Game) { $Game } else { Split-Path -Leaf $GameDir }; scenario = $Scenario; build = $Build
-        suites = $Summary.Rows; failed = @($Summary.Failed); skipped = @($Summary.Skipped); deviceResets = $resets
+        suites = $Summary.Rows; failed = @($Summary.Failed); skipped = @($Summary.Skipped); crash = $Summary.Crash
+        deviceResets = $resets
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutDir 'summary.json')
     Write-Host ($text -join "`n")
     Write-Host "results: $OutDir"

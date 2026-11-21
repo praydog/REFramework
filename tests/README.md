@@ -45,6 +45,11 @@ instantiated-methods test, as the SDK has no instantiation data there. Game-spec
      `summary.json`, the suites' JSON files, a log excerpt). Then it puts the game back as it was: everything new
      under `reframework\` is removed, and the config, logs and `ref_ui.ini` are restored. Exit code 0 means no
      failures.
+   - A crash fails the run even when every suite passed: if REFramework writes `reframework_crash.dmp` during the
+     run, including while the runner closes the game afterwards, the summary lists e.g. `crashed during shutdown:
+     reframework_crash.dmp (...)` as a failure (the suites' counts don't change) and the dump is copied to the results.
+     Closing waits (up to 10 minutes) for a crashing game to finish writing its dump instead of killing it. A dump
+     left from an earlier session is set aside at install and restored afterwards, so it never counts.
    - `-Suites api,regression,plugin` picks suites. Add `csharp` for the C# suite; `-CSharpBin <csharp-api\build\bin>`
      installs REFramework.NET for the run if the game doesn't have it.
    - `-Scenario MalformedConfig` adds the config check.
@@ -57,7 +62,8 @@ instantiated-methods test, as the SDK has no instantiation data there. Game-spec
    ```
 
    `-Games re2,dmc5` limits the run. The combined results go to `summary.md` (one row per game, pass/fail/skip per
-   suite) and `summary.json`; exit code 0 means every suite passed in every game.
+   suite, and a Crash column) and `summary.json`; exit code 0 means every suite passed in every game and no game
+   crashed.
 
 The suites only need the game to reach its title screen; no input is required.
 

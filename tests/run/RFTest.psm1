@@ -155,7 +155,10 @@ function Start-RFGame([Parameter(Mandatory)] [string] $GameDir, [string] $AppId,
 }
 
 # Asks the game to close (WM_CLOSE from the user's desktop), then kills whatever is left after $GraceSeconds.
-function Stop-RFGame([Parameter(Mandatory)] [string] $GameDir, [int] $GraceSeconds = 30) {
+# A game that crashed and is still writing REFramework's crash dump (newer than $DumpSince) is not killed: it gets up
+# to $DumpWaitSeconds more to exit, since a full dump can take minutes and a killed one is cut short.
+function Stop-RFGame([Parameter(Mandatory)] [string] $GameDir, [int] $GraceSeconds = 30, [datetime] $DumpSince = (Get-Date),
+    [int] $DumpWaitSeconds = 600) {
     $procs = @(Get-GameProcess $GameDir)
     if (-not $procs) { return }
     if (Test-DesktopSession) {
@@ -166,12 +169,23 @@ function Stop-RFGame([Parameter(Mandatory)] [string] $GameDir, [int] $GraceSecon
     }
     $t0 = Get-Date
     while ((Get-GameProcess $GameDir) -and ((Get-Date) - $t0).TotalSeconds -lt $GraceSeconds) { Start-Sleep 2 }
+    while ((Get-GameProcess $GameDir) -and (Get-RFCrashDump -GameDir $GameDir -Since $DumpSince) -and
+        ((Get-Date) - $t0).TotalSeconds -lt $GraceSeconds + $DumpWaitSeconds) { Start-Sleep 2 }
     $left = @(Get-GameProcess $GameDir)
     if ($left) {
-        Write-Host "game did not close within $GraceSeconds s; killing it"
+        Write-Host "game did not close within $([int]((Get-Date) - $t0).TotalSeconds) s; killing it"
         $left | Stop-Process -Force -ErrorAction SilentlyContinue
         Start-Sleep 3
     }
+}
+
+function Get-RFCrashDumpPath([Parameter(Mandatory)] [string] $GameDir) { Join-Path $GameDir 'reframework_crash.dmp' }
+
+# The crash dump REFramework's exception handler writes into the game folder, if it was written after $Since (a dump
+# left from an earlier session is older); $null otherwise. The file exists from the moment the handler starts writing.
+function Get-RFCrashDump([Parameter(Mandatory)] [string] $GameDir, [Parameter(Mandatory)] [datetime] $Since) {
+    $dump = Get-Item -LiteralPath (Get-RFCrashDumpPath $GameDir) -ErrorAction SilentlyContinue
+    if ($dump -and $dump.LastWriteTime -gt $Since) { $dump }
 }
 
 # Puts a REFramework build (dinput8.dll) into the game for a run. An existing dinput8.dll (file or symlink) is moved
