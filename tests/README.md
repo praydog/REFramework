@@ -114,10 +114,14 @@ The regression suites are meant to fail on such builds, and they do so safely wh
   frees the engine page the array lives in while the thread still allocates from it, and the game crashes frames
   later. The test keeps a second array of its own in the same page, so the page survives and the test fails on the
   page's reference count instead. It reads engine headers through `rftest_peek`, a guarded memory read the plugin
-  registers, so it needs the `plugin` suite installed (it fails without it). The engine itself delays a last release
-  while any thread is inside one of its update scopes; in a game where one is active when `on_frame` runs, an
-  unfixed build passes this test too, so a pass there on an unfixed build proves nothing. A red result needs a game
-  where the release is immediate, as a probe showed for RE2.
+  registers, so it needs the `plugin` suite installed (it fails without it). With the fix it passes with the number
+  of frames the released array took to be destroyed in its detail (bound: 600 frames, provisional).
+  - The engine itself delays a last release while any thread is inside one of its update scopes. RE9 does that at
+    `on_frame`: there `get_reference_count()` already read 1 right after the last release before the fix, so an
+    unfixed build fails at that check rather than at the page check (the page is never freed early there), and with
+    the fix the array is destroyed later than elsewhere (still alive 4 frames after the release in the first RE9
+    runs). A pass of the page check on an unfixed build proves nothing in such a game; the page check is red where
+    the release is immediate (RE2, SF6, MH Rise, Kunitsu-Gami, PRAGMATA).
 - The rooted-path tests write `\rftest_escape\` at the root of the game's drive when the fix is missing; the Windows
   runner deletes it (the Linux runner doesn't yet).
 - The plugin's two callback re-entrancy tests deadlock the game without the fix. They run last, after the Lua suites
@@ -169,7 +173,8 @@ Lua (`lua/rftest/harness.lua`):
 local H = require("rftest.harness")
 local S = H.suite("my_suite")                       -- results file name
 S:test("name", function() H.eq(1 + 1, 2, "math") end)
-S:frame_test("imgui thing", function(frame)          -- runs every frame until it returns true
+S:frame_test("imgui thing", function(frame)          -- runs every frame until it returns true (or a string: PASS
+                                                     -- with that detail)
     return H.in_window("title", function() ... return true end)
 end)
 S:finish()                                           -- writes results when all frame tests are done

@@ -181,19 +181,26 @@ end)
 -- code never gets there: a last release inside the engine's update scopes waits until after the cleanup. A script's
 -- release() runs outside them, so the engine freed the page at once: a probe doing add_ref() then release() on new
 -- arrays crashed RE2 in 10 of 36 runs, frames later in unrelated engine code (0 of 10 with add_ref() alone).
--- The test add_ref()s a second array in the same page and keeps it until its last frame, so on an unfixed build the
--- page survives and the failure is recorded instead of crashing: right after release() the page must still hold
--- both references. A few frames later (after the cleanup) the released array must be destroyed: the release is
--- delayed, not lost. get_reference_count() must still read 0 right after release(), as without the delay (a
--- "release until the count is 0" loop has to end). Headers are read through the rftest plugin's guarded
--- rftest_peek (the engine's own count, delay included), and the layout is checked on the page itself before anything
--- relies on it.
--- The engine delays a last release itself while any thread is inside one of its update scopes. In a game where one
--- is active when on_frame runs, an unfixed build passes too, so a pass on an unfixed build proves nothing there; a
--- red result needs a game where the release is immediate, as a probe showed for RE2.
+-- The test add_ref()s a second array in the same page and keeps it until the end, so on an unfixed build the page
+-- survives and the failure is recorded instead of crashing: right after release() the page must still hold both
+-- references. From frame 3 on (REFramework hands its delayed release to the engine at the second frame boundary) the
+-- test polls the released array's engine count until it reads 0: the release is delayed, not lost. It passes with
+-- the frame that happened in the result's detail, so each game's latency shows in the results, and fails if it hasn't
+-- happened within RELEASE_BOUND frames of release(). get_reference_count() must read 0 right after release(): with
+-- the fix the reference REFramework gave up isn't counted, so a "release until the count is 0" loop ends. Headers are
+-- read through the rftest plugin's guarded rftest_peek (the engine's own count, delays included), and the layout is
+-- checked on the page itself before anything relies on it.
+-- The engine delays a last release itself while any thread is inside one of its update scopes, keeping the object at
+-- count 1 until it flushes its own list. RE9 does that at on_frame: there an unfixed build fails at the
+-- get_reference_count() check (it reads the engine's 1, as it always did on RE9), not at the page check, because the
+-- page is never freed early; with the fix the engine delays REFramework's release once more, so the released array
+-- reaches 0 later than elsewhere. In such a game a page-check pass on an unfixed build proves nothing; the page check
+-- is red where the release is immediate (RE2, SF6, MH Rise, Kunitsu-Gami, PRAGMATA).
 -------------------------------------------------------------------------------------------------------------------
 do
-    local LAST_FRAME = 5
+    -- Frames after release() within which the released array must be destroyed. Provisional, to be confirmed against
+    -- the RE9 probe (the engine's own delay there is the longest seen).
+    local RELEASE_BOUND = 600
     local state
     local kept = {} -- arrays kept for good when the layout isn't recognized: releasing them could be the bug itself
     local function s32(v) if v ~= nil and v >= 0x80000000 then return v - 0x100000000 end return v end
@@ -247,18 +254,20 @@ do
                 visible = a.arr:get_reference_count() }
             return false
         end
-        if frame < LAST_FRAME then return false end
-        -- The engine's local cleanup ran in between (every frame on this thread), so releasing keep is safe on any
-        -- build. The page is still alive while keep holds it, so read the released array first.
+        if frame < 3 then return false end
+        -- The page is still alive while keep holds it, so the released array's header is live memory.
         local a_count = count_of(state.a.addr)
+        if a_count ~= 0 and frame - 1 < RELEASE_BOUND then return false end
+        -- The engine's local cleanup ran in between (every frame on this thread), so releasing keep is safe on any
+        -- build.
         state.keep.arr:release()
         H.eq(state.before, 2, "page count with both arrays add_ref()'d")
         H.eq(state.visible, 0, "get_reference_count() right after release()")
         H.eq(state.after, 2, "page count right after release() (1: only the kept array holds the page; without it "
             .. "the engine frees the page here, while the thread still allocates from it)")
-        H.eq(a_count, 0, string.format("released array's count %d frames later (the release must still happen)",
-            LAST_FRAME - 1))
-        return true
+        H.eq(a_count, 0, string.format("released array's engine count %d frames after release() (the release must "
+            .. "still happen, within %d frames)", frame - 1, RELEASE_BOUND))
+        return string.format("released array destroyed %d frames after release()", frame - 1)
     end)
 end
 
