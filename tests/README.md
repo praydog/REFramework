@@ -110,6 +110,11 @@ The regression suites are meant to fail on such builds, and they do so safely wh
 
 - Tests whose failure mode is memory corruption (out-of-range `Matrix4x4f`/`Quaternion` writes) detect the unfixed
   build and fail without performing the write.
+- The Lua regression test for `release()` right after `add_ref()` on a new array: without the fix, that release
+  frees the engine page the array lives in while the thread still allocates from it, and the game crashes frames
+  later. The test keeps a second array of its own in the same page, so the page survives and the test fails on the
+  page's reference count instead. It reads engine headers through `rftest_peek`, a guarded memory read the plugin
+  registers, so it needs the `plugin` suite installed (it fails without it).
 - The rooted-path tests write `\rftest_escape\` at the root of the game's drive when the fix is missing; the Windows
   runner deletes it (the Linux runner doesn't yet).
 - The plugin's two callback re-entrancy tests deadlock the game without the fix. They run last, after the Lua suites

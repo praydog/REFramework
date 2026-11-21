@@ -6,6 +6,8 @@
 -- Needs from the runner (tests/run/Run-RFTests.ps1):
 --   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one); without it the package.loadlib
 --                                         tests fail.
+--   reframework/plugins/rftest_plugin.dll the plugin suite's DLL: it registers rftest_peek (a guarded memory read);
+--                                         without it the local page test fails.
 -- Side effect on unfixed builds: the root-relative write tests create \rftest_escape\ at the root of the game's
 -- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there.
 
@@ -168,6 +170,90 @@ S:test("ValueType read_* rejects reads that run past the buffer", function()
     H.eq(vt:read_qword(size - 4), 0, "qword crossing the end")
     H.eq(vt:read_byte(size), 0, "byte at size")
 end)
+
+-------------------------------------------------------------------------------------------------------------------
+-- release() right after add_ref() on a new object. A new small object (an array here) lives in one of the engine's
+-- per-thread pages: 16-byte slots, bump-allocated behind a 0x40-byte page header, with the slot number k in byte 0xE
+-- of the object's header, so the page starts at object - 16k. A page the thread started since the engine's last
+-- local cleanup is itself local (negative count). add_ref() on an object in it makes the page global with one
+-- reference, the object's. Releasing the object's last reference destroys it and releases that page reference, so
+-- the page was freed while the thread still allocated from it and listed it, with other local objects in it. Game
+-- code never gets there: a last release inside the engine's update scopes waits until after the cleanup. A script's
+-- release() runs outside them, so the engine freed the page at once: a probe doing add_ref() then release() on new
+-- arrays crashed RE2 in 10 of 36 runs, frames later in unrelated engine code (0 of 10 with add_ref() alone).
+-- The test add_ref()s a second array in the same page and keeps it until its last frame, so on an unfixed build the
+-- page survives and the failure is recorded instead of crashing: right after release() the page must still hold
+-- both references. A few frames later (after the cleanup) the released array must be destroyed: the release is
+-- delayed, not lost. Headers are read through the rftest plugin's guarded rftest_peek, and the layout is checked on
+-- the page itself before anything relies on it.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local LAST_FRAME = 5
+    local state
+    local kept = {} -- arrays kept for good when the layout isn't recognized: releasing them could be the bug itself
+    local function s32(v) if v ~= nil and v >= 0x80000000 then return v - 0x100000000 end return v end
+    local function count_of(addr) return s32(rftest_peek(addr + 0x8, 4)) end -- reference count: int32 at +0x8
+    local function slot_of(addr) return rftest_peek(addr + 0xE, 1) end -- k: byte at +0xE, 0 when not in a page
+    local function page_of(addr)
+        local k = slot_of(addr)
+        if k == nil or k == 0 then return nil, k end
+        return addr - 16 * k, k
+    end
+    -- New System.Object[4] arrays until one is the first object (k = 4, right after the header) of a page that is
+    -- still local (count < 0, and k = 0 for the page itself) and the next one lands in the same page. The page the
+    -- thread uses after a cleanup is global (count >= 1), so a first slot alone doesn't qualify.
+    local function new_page_pair(limit)
+        local first
+        for _ = 1, limit do
+            local arr = sdk.create_managed_array("System.Object", 4)
+            local addr = arr:get_address()
+            local page, k = page_of(addr)
+            if first ~= nil and page == first.page then return first, { arr = arr, addr = addr } end
+            first = nil
+            local page_count = page and count_of(page)
+            if k == 4 and page_count ~= nil and page_count < 0 and slot_of(page) == 0 then
+                first = { arr = arr, addr = addr, page = page }
+            end
+        end
+    end
+    S:frame_test("release() right after add_ref() on a new array keeps the engine's local page alive", function(frame)
+        if frame == 1 then
+            H.truthy(rftest_peek, "rftest_peek (registered by tests/plugin's rftest_plugin.dll)")
+            local a, keep = new_page_pair(400)
+            if a == nil then H.skip("no new System.Object[4] array started a local engine page in 400 allocations") end
+            local page = a.page
+            keep.arr:add_ref()
+            -- The page is now global with one reference, keep's. Check the layout before relying on it: that count,
+            -- keep's count 1, keep's bit in the page bitmap at +0x20, and the page's high-water mark at +0x12 (in
+            -- 16-byte units after the header) covering keep's first slot.
+            local k = slot_of(keep.addr)
+            local bits, high = rftest_peek(page + 0x20 + (k >> 3), 1), rftest_peek(page + 0x12, 1)
+            if count_of(page) ~= 1 or count_of(keep.addr) ~= 1 or bits == nil or (bits >> (k & 7)) & 1 ~= 1
+                or high == nil or high < k - 3 then
+                kept[#kept + 1] = keep.arr
+                H.skip(string.format("engine page layout not recognized: page count %s, array count %s, "
+                    .. "bitmap byte %s, high-water %s, slot %d", tostring(count_of(page)), tostring(count_of(keep.addr)),
+                    tostring(bits), tostring(high), k))
+            end
+            a.arr:add_ref()
+            local before = count_of(page)
+            a.arr:release()
+            state = { a = a, keep = keep, before = before, after = count_of(page) }
+            return false
+        end
+        if frame < LAST_FRAME then return false end
+        -- The engine's local cleanup ran in between (every frame on this thread), so releasing keep is safe on any
+        -- build. The page is still alive while keep holds it, so read the released array first.
+        local a_count = count_of(state.a.addr)
+        state.keep.arr:release()
+        H.eq(state.before, 2, "page count with both arrays add_ref()'d")
+        H.eq(state.after, 2, "page count right after release() (1: only the kept array holds the page; without it "
+            .. "the engine frees the page here, while the thread still allocates from it)")
+        H.eq(a_count, 0, string.format("released array's count %d frames later (the release must still happen)",
+            LAST_FRAME - 1))
+        return true
+    end)
+end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Objects a script creates and keeps. The book (REManagedObject.md): "The only time you will need to manually call
