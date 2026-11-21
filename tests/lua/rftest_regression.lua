@@ -170,6 +170,69 @@ S:test("ValueType read_* rejects reads that run past the buffer", function()
 end)
 
 -------------------------------------------------------------------------------------------------------------------
+-- Objects a script creates and keeps. The book (REManagedObject.md): "The only time you will need to manually call
+-- self:add_ref() and self:release() is when a newly created object is returned by the engine, e.g. an array". Kept
+-- the usual way, add_ref()'s result stored straight into a long-lived table, Lua finalized the wrapper while the table
+-- still held it and REFramework's __gc released the array: sizes read 0, 1, 2 or garbage a few frames later (RE2, RE9,
+-- Kunitsu-Gami; master too). The cached-wrapper push had cleared the wrapper's GC color bits, which skipped Lua's
+-- write barrier. The checks go through GetLength/GetValue inside pcall and compare element addresses recorded at
+-- creation. Runs last, recorded as FAIL before it starts: once Lua has released a held array, the game can crash.
+-------------------------------------------------------------------------------------------------------------------
+do
+    -- The arrays go into `held` directly, the usual way (cache[key] = obj:add_ref()); per-array data lives in `info`.
+    -- REFramework runs Lua's collector in generational mode by default. A full collection first makes everything that
+    -- exists old (`held` included) and resets the growth baseline, so the two steps after storing are minor
+    -- collections even after the suite's own allocations; a minor collection is what swept the wrapper. A wrapper on
+    -- the array metatable's __gc counts finalizations of held arrays; it is removed before any assertion can fail.
+    local held, info = {}, {}
+    local finalized, mt, orig_gc = 0, nil, nil
+    local function restore_gc() if mt ~= nil and orig_gc ~= nil then mt.__gc = orig_gc end end
+    -- In a separate function, so no stale stack slot keeps an array reachable during the collections.
+    local function make_and_hold(frame)
+        local arr = sdk.create_managed_array("System.String", 4)
+        if mt == nil then
+            mt = getmetatable(arr)
+            orig_gc = mt.__gc
+            mt.__gc = function(o)
+                for _, h in ipairs(held) do if rawequal(o, h) then finalized = finalized + 1 end end
+                return orig_gc(o)
+            end
+        end
+        for i = 0, 3 do arr[i] = sdk.create_managed_string("s" .. i) end
+        held[#held + 1] = arr:add_ref()
+        local elements = {}
+        for i = 0, 3 do elements[i] = arr:get_element(i):get_address() end
+        info[#info + 1] = { frame = frame, elements = elements }
+    end
+    S:last_frame_test("an array kept with add_ref() stays intact across frames", function(frame)
+        if frame == 1 then
+            collectgarbage("collect")
+            for _ = 1, 8 do make_and_hold(frame) end
+            collectgarbage("step")
+            collectgarbage("step")
+        end
+        if finalized > 0 then restore_gc() end
+        H.eq(finalized, 0, string.format("frame %d: arrays still held that Lua finalized", frame))
+        for k, arr in ipairs(held) do
+            local e = info[k]
+            local ok, n = pcall(arr.get_size, arr)
+            if not (ok and n == 4) then restore_gc() end
+            H.truthy(ok and n == 4, string.format("frame %d: array %d has size %s", frame, k, tostring(n)))
+            for i = 0, 3 do
+                local okp, p = pcall(function() return arr:get_element(i):get_address() end)
+                if not (okp and p == e.elements[i]) then restore_gc() end
+                H.truthy(okp and p == e.elements[i], string.format("frame %d: array %d, element %d is %s, was %x",
+                    frame, k, i, okp and string.format("%x", p) or tostring(p), e.elements[i]))
+            end
+        end
+        if frame < 30 then return false end
+        restore_gc()
+        for _, arr in ipairs(held) do arr:release() end
+        return true
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
 -- Numbers are encoded by the callee's parameter type.
 -------------------------------------------------------------------------------------------------------------------
 S:test("integer argument to a System.Double parameter", function()

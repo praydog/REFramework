@@ -121,6 +121,9 @@ function Suite:record(test_name, status, detail)
     end
     if not replaced then self.results[#self.results + 1] = entry end
     log.info(string.format("[rftest] %s: %s %s%s", self.name, entry.status, entry.name, (entry.detail ~= "") and (" -- " .. entry.detail) or ""))
+    -- Last-stage tests are the ones that can crash or hang the game on a broken build: write each outcome as soon as
+    -- it is known, so a crash right after an assertion keeps the assertion's detail instead of the pending FAIL.
+    if self.stage == "last" then self:write_results() end
 end
 
 local function classify(err)
