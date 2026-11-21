@@ -140,8 +140,10 @@ function Test-InstallInputs {
 function Install-Suites {
     New-Item -ItemType Directory -Path $State | Out-Null
     # UTF-8: Windows PowerShell's default code page would turn non-ANSI names into '?', and Uninstall would delete them.
-    @(if (Test-Path -LiteralPath $Rf) { $Rf; Get-ChildItem -LiteralPath $Rf -Recurse -Force | ForEach-Object { $_.FullName } }) |
-        Set-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8
+    # -Value, not the pipeline: an empty pipeline writes no file, and a game without reframework\ needs an empty list
+    # (Uninstall then removes the whole reframework\ folder the run created).
+    Set-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8 -Value @(
+        if (Test-Path -LiteralPath $Rf) { $Rf; Get-ChildItem -LiteralPath $Rf -Recurse -Force | ForEach-Object { $_.FullName } })
     foreach ($f in $RootFiles) {
         $p = Join-Path $GameDir $f
         if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination $State }
