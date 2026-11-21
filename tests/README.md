@@ -114,7 +114,10 @@ The regression suites are meant to fail on such builds, and they do so safely wh
   frees the engine page the array lives in while the thread still allocates from it, and the game crashes frames
   later. The test keeps a second array of its own in the same page, so the page survives and the test fails on the
   page's reference count instead. It reads engine headers through `rftest_peek`, a guarded memory read the plugin
-  registers, so it needs the `plugin` suite installed (it fails without it).
+  registers, so it needs the `plugin` suite installed (it fails without it). The engine itself delays a last release
+  while any thread is inside one of its update scopes; in a game where one is active when `on_frame` runs, an
+  unfixed build passes this test too, so a pass there on an unfixed build proves nothing. A red result needs a game
+  where the release is immediate, as a probe showed for RE2.
 - The rooted-path tests write `\rftest_escape\` at the root of the game's drive when the fix is missing; the Windows
   runner deletes it (the Linux runner doesn't yet).
 - The plugin's two callback re-entrancy tests deadlock the game without the fix. They run last, after the Lua suites

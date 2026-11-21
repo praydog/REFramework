@@ -600,6 +600,11 @@ int rftest_peek(lua_State* L) {
 
 void on_lua_state_created(lua_State* L) {
     ++g_lua_created;
+    // This runs the plugin's own copy of Lua (build.bat compiles dependencies/lua/src) on REFramework's state, and an
+    // error in rftest_peek long-jumps from it into REFramework's. Both must be the same Lua release and build options:
+    // build the plugin from a checkout whose dependencies/lua matches the REFramework build under test
+    // (`git diff <build commit> -- dependencies/lua` empty; LUA_VERSION_RELEASE in dependencies/lua/src/lua.h). Nothing
+    // checks this at run time.
     lua_register(L, "rftest_peek", rftest_peek);
 }
 void on_imgui_frame(REFImGuiFrameCbData*) { ++g_imgui_frames; }

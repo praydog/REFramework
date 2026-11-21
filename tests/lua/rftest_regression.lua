@@ -184,8 +184,13 @@ end)
 -- The test add_ref()s a second array in the same page and keeps it until its last frame, so on an unfixed build the
 -- page survives and the failure is recorded instead of crashing: right after release() the page must still hold
 -- both references. A few frames later (after the cleanup) the released array must be destroyed: the release is
--- delayed, not lost. Headers are read through the rftest plugin's guarded rftest_peek, and the layout is checked on
--- the page itself before anything relies on it.
+-- delayed, not lost. get_reference_count() must still read 0 right after release(), as without the delay (a
+-- "release until the count is 0" loop has to end). Headers are read through the rftest plugin's guarded
+-- rftest_peek (the engine's own count, delay included), and the layout is checked on the page itself before anything
+-- relies on it.
+-- The engine delays a last release itself while any thread is inside one of its update scopes. In a game where one
+-- is active when on_frame runs, an unfixed build passes too, so a pass on an unfixed build proves nothing there; a
+-- red result needs a game where the release is immediate, as a probe showed for RE2.
 -------------------------------------------------------------------------------------------------------------------
 do
     local LAST_FRAME = 5
@@ -238,7 +243,8 @@ do
             a.arr:add_ref()
             local before = count_of(page)
             a.arr:release()
-            state = { a = a, keep = keep, before = before, after = count_of(page) }
+            state = { a = a, keep = keep, before = before, after = count_of(page),
+                visible = a.arr:get_reference_count() }
             return false
         end
         if frame < LAST_FRAME then return false end
@@ -247,6 +253,7 @@ do
         local a_count = count_of(state.a.addr)
         state.keep.arr:release()
         H.eq(state.before, 2, "page count with both arrays add_ref()'d")
+        H.eq(state.visible, 0, "get_reference_count() right after release()")
         H.eq(state.after, 2, "page count right after release() (1: only the kept array holds the page; without it "
             .. "the engine frees the page here, while the thread still allocates from it)")
         H.eq(a_count, 0, string.format("released array's count %d frames later (the release must still happen)",
