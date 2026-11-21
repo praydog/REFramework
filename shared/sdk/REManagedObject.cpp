@@ -1,3 +1,5 @@
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -47,6 +49,23 @@ namespace {
 // a reference besides the queued one and goes to the engine at once. So the engine count never goes below what the
 // queue still owes, and the queued release happens exactly once, as a normal release if add_ref() raised the count
 // meanwhile.
+//
+// What callers see: get_visible_ref_count() is the engine count minus the queued reference, so a count reads 0 right
+// after its last release as before, and a release at visible count 0 is the over-release that is dropped. Internal
+// code that decides whether an object is local or global reads the engine count (get_ref_count): a queued object is
+// still a counted, global object, and an add_ref() on it is an ordinary increment.
+//
+// Limits (none of them a regression: each case behaves as before this queue):
+// - The count check in release() is not atomic with the engine call. If another owner (a second REFramework thread,
+//   the drain, or a game thread) drops the count from 2 to 1 between the check and the call, that call is the last
+//   release and reaches the engine at once. REFramework can't do the decrement itself: the engine's non-last release
+//   also does per-type bookkeeping.
+// - Two frames help only threads whose engine context runs its local cleanup in between. An object made global and
+//   released on a thread that never runs engine updates is freed at the drain while that thread may still point at
+//   the page.
+// - Last releases the engine makes itself inside calls REFramework starts outside a scope (method invokes, an
+//   array's set method replacing an element) don't pass through here.
+// - If the drain stops running (no BeginRendering), nothing queued is released; that is logged once.
 class DeferredReleases {
 public:
     // Called from any thread, with the caller's last reference (count 1).
@@ -56,7 +75,7 @@ public:
         if (contains(obj)) {
             if (!m_warned_over_release) {
                 m_warned_over_release = true;
-                spdlog::warn("[REManagedObject] release() of {:x} at reference count 1 while its last release is already queued; ignored (logged once)", (uintptr_t)obj);
+                spdlog::warn("[REManagedObject] release() of {:x} at visible reference count 0 (its last release is already queued); ignored (logged once)", (uintptr_t)obj);
             }
 
             return;
@@ -64,6 +83,36 @@ public:
 
         m_buckets[m_epoch & 1].push_back(obj);
         insert(obj);
+        publish();
+
+        if (!m_warned_stall) {
+            const auto since_drain = std::chrono::steady_clock::now() - m_last_drain;
+
+            if ((m_epoch > 0 && since_drain > std::chrono::seconds{10}) || m_set_count >= 100000) {
+                m_warned_stall = true;
+                spdlog::warn("[REManagedObject] {} last releases queued, {} drains so far, the last one {} ms ago; if the drain at BeginRendering stopped running, they stay unreleased (logged once)",
+                    m_set_count, m_epoch, std::chrono::duration_cast<std::chrono::milliseconds>(since_drain).count());
+            }
+        }
+    }
+
+    // obj's engine count minus the last release the queue still owes for it (queued, or being released by the drain
+    // right now). The count is read under m_mtx, so it is never one from before a drain release that has finished.
+    // No lock while nothing is queued.
+    int32_t visible_count(const ::REManagedObject* obj, const volatile int32_t* count) {
+        if (m_queued.load(std::memory_order_acquire) == 0) {
+            return *count;
+        }
+
+        std::scoped_lock _{m_mtx};
+        const auto c = *count;
+
+        // A local (negative) or zero count can't include a queued reference.
+        if (c > 0 && (obj == m_in_flight || contains(const_cast<::REManagedObject*>(obj)))) {
+            return c - 1;
+        }
+
+        return c;
     }
 
     // Game thread, once a frame. Releases what was queued before the previous drain.
@@ -73,23 +122,41 @@ public:
         {
             std::scoped_lock _{m_mtx};
             m_draining.swap(m_buckets[(m_epoch + 1) & 1]);
-
-            for (auto obj : m_draining) {
-                erase(obj);
-            }
-
             ++m_epoch;
+            m_last_drain = std::chrono::steady_clock::now();
         }
 
-        // Outside m_mtx: an engine release can run destructors that call back into REFramework.
+        // One at a time, outside m_mtx (an engine release can run destructors that call back into REFramework). Each
+        // object leaves the set just before its release, so a legitimate owner's release from then on (count 1 = its
+        // own reference) is queued, not dropped. Until the release has returned, visible_count() still subtracts it,
+        // so the visible count never reads 1 for a reference nobody holds; for an owner that still holds one it can
+        // read one low for that moment (never high).
         for (auto obj : m_draining) {
+            {
+                std::scoped_lock _{m_mtx};
+                erase(obj);
+                m_in_flight = obj;
+                publish();
+            }
+
             release(obj);
+
+            {
+                std::scoped_lock _{m_mtx};
+                m_in_flight = nullptr;
+                publish();
+            }
         }
 
         m_draining.clear();
     }
 
 private:
+    // Under m_mtx: how many objects visible_count() may find, so its lock-free check sees 0 only when nothing is owed.
+    void publish() {
+        m_queued.store(m_set_count + (m_in_flight != nullptr ? 1 : 0), std::memory_order_release);
+    }
+
     // Open-addressing set of every queued object (linear probing, nullptr = empty slot), so the at-most-once check
     // costs O(1) and allocates only when the set grows past its peak.
     size_t home(::REManagedObject* obj) const {
@@ -172,8 +239,12 @@ private:
     std::vector<::REManagedObject*> m_draining{};   // only while m_drain_mtx is held
     std::vector<::REManagedObject*> m_set{};
     size_t m_set_count{0};
+    ::REManagedObject* m_in_flight{nullptr}; // the object the drain is releasing right now
+    std::atomic<size_t> m_queued{0}; // see publish(); read without the lock
     uint32_t m_epoch{0};
+    std::chrono::steady_clock::time_point m_last_drain{std::chrono::steady_clock::now()};
     bool m_warned_over_release{false};
+    bool m_warned_stall{false};
 };
 
 // Never destroyed: at process exit the queue is dropped without releasing anything (the VM may already be gone).
@@ -270,6 +341,17 @@ void REManagedObject::add_ref() {
 void REManagedObject::release() {
     resolve_release();
 
+    if (release_func == nullptr) {
+        // The pattern scan failed: nothing can be released, so nothing is queued either.
+        static std::atomic<bool> s_logged{false};
+
+        if (!s_logged.exchange(true)) {
+            spdlog::error("[REManagedObject] release() called but the release function was not found; references are kept");
+        }
+
+        return;
+    }
+
     // Not the last reference (or a local object, whose release the engine ignores): straight to the engine, with no
     // lock and no allocation. The last one is queued (see DeferredReleases).
     if (*(volatile int32_t*)ref_count_ptr() != 1) {
@@ -280,9 +362,13 @@ void REManagedObject::release() {
     deferred_releases().push(this);
 }
 
+int32_t REManagedObject::get_visible_ref_count() const {
+    return deferred_releases().visible_count(this, (const volatile int32_t*)&m_ref_count);
+}
+
 void REManagedObject::drain_deferred_releases() {
     if (release_func == nullptr) {
-        return; // nothing was ever released
+        return; // release() queues only once the release function is found, so nothing is queued
     }
 
     deferred_releases().drain([](::REManagedObject* obj) { release_func(obj); });
