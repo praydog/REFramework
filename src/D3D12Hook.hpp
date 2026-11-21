@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <functional>
+#include <memory>
+#include <wrl/client.h>
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi")
@@ -12,6 +14,8 @@
 #include "utility/PointerHook.hpp"
 #include "utility/FunctionHook.hpp"
 #include "utility/VtableHook.hpp"
+
+struct D3D12SubmittedQueueCapture;
 
 class D3D12Hook
 {
@@ -108,6 +112,15 @@ protected:
     IDXGISwapChain3* m_swapchain_0{};
     IDXGISwapChain3* m_swapchain_1{};
     ID3D12CommandQueue* m_command_queue{ nullptr };
+    std::shared_ptr<D3D12SubmittedQueueCapture> m_submission_capture;
+    Microsoft::WRL::ComPtr<ID3D12CommandQueue> m_captured_queue;
+    IDXGISwapChain3* m_captured_queue_swapchain{};
+    bool m_queue_wait_logged{false};
+    bool begin_submission_capture(ID3D12CommandQueue* queue = nullptr);
+    void end_submission_capture();
+    bool select_submitted_queue(ID3D12Device* device, IDXGISwapChain3* swap_chain);
+    static void STDMETHODCALLTYPE execute_command_lists(ID3D12CommandQueue* queue,
+        UINT count, ID3D12CommandList* const* lists);
     UINT m_display_width{ NULL };
     UINT m_display_height{ NULL };
     UINT m_render_width{ NULL };
@@ -115,6 +128,10 @@ protected:
 
     static inline uint32_t s_command_queue_offset{};
     static inline uint32_t s_proton_swapchain_offset{};
+    static inline bool s_using_submission_capture{false};
+    // Keep this callable installed across rehooks; callbacks may be in flight.
+    static inline std::unique_ptr<PointerHook> s_execute_hook{};
+    static inline void** s_execute_vtable{};
 
     bool m_using_proton_swapchain{ false };
     bool m_using_frame_generation_swapchain{ false };
