@@ -191,17 +191,71 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
 }
 
 namespace detail {
-// Wrappers pushed this frame and last frame are kept in a strong set (_sol_lua_push_recent, rotated into
-// _sol_lua_push_recent_prev by ScriptState at EndRendering). Scripts push the same objects again and again
-// (singletons, components); without this, every Lua collection drops those wrappers and the next push builds a new
-// one, which costs an engine add_ref and later a finalizer and an engine release each time. Measured with 1000 objects
-// pushed twice a frame: ~997 wrappers recreated per frame and +30-45% per push without it. Only wrappers that can't go
-// stale are kept: ones holding an engine reference (the object can't be freed and its address reused while they live)
-// and type-database metadata. A plain strong reference keeps Lua's write barrier intact, unlike the old "touch".
+// Registry keys: only their addresses matter. Each Lua state's registry holds its own tables under them (set up in
+// open_sdk), so the push hot path reaches them with lua_rawgetp instead of looking up globals by name or going
+// through sol objects (each of which takes and drops a registry reference).
+char s_objects_key{};     // _sol_lua_push_objects: weak cache of wrappers, keyed by object address
+char s_ref_counts_key{};  // _sol_lua_push_ref_counts: engine references Lua holds, keyed by object address
+char s_recent_key{};      // wrappers pushed this frame
+char s_recent_prev_key{}; // wrappers pushed last frame
+
+// Pushes the cached wrapper for addr from the cache table under key. Returns false (and pushes nothing) if there is none.
+bool push_cached_wrapper(lua_State* l, const void* key, lua_Integer addr) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return false;
+    }
+
+    if (lua_rawgeti(l, -1, addr) == LUA_TNIL) {
+        lua_pop(l, 2);
+        return false;
+    }
+
+    lua_remove(l, -2);
+    return true;
+}
+
+// Stores the wrapper at index in the cache table under key.
+void cache_wrapper(lua_State* l, const void* key, int index, lua_Integer addr) {
+    index = lua_absindex(l, index);
+
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pushvalue(l, index);
+    lua_rawseti(l, -2, addr);
+    lua_pop(l, 1);
+}
+
+// Creates a weak-valued cache table under key if the registry doesn't have one yet.
+void ensure_weak_cache(lua_State* l, const void* key) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) == LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pop(l, 1);
+    lua_newtable(l);
+    lua_newtable(l);
+    lua_pushliteral(l, "v");
+    lua_setfield(l, -2, "__mode");
+    lua_setmetatable(l, -2);
+    lua_rawsetp(l, LUA_REGISTRYINDEX, key);
+}
+
+// Wrappers pushed this frame and last frame are kept in a strong set, rotated once per frame by
+// rotate_recent_wrappers. Scripts push the same objects again and again (singletons, components); without this, every
+// Lua collection drops those wrappers and the next push builds a new one, which costs an engine add_ref and later a
+// finalizer and an engine release each time. Measured with 1000 objects pushed twice a frame: ~997 wrappers recreated
+// per frame and +30-45% per push without it. Only wrappers that can't go stale are kept: ones holding an engine
+// reference (the object can't be freed and its address reused while they live) and type-database metadata. A plain
+// strong reference keeps Lua's write barrier intact, unlike the old "touch".
 void keep_recent_wrapper(lua_State* l, int index) {
     index = lua_absindex(l, index);
 
-    if (lua_getglobal(l, "_sol_lua_push_recent") != LUA_TTABLE) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_recent_key) != LUA_TTABLE) {
         lua_pop(l, 1);
         return;
     }
@@ -212,9 +266,17 @@ void keep_recent_wrapper(lua_State* l, int index) {
     lua_pop(l, 1);
 }
 
-bool lua_holds_engine_reference(sol::state_view& sv, uintptr_t addr) {
-    const std::optional<int> count = sv["_sol_lua_push_ref_counts"][addr];
-    return count && *count > 0;
+bool lua_holds_engine_reference(lua_State* l, lua_Integer addr) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_ref_counts_key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return false;
+    }
+
+    lua_rawgeti(l, -1, addr);
+    const auto held = lua_tointeger(l, -1) > 0;
+    lua_pop(l, 2);
+
+    return held;
 }
 }
 
@@ -223,18 +285,14 @@ bool lua_holds_engine_reference(sol::state_view& sv, uintptr_t addr) {
 template<detail::ManagedObjectBased T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
-        auto sv = sol::state_view{l};
-        sol::lua_table objects = sv["_sol_lua_push_objects"];
+        const auto addr = (lua_Integer)(uintptr_t)obj;
 
-        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // Push the cached wrapper as it is. It used to be "touched" here by clearing its GC color bits directly,
-            // which also stopped Lua's write barrier from seeing it: stored into an old table (held[#held + 1] =
-            // arr:add_ref()), the wrapper was swept and finalized under the generational collector while still
-            // referenced, and its __gc released the engine object under the script. keep_recent_wrapper gives the
-            // lifetime the touch was for.
-            lua_obj.push();
-
-            if (detail::lua_holds_engine_reference(sv, (uintptr_t)obj)) {
+        // Push the cached wrapper as it is. It used to be "touched" here by clearing its GC color bits directly, which
+        // also stopped Lua's write barrier from seeing it: stored into an old table (held[#held + 1] = arr:add_ref()),
+        // the wrapper was swept and finalized under the generational collector while still referenced, and its __gc
+        // released the engine object under the script. keep_recent_wrapper gives the lifetime the touch was for.
+        if (detail::push_cached_wrapper(l, &detail::s_objects_key, addr)) {
+            if (detail::lua_holds_engine_reference(l, addr)) {
                 detail::keep_recent_wrapper(l, -1);
             }
 
@@ -289,12 +347,10 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                     backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
                 }
 
-                auto ref = sol::stack::get<sol::object>(l, -backpedal);
-
                 // keep a weak reference to the object for caching
-                objects[(uintptr_t)obj] = ref;
+                detail::cache_wrapper(l, &detail::s_objects_key, -backpedal, addr);
 
-                if (detail::lua_holds_engine_reference(sv, (uintptr_t)obj)) {
+                if (detail::lua_holds_engine_reference(l, addr)) {
                     detail::keep_recent_wrapper(l, -backpedal);
                 }
 
@@ -315,19 +371,9 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
 template<detail::CachedUserType T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
-        // this is a weak table, so we don't need to set the index to nil when the object is no longer referenced
-        auto sv = sol::state_view{l};
-        sol::lua_table objects_top  = sv["_sol_lua_push_usertypes"];
-        constexpr auto function_sig = utility::hash(__FUNCSIG__);
-
-        if (sol::object obj = objects_top[function_sig]; obj.is<sol::nil_t>()) {
-            spdlog::info("About to create a weak table for usertype {}", __FUNCSIG__);
-            sol::object res = sv.load("return setmetatable({}, { __mode = \"v\" })")();
-            objects_top[function_sig] = res;
-            spdlog::info("Created a weak table for usertype {}", __FUNCSIG__);
-        }
-
-        sol::lua_table objects = objects_top[function_sig];
+        // One weak cache table per usertype, kept in the registry under this instantiation's key and created on first use.
+        static char s_cache_key{};
+        const auto addr = (lua_Integer)(uintptr_t)obj;
 
         // Type-database metadata lives as long as the TDB, so its wrappers can be kept without going stale. The other
         // cached types (behavior tree nodes, native arrays) are engine memory that can be freed without a reference
@@ -335,33 +381,27 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
         constexpr bool keep_recent = std::is_base_of_v<sdk::RETypeDefinition, T> || std::is_base_of_v<sdk::REMethodDefinition, T>
                                      || std::is_base_of_v<sdk::REField, T>;
 
-        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // Push the cached wrapper as it is; see the managed object push above for why it isn't "touched".
-            lua_obj.push();
-
+        // Push the cached wrapper as it is; see the managed object push above for why it isn't "touched".
+        if (detail::push_cached_wrapper(l, &s_cache_key, addr)) {
             if constexpr (keep_recent) {
                 detail::keep_recent_wrapper(l, -1);
             }
 
             return 1;
-        } else {
-            int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
-
-            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
-                auto ref = sol::stack::get<sol::object>(l, -backpedal);
-
-                // keep a weak reference to the object for caching
-                objects[(uintptr_t)obj] = ref;
-
-                if constexpr (keep_recent) {
-                    detail::keep_recent_wrapper(l, -backpedal);
-                }
-
-                return backpedal;
-            }
-
-            return backpedal;
         }
+
+        const int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+
+        if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+            detail::ensure_weak_cache(l, &s_cache_key);
+            detail::cache_wrapper(l, &s_cache_key, -backpedal, addr);
+
+            if constexpr (keep_recent) {
+                detail::keep_recent_wrapper(l, -backpedal);
+            }
+        }
+
+        return backpedal;
     }
 
     return sol::stack::push(l, sol::nil);
@@ -1697,18 +1737,51 @@ T read_memory(::REManagedObject* obj, int32_t offset) {
 }
 }
 
+void bindings::rotate_recent_wrappers(lua_State* l) {
+    // The older set is cleared in place and becomes this frame's set, so rotating allocates nothing. Clearing existing
+    // fields while traversing with lua_next is allowed.
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pushnil(l);
+
+    while (lua_next(l, -2) != 0) {
+        lua_pop(l, 1);
+        lua_pushvalue(l, -1);
+        lua_pushnil(l);
+        lua_rawset(l, -4);
+    }
+
+    lua_rawgetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
+    lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key);
+    lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
+}
+
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
 
     //lua["_sol_lua_push_objects"] = std::unordered_map<::REManagedObject*, sol::object>();
     lua.do_string(R"(
         _sol_lua_push_objects = setmetatable({}, { __mode = "v" })
-        _sol_lua_push_usertypes = {}
         _sol_lua_push_ref_counts = {}
         _sol_lua_push_ephemeral_counts = {}
-        _sol_lua_push_recent = {}
-        _sol_lua_push_recent_prev = {}
     )");
+
+    // The push hot path reaches these through the registry instead of by global name (see detail::s_objects_key).
+    {
+        const auto l = lua.lua_state();
+
+        lua_getglobal(l, "_sol_lua_push_objects");
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_objects_key);
+        lua_getglobal(l, "_sol_lua_push_ref_counts");
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_ref_counts_key);
+        lua_newtable(l);
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
+        lua_newtable(l);
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key);
+    }
 
     auto sdk = lua.create_table();
     sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->get_version(); };

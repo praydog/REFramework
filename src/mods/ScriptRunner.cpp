@@ -644,13 +644,7 @@ void ScriptState::on_application_entry(size_t hash) {
 
     if (hash == "EndRendering"_fnv) {
         std::scoped_lock _{ m_execution_mutex };
-
-        // Wrappers pushed last frame stop being kept unless they were pushed again this frame (see
-        // keep_recent_wrapper in bindings/Sdk.cpp).
-        lua_getglobal(m_lua, "_sol_lua_push_recent");
-        lua_setglobal(m_lua, "_sol_lua_push_recent_prev");
-        lua_newtable(m_lua);
-        lua_setglobal(m_lua, "_sol_lua_push_recent");
+        bindings::rotate_recent_wrappers(m_lua);
     }
 
     if (hash == "EndRendering"_fnv && m_gc_data.gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
