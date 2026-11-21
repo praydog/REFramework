@@ -1,3 +1,7 @@
+#include <cstdint>
+#include <mutex>
+#include <vector>
+
 #include <spdlog/spdlog.h>
 
 #include "utility/Scan.hpp"
@@ -25,6 +29,159 @@ size_t REManagedObject::runtime_size() {
 // via.Transform::get_Children
 static void (*add_ref_func)(::REManagedObject*) = nullptr;
 static void (*release_func)(::REManagedObject*) = nullptr;
+
+namespace {
+// Last references REFramework gives up (REManagedObject::release), released to the engine two frames later.
+//
+// A small new object lives in one of the engine's per-thread pages. add_ref() on it makes a page the thread started
+// since its last local cleanup global, with the object's reference as its only one. If that reference is released
+// before the thread's next local cleanup, the engine destroys the object and frees the page at once, while the thread
+// still allocates from it and lists it and other local objects live in it: the game crashes later in unrelated code.
+// Game code never does that: inside the engine's update scopes a last release is queued until after every scope's
+// cleanup. REFramework's callers (Lua, plugins, C#) release outside those scopes, so REFramework queues the last
+// release itself and carries it out at the second frame boundary after it (drain_deferred_releases), when the
+// thread's cleanup has run.
+//
+// Invariant: an object is queued at most once. A release that sees count 1 for an object already queued has no
+// reference left to give up (the queued release is its last one) and is dropped; one that sees count > 1 always has
+// a reference besides the queued one and goes to the engine at once. So the engine count never goes below what the
+// queue still owes, and the queued release happens exactly once, as a normal release if add_ref() raised the count
+// meanwhile.
+class DeferredReleases {
+public:
+    // Called from any thread, with the caller's last reference (count 1).
+    void push(::REManagedObject* obj) {
+        std::scoped_lock _{m_mtx};
+
+        if (contains(obj)) {
+            if (!m_warned_over_release) {
+                m_warned_over_release = true;
+                spdlog::warn("[REManagedObject] release() of {:x} at reference count 1 while its last release is already queued; ignored (logged once)", (uintptr_t)obj);
+            }
+
+            return;
+        }
+
+        m_buckets[m_epoch & 1].push_back(obj);
+        insert(obj);
+    }
+
+    // Game thread, once a frame. Releases what was queued before the previous drain.
+    template <typename Fn> void drain(Fn&& release) {
+        std::scoped_lock drain_lock{m_drain_mtx};
+
+        {
+            std::scoped_lock _{m_mtx};
+            m_draining.swap(m_buckets[(m_epoch + 1) & 1]);
+
+            for (auto obj : m_draining) {
+                erase(obj);
+            }
+
+            ++m_epoch;
+        }
+
+        // Outside m_mtx: an engine release can run destructors that call back into REFramework.
+        for (auto obj : m_draining) {
+            release(obj);
+        }
+
+        m_draining.clear();
+    }
+
+private:
+    // Open-addressing set of every queued object (linear probing, nullptr = empty slot), so the at-most-once check
+    // costs O(1) and allocates only when the set grows past its peak.
+    size_t home(::REManagedObject* obj) const {
+        return (size_t)((((uintptr_t)obj >> 4) * 0x9E3779B97F4A7C15ull) >> 32) & (m_set.size() - 1);
+    }
+
+    bool contains(::REManagedObject* obj) const {
+        if (m_set.empty()) {
+            return false;
+        }
+
+        for (auto i = home(obj); m_set[i] != nullptr; i = (i + 1) & (m_set.size() - 1)) {
+            if (m_set[i] == obj) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void insert(::REManagedObject* obj) {
+        if ((m_set_count + 1) * 2 > m_set.size()) {
+            std::vector<::REManagedObject*> old{};
+            old.swap(m_set);
+            m_set.assign(old.empty() ? 64 : old.size() * 2, nullptr);
+            m_set_count = 0;
+
+            for (auto o : old) {
+                if (o != nullptr) {
+                    insert(o);
+                }
+            }
+        }
+
+        auto i = home(obj);
+        while (m_set[i] != nullptr) {
+            i = (i + 1) & (m_set.size() - 1);
+        }
+
+        m_set[i] = obj;
+        ++m_set_count;
+    }
+
+    // Backward-shift deletion: no tombstones, so lookups stay short however many objects passed through.
+    void erase(::REManagedObject* obj) {
+        if (m_set.empty()) {
+            return;
+        }
+
+        const auto mask = m_set.size() - 1;
+        auto i = home(obj);
+
+        while (m_set[i] != obj) {
+            if (m_set[i] == nullptr) {
+                return;
+            }
+
+            i = (i + 1) & mask;
+        }
+
+        m_set[i] = nullptr;
+        --m_set_count;
+
+        for (auto j = (i + 1) & mask; m_set[j] != nullptr; j = (j + 1) & mask) {
+            const auto h = home(m_set[j]);
+            // m_set[j] stays only if its home lies cyclically in (i, j].
+            const bool stays = i <= j ? (i < h && h <= j) : (i < h || h <= j);
+
+            if (!stays) {
+                m_set[i] = m_set[j];
+                m_set[j] = nullptr;
+                i = j;
+            }
+        }
+    }
+
+    std::mutex m_mtx{};
+    std::mutex m_drain_mtx{};
+    std::vector<::REManagedObject*> m_buckets[2]{}; // by the parity of the epoch they were queued in
+    std::vector<::REManagedObject*> m_draining{};   // only while m_drain_mtx is held
+    std::vector<::REManagedObject*> m_set{};
+    size_t m_set_count{0};
+    uint32_t m_epoch{0};
+    bool m_warned_over_release{false};
+};
+
+// Never destroyed: at process exit the queue is dropped without releasing anything (the VM may already be gone).
+DeferredReleases& deferred_releases() {
+    static auto* const s_deferred = new DeferredReleases{};
+    return *s_deferred;
+}
+}
 
 void REManagedObject::resolve_add_ref() {
     if (add_ref_func != nullptr) {
@@ -113,7 +270,22 @@ void REManagedObject::add_ref() {
 void REManagedObject::release() {
     resolve_release();
 
-    release_func(this);
+    // Not the last reference (or a local object, whose release the engine ignores): straight to the engine, with no
+    // lock and no allocation. The last one is queued (see DeferredReleases).
+    if (*(volatile int32_t*)ref_count_ptr() != 1) {
+        release_func(this);
+        return;
+    }
+
+    deferred_releases().push(this);
+}
+
+void REManagedObject::drain_deferred_releases() {
+    if (release_func == nullptr) {
+        return; // nothing was ever released
+    }
+
+    deferred_releases().drain([](::REManagedObject* obj) { release_func(obj); });
 }
 
 std::vector<::REManagedObject*> REManagedObject::deserialize(const uint8_t* data, size_t size, bool add_references) {

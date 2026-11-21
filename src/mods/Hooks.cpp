@@ -8,6 +8,7 @@
 #include <sdk/GameIdentity.hpp>
 #include "sdk/GUIPrimitiveSystem.hpp"
 #include "sdk/Application.hpp"
+#include "sdk/REManagedObject.hpp"
 
 #include "Hooks.hpp"
 
@@ -916,6 +917,12 @@ void Hooks::global_application_entry_hook_internal(void* entry, const char* name
 
     if (!g_framework->is_game_data_initialized()) {
         return original(entry);
+    }
+
+    if (hash == "BeginRendering"_fnv) {
+        // Last engine releases REFramework queued (REManagedObject::release). Here: the game thread, outside the
+        // engine's update scopes, once a frame, before this frame's scripts run (run_imgui_frame below).
+        REManagedObject::drain_deferred_releases();
     }
 
     const auto should_allow_ignore = sdk::VM::s_tdb_version >= 73 ?

@@ -40,9 +40,15 @@ public:
 
     // Ref counting
     void add_ref();
+    // Gives up one reference. The last one (count 1) reaches the engine two frames later, at the second
+    // drain_deferred_releases() after this call: released earlier, an object made global this frame could free the
+    // engine's local page it lives in while the thread still uses it. Any thread.
     void release();
     static void resolve_add_ref();
     static void resolve_release();
+    // Carries out the last releases queued before the previous call. Once a frame, on the game thread, outside the
+    // engine's update scopes and before scripts run (Hooks: BeginRendering).
+    static void drain_deferred_releases();
 
     // Size
     uint32_t get_size() const;
