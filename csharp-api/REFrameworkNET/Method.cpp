@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <bit>
 
 #include "ManagedObject.hpp"
@@ -240,9 +241,12 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
     }
 
     void* obj_ptr = nullptr;
-    // Temporary storage for fake boxed value type (0x10 header + value type data)
+    // Native copy of a ValueType `this` (behind a fake 0x10 byte object header from TDB 74 on)
     std::vector<uint8_t> fake_boxed_storage;
+    size_t fake_header_size{};
     uintptr_t fake_object_ptr{};
+    // A real boxed object for methods a reference type declares (see below).
+    ::reframework::API::ManagedObject* real_box{};
 
     if (obj != nullptr) try {
         const auto obj_t = obj->GetType();
@@ -250,28 +254,60 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
         if (REFrameworkNET::IObject::typeid->IsAssignableFrom(obj_t)) {
             auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
 
-            // For instance methods on value types, we need to construct a fake boxed object.
-            // The native invoke() expects a ManagedObject* with a 0x10 byte header:
+            // Since TDB 74, invoke() treats `this` of a value-type instance method as a boxed object and skips its
+            // 0x10 byte header, so a ValueType goes in a fake boxed object:
             //   0x00: REObjectInfo* (type info / vtable pointer)
             //   0x08: uint32_t refcount + padding
             //   0x10: actual value type data starts here
-            // ValueType::Ptr() returns raw data at offset 0, so we need to prepend the header.
-            if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
+            // Before TDB 74 invoke() passes `this` through unchanged: a ValueType goes as its data, and a boxed value
+            // (a ManagedObject of a value type) as its data past the header, for methods the value type declares.
+            // Methods declared on a reference type (System.Object.GetType, System.Enum.ToString) use `this` as a real
+            // object, which the fake header isn't, so a ValueType goes into a real boxed object of its type.
+            // ValueType::Ptr() points into a managed array, so the data is copied to native memory either way.
+            const bool invoke_skips_header = TDB::Get()->GetVersion() >= 74;
+            const bool declared_by_value_type = this->GetDeclaringType() != nullptr && this->GetDeclaringType()->IsValueType();
+            const bool declared_by_reference_type = this->GetDeclaringType() != nullptr && !this->GetDeclaringType()->IsValueType();
+
+            if (!this->IsStatic() && declared_by_reference_type && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
+                auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
+                auto type_def = vt->GetTypeDefinition();
+                auto native_type = (::reframework::API::TypeDefinition*)type_def->Ptr();
+
+                real_box = native_type->create_instance(0);
+
+                if (real_box == nullptr) {
+                    throw gcnew System::Exception("could not box the value for " + this->GetName());
+                }
+
+                // The new object is local: the engine keeps it until it releases the thread's local objects, after
+                // this call. No add_ref()/release() pair, as in the Lua binding, where one crashed RE9 under load.
+                memcpy((uint8_t*)real_box + 0x10, vt->Ptr(), type_def->ValueTypeSize);
+                obj_ptr = real_box;
+            } else if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
                 auto type_def = vt->GetTypeDefinition();
                 auto vt_size = type_def->ValueTypeSize;
+                const bool boxed_this = invoke_skips_header;
 
-                fake_boxed_storage.resize(0x10 + vt_size, 0);
-                fake_object_ptr = (uintptr_t)type_def->Ptr();
+                fake_header_size = boxed_this ? 0x10 : 0;
+                // At least one byte, so a zero-size value type still gets a valid `this`.
+                fake_boxed_storage.resize(std::max<size_t>(fake_header_size + vt_size, 1), 0);
 
-                // REObject header: REObjectInfo* at offset 0x00
-                *(void**)&fake_boxed_storage[0x00] = (void*)fake_object_ptr;
-                // REManagedObject: reference count at offset 0x08 (set high to prevent GC interference)
-                *(uint32_t*)&fake_boxed_storage[0x08] = 9999;
-                // Copy value type data at offset 0x10
-                memcpy(&fake_boxed_storage[0x10], vt->Ptr(), vt_size);
+                if (boxed_this) {
+                    fake_object_ptr = (uintptr_t)type_def->Ptr();
+
+                    // REObject header: REObjectInfo* at offset 0x00
+                    *(void**)&fake_boxed_storage[0x00] = (void*)fake_object_ptr;
+                    // REManagedObject: reference count at offset 0x08 (set high to prevent GC interference)
+                    *(uint32_t*)&fake_boxed_storage[0x08] = 9999;
+                }
+
+                memcpy(&fake_boxed_storage[fake_header_size], vt->Ptr(), vt_size);
 
                 obj_ptr = fake_boxed_storage.data();
+            } else if (!this->IsStatic() && !invoke_skips_header && declared_by_value_type &&
+                       REFrameworkNET::ManagedObject::typeid->IsAssignableFrom(obj_t)) {
+                obj_ptr = (uint8_t*)iobj->Ptr() + 0x10;
             } else {
                 obj_ptr = iobj->Ptr();
             }
@@ -290,13 +326,14 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
 
     auto result = m_method->invoke((::reframework::API::ManagedObject*)obj_ptr, std::span<void*>(args2.data(), argcount));
 
-    // If we used a fake boxed object, copy any mutations back to the original value type
-    if (!fake_boxed_storage.empty() && obj != nullptr) {
+    // If we passed a native copy of a ValueType, copy any mutations back to it
+    if ((!fake_boxed_storage.empty() || real_box != nullptr) && obj != nullptr) {
         auto iobj = static_cast<REFrameworkNET::IObject^>(obj);
         if (REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj->GetType())) {
             auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
             auto vt_size = vt->GetTypeDefinition()->ValueTypeSize;
-            memcpy(vt->Ptr(), &fake_boxed_storage[0x10], vt_size);
+            const auto src = real_box != nullptr ? (uint8_t*)real_box + 0x10 : &fake_boxed_storage[fake_header_size];
+            memcpy(vt->Ptr(), src, vt_size);
         }
     }
 

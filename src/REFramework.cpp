@@ -549,6 +549,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
     if (gi.is_reengine_at()) {
         utility::ThreadSuspender suspender{};
+        IntegrityCheckBypass::PristineSyscalls pristine_syscalls{};
         IntegrityCheckBypass::ignore_application_entries();
 
         if (gi.is_re8() || gi.is_re4() || gi.is_sf6()) {
@@ -574,6 +575,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
         // Seen in SF6
         IntegrityCheckBypass::remove_stack_destroyer();
+        pristine_syscalls.restore();
         suspender.resume();
     }
 
@@ -1715,6 +1717,17 @@ void REFramework::invalidate_device_objects() {
         ImGui_ImplDX11_InvalidateDeviceObjects();
     } else if (m_renderer_type == RendererType::D3D12) {
         ImGui_ImplDX12_InvalidateDeviceObjects();
+    }
+
+    // The backend just destroyed every texture (TexID cleared, status Destroyed), but this runs on the present thread
+    // after ImGui::Render() built the frame's draw data, which still references them. ImGui would only ask for them
+    // again at the next NewFrame, and the backend's texture catch-up skips Destroyed, so the frame was drawn with a null
+    // texture descriptor (D3D12 debug layer: INVALID_DESCRIPTOR_HANDLE in SetGraphicsRootDescriptorTable). Request them
+    // now, as ImGui's NewFrame does for textures a backend destroyed mid-run.
+    for (auto tex : ImGui::GetPlatformIO().Textures) {
+        if (tex->Status == ImTextureStatus_Destroyed && !tex->WantDestroyNextFrame) {
+            tex->SetStatus(ImTextureStatus_WantCreate);
+        }
     }
 
     m_wants_device_object_cleanup = false;

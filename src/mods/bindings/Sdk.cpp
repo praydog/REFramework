@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <concepts>
+#include <unordered_map>
 
 #include <hde64.h>
 
@@ -12,11 +13,10 @@
 #include "sdk/ResourceManager.hpp"
 #include "sdk/MotionFsm2Layer.hpp"
 #include "sdk/TDBVer.hpp"
+#include "sdk/GameIdentity.hpp"
 #include "utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
-#include <lstate.h> // weird include order because of sol
-#include <lgc.h>
 
 #include "Sdk.hpp"
 
@@ -192,22 +192,111 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
 }
 }
 
+namespace detail {
+// Registry keys: only their addresses matter. Each Lua state's registry holds its own tables under them (set up in
+// open_sdk), so the push hot path reaches them with lua_rawgetp instead of looking up globals by name or going
+// through sol objects (each of which takes and drops a registry reference).
+char s_objects_key{};     // _sol_lua_push_objects: weak cache of wrappers, keyed by object address
+char s_ref_counts_key{};  // _sol_lua_push_ref_counts: engine references Lua holds, keyed by object address
+char s_recent_key{};      // wrappers pushed this frame
+char s_recent_prev_key{}; // wrappers pushed last frame
+
+// Pushes the cached wrapper for addr from the cache table under key. Returns false (and pushes nothing) if there is none.
+bool push_cached_wrapper(lua_State* l, const void* key, lua_Integer addr) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return false;
+    }
+
+    if (lua_rawgeti(l, -1, addr) == LUA_TNIL) {
+        lua_pop(l, 2);
+        return false;
+    }
+
+    lua_remove(l, -2);
+    return true;
+}
+
+// Stores the wrapper at index in the cache table under key.
+void cache_wrapper(lua_State* l, const void* key, int index, lua_Integer addr) {
+    index = lua_absindex(l, index);
+
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pushvalue(l, index);
+    lua_rawseti(l, -2, addr);
+    lua_pop(l, 1);
+}
+
+// Creates a weak-valued cache table under key if the registry doesn't have one yet.
+void ensure_weak_cache(lua_State* l, const void* key) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) == LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pop(l, 1);
+    lua_newtable(l);
+    lua_newtable(l);
+    lua_pushliteral(l, "v");
+    lua_setfield(l, -2, "__mode");
+    lua_setmetatable(l, -2);
+    lua_rawsetp(l, LUA_REGISTRYINDEX, key);
+}
+
+// Wrappers pushed this frame and last frame are kept in a strong set, rotated once per frame by
+// rotate_recent_wrappers. Scripts push the same objects again and again (singletons, components); without this, every
+// Lua collection drops those wrappers and the next push builds a new one, which costs an engine add_ref and later a
+// finalizer and an engine release each time. Measured with 1000 objects pushed twice a frame: ~997 wrappers recreated
+// per frame and +30-45% per push without it. Only wrappers that can't go stale are kept: ones holding an engine
+// reference (the object can't be freed and its address reused while they live) and type-database metadata. A plain
+// strong reference keeps Lua's write barrier intact, unlike the old "touch".
+void keep_recent_wrapper(lua_State* l, int index) {
+    index = lua_absindex(l, index);
+
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_recent_key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pushvalue(l, index);
+    lua_pushboolean(l, 1);
+    lua_rawset(l, -3);
+    lua_pop(l, 1);
+}
+
+bool lua_holds_engine_reference(lua_State* l, lua_Integer addr) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_ref_counts_key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return false;
+    }
+
+    lua_rawgeti(l, -1, addr);
+    const auto held = lua_tointeger(l, -1) > 0;
+    lua_pop(l, 2);
+
+    return held;
+}
+}
+
 // specialization for REManagedObject to automatically add a reference
 // when lua pushes a pointer to the object onto the stack
 template<detail::ManagedObjectBased T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
-        auto sv = sol::state_view{l};
-        sol::lua_table objects = sv["_sol_lua_push_objects"];
+        const auto addr = (lua_Integer)(uintptr_t)obj;
 
-        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // renew the reference so it doesn't get collected
-            // had to dig deep in the lua source to figure out this nonsense
-            lua_obj.push();
-            auto g = G(l);
-            auto tv = s2v(l->top - 1);
-            auto& gc = tv->value_.gc;
-            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
+        // Push the cached wrapper as it is. It used to be "touched" here by clearing its GC color bits directly, which
+        // also stopped Lua's write barrier from seeing it: stored into an old table (held[#held + 1] = arr:add_ref()),
+        // the wrapper was swept and finalized under the generational collector while still referenced, and its __gc
+        // released the engine object under the script. keep_recent_wrapper gives the lifetime the touch was for.
+        if (detail::push_cached_wrapper(l, &detail::s_objects_key, addr)) {
+            if (detail::lua_holds_engine_reference(l, addr)) {
+                detail::keep_recent_wrapper(l, -1);
+            }
 
             return 1;
         } else {
@@ -260,10 +349,12 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                     backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
                 }
 
-                auto ref = sol::stack::get<sol::object>(l, -backpedal);
-
                 // keep a weak reference to the object for caching
-                objects[(uintptr_t)obj] = ref;
+                detail::cache_wrapper(l, &detail::s_objects_key, -backpedal, addr);
+
+                if (detail::lua_holds_engine_reference(l, addr)) {
+                    detail::keep_recent_wrapper(l, -backpedal);
+                }
 
                 return backpedal;
             } else {
@@ -282,44 +373,37 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
 template<detail::CachedUserType T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
-        // this is a weak table, so we don't need to set the index to nil when the object is no longer referenced
-        auto sv = sol::state_view{l};
-        sol::lua_table objects_top  = sv["_sol_lua_push_usertypes"];
-        constexpr auto function_sig = utility::hash(__FUNCSIG__);
+        // One weak cache table per usertype, kept in the registry under this instantiation's key and created on first use.
+        static char s_cache_key{};
+        const auto addr = (lua_Integer)(uintptr_t)obj;
 
-        if (sol::object obj = objects_top[function_sig]; obj.is<sol::nil_t>()) {
-            spdlog::info("About to create a weak table for usertype {}", __FUNCSIG__);
-            sol::object res = sv.load("return setmetatable({}, { __mode = \"v\" })")();
-            objects_top[function_sig] = res;
-            spdlog::info("Created a weak table for usertype {}", __FUNCSIG__);
-        }
+        // Type-database metadata lives as long as the TDB, so its wrappers can be kept without going stale. The other
+        // cached types (behavior tree nodes, native arrays) are engine memory that can be freed without a reference
+        // Lua holds, so their wrappers aren't kept.
+        constexpr bool keep_recent = std::is_base_of_v<sdk::RETypeDefinition, T> || std::is_base_of_v<sdk::REMethodDefinition, T>
+                                     || std::is_base_of_v<sdk::REField, T>;
 
-        sol::lua_table objects = objects_top[function_sig];
-
-        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // renew the reference so it doesn't get collected
-            // had to dig deep in the lua source to figure out this nonsense
-            lua_obj.push();
-            auto g = G(l);
-            auto tv = s2v(l->top - 1);
-            auto& gc = tv->value_.gc;
-            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
-
-            return 1;
-        } else {
-            int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
-
-            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
-                auto ref = sol::stack::get<sol::object>(l, -backpedal);
-
-                // keep a weak reference to the object for caching
-                objects[(uintptr_t)obj] = ref;
-
-                return backpedal;
+        // Push the cached wrapper as it is; see the managed object push above for why it isn't "touched".
+        if (detail::push_cached_wrapper(l, &s_cache_key, addr)) {
+            if constexpr (keep_recent) {
+                detail::keep_recent_wrapper(l, -1);
             }
 
-            return backpedal;
+            return 1;
         }
+
+        const int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+
+        if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+            detail::ensure_weak_cache(l, &s_cache_key);
+            detail::cache_wrapper(l, &s_cache_key, -backpedal, addr);
+
+            if constexpr (keep_recent) {
+                detail::keep_recent_wrapper(l, -backpedal);
+            }
+        }
+
+        return backpedal;
     }
 
     return sol::stack::push(l, sol::nil);
@@ -355,7 +439,7 @@ void new_index(sol::this_state s, ::sdk::Delegate* delegate, sol::object lua_obj
 }
 
 namespace api::sdk {
-std::vector<void*>& build_args(sol::variadic_args va);
+std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn = nullptr);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
 sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field);
@@ -394,10 +478,6 @@ struct ValueType {
         return offset >= 0 && offset + sizeof(T) <= (int32_t)data.size();
     }
 
-    bool is_valid_offset(int32_t offset) const {
-        return offset >= 0 && offset <= (int32_t)data.size();
-    }
-
     template <typename T>
     void write_memory(int32_t offset, T value) {
         if (!is_valid_offset(offset, value)) {
@@ -409,8 +489,11 @@ struct ValueType {
 
     template <typename T>
     T read_memory(int32_t offset) {
-        if (!is_valid_offset(offset)) {
-            return {};
+        T value{};
+
+        // Same bounds as write_memory: the whole T must fit, not just its first byte.
+        if (!is_valid_offset(offset, value)) {
+            return value;
         }
 
         return *(T*)((uintptr_t)data.data() + offset);
@@ -432,26 +515,49 @@ struct ValueType {
         }
 
         reframework::InvokeRet ret_val{};
-        auto vec_args = ::api::sdk::build_args(va);
+        auto vec_args = ::api::sdk::build_args(va, def);
 
         const auto mo_runtime_size = REManagedObject::runtime_size();
 
-        if (!def->is_static()) {
-            // For instance methods on value types, we need to construct a fake boxed object.
-            // The native invoke() expects a ManagedObject* with a 0x10 byte header:
-            //   0x00: REObjectInfo* (type info / vtable pointer)
-            //   0x08: uint32_t refcount + padding
-            //   0x10: actual value type data starts here
-            const auto type_vt_size = type->get_valuetype_size();
+        // `this` depends on who declares the method:
+        // - The value type itself, since TDB 74: invoke() treats `this` of a value-type instance method as a boxed
+        //   object and skips its 0x10 byte header, so we pass a fake boxed object:
+        //     0x00: REObjectInfo* (type info / vtable pointer)
+        //     0x08: uint32_t refcount + padding
+        //     0x10: actual value type data starts here
+        // - The value type itself, before TDB 74: invoke() passes `this` through unchanged and the method read the fake
+        //   header as the value (seen with Guid.ToString and via.vec3 get_Item/set_Item in TDB 67-73: dmc5, re8, ggr,
+        //   re2, re3, re7, re4, sf6, mhrise, kunitsu, gs456, drdr), so there the value's own data is `this`.
+        // - A reference type (System.Object.GetType, System.Enum.ToString): the method uses `this` as a real object,
+        //   and the fake header isn't one (both threw "Invoke threw an exception" in RE2 and DD2), so the value goes
+        //   into a real boxed object of its type for the call.
+        const auto declaring_type = def->get_declaring_type();
+        const bool declared_by_reference_type = declaring_type != nullptr && !declaring_type->is_value_type();
+        const auto type_vt_size = type->get_valuetype_size();
 
+        if (def->is_static()) {
+            ret_val = def->invoke((void*)address(), std::span(vec_args));
+        } else if (declared_by_reference_type) {
+            auto box = type->create_instance_full();
+
+            if (box == nullptr) {
+                throw sol::error("ValueType:call: could not box the value for " + std::string{name});
+            }
+
+            // The new object is local: the engine keeps it until it releases the thread's local objects, after this
+            // call. No add_ref()/release() pair here: with one, 2000 of these calls per frame raised SEH exceptions
+            // in RE9 within a frame and then crashed the game.
+
+            memcpy((uint8_t*)box + mo_runtime_size, data.data(), type_vt_size);
+            ret_val = def->invoke(box, std::span(vec_args));
+            memcpy(data.data(), (uint8_t*)box + mo_runtime_size, type_vt_size);
+        } else if (::sdk::GameIdentity::get().tdb_ver() >= 74) {
             // Reduce allocation pressure with thread_local.
             thread_local std::vector<uint8_t> fake_boxed_storage(mo_runtime_size + type_vt_size, 0);
 
             if (fake_boxed_storage.size() < mo_runtime_size + type_vt_size) {
                 fake_boxed_storage.resize(mo_runtime_size + type_vt_size);
             }
-
-            fake_boxed_storage.clear();
 
             // REObject header: REObjectInfo* at offset 0x00
             *(void**)&fake_boxed_storage[0x00] = (void*)type;
@@ -467,7 +573,6 @@ struct ValueType {
             // copy back any changes to the value type from the fake boxed storage
             memcpy(data.data(), &fake_boxed_storage[mo_runtime_size], type_vt_size);
         } else {
-            // Static methods expect the value type to not be boxed.
             ret_val = def->invoke((void*)address(), std::span(vec_args));
         }
 
@@ -538,10 +643,6 @@ struct MemoryView {
         return offset >= 0 && offset + sizeof(T) <= (int32_t)size;
     }
 
-    bool is_valid_offset(int32_t offset) const {
-        return offset >= 0 && offset <= (int32_t)size;
-    }
-
     template <typename T>
     void write_memory(int32_t offset, T value) {
         if (!is_valid_offset(offset, value)) {
@@ -553,8 +654,10 @@ struct MemoryView {
 
     template <typename T>
     T read_memory(int32_t offset) {
-        if (!is_valid_offset(offset)) {
-            return {};
+        T value{};
+
+        if (!is_valid_offset(offset, value)) {
+            return value;
         }
 
         return *(T*)((uintptr_t)data + offset);
@@ -973,6 +1076,27 @@ void* get_real_obj(sol::object obj) {
     return real_obj;
 }
 
+// `this` to pass to fn->invoke() for obj. Before TDB 74, invoke() passes `this` of a value-type instance method
+// through unchanged (see ValueType::call), so a boxed value must be passed as its data, past the object header;
+// since TDB 74 invoke() skips the header itself.
+void* get_invoke_this(sol::object obj, ::sdk::REMethodDefinition* fn) {
+    auto real_obj = get_real_obj(obj);
+
+    // Runs for every method called from Lua, and only a value-type instance method before TDB 74 needs anything but
+    // real_obj: check the cheap conditions first and leave the sol type check (a metatable lookup) for last.
+    if (real_obj == nullptr || ::sdk::GameIdentity::get().tdb_ver() >= 74 || fn->is_static()) {
+        return real_obj;
+    }
+
+    const auto declaring_type = fn->get_declaring_type();
+
+    if (declaring_type == nullptr || !declaring_type->is_value_type() || !obj.is<REManagedObject*>()) {
+        return real_obj;
+    }
+
+    return (uint8_t*)real_obj + REManagedObject::runtime_size();
+}
+
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method) {
     if (data_type != nullptr) {
         if (!data_type->is_value_type()) {
@@ -1162,7 +1286,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                 throw sol::error("Attempted to set ValueType to field of unknown type");
             }
 
-            memcpy(data, vt->data.data(), vt->data.size());
+            // vt->data holds the boxed size (get_size: payload plus the object header), but an inline field holds
+            // only the payload. Copying the whole buffer wrote get_size() - get_valuetype_size() bytes past the field.
+            memcpy(data, vt->data.data(), std::min<size_t>(vt->data.size(), data_type->get_valuetype_size()));
             return;
         }
 
@@ -1186,6 +1312,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             *(int16_t*)data = value.as<int16_t>();
             return;
         case "System.UInt16"_fnv:
+            *(uint16_t*)data = value.as<uint16_t>();
+            return;
+        case "System.Char"_fnv:
             *(uint16_t*)data = value.as<uint16_t>();
             return;
         case "System.UInt32"_fnv:
@@ -1323,7 +1452,67 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     return get_native_field_from_field(obj, ty, field);
 }
 
-std::vector<void*>& build_args(sol::variadic_args va) {
+namespace {
+enum class NumericParam { OTHER, FLOATING, INTEGRAL };
+
+NumericParam classify_numeric_param(::sdk::RETypeDefinition* t) {
+    if (t != nullptr && t->is_enum()) {
+        t = t->get_underlying_type();
+    }
+
+    if (t == nullptr) {
+        return NumericParam::OTHER;
+    }
+
+    switch (utility::hash(t->get_full_name())) {
+    case "System.Single"_fnv:
+    case "System.Double"_fnv:
+        return NumericParam::FLOATING;
+    case "System.Boolean"_fnv:
+    case "System.Char"_fnv:
+    case "System.SByte"_fnv:
+    case "System.Byte"_fnv:
+    case "System.Int16"_fnv:
+    case "System.UInt16"_fnv:
+    case "System.Int32"_fnv:
+    case "System.UInt32"_fnv:
+    case "System.Int64"_fnv:
+    case "System.UInt64"_fnv:
+        return NumericParam::INTEGRAL;
+    default:
+        return NumericParam::OTHER;
+    }
+}
+
+// How each parameter of a method takes a Lua number, computed once per method: build_args runs for every call from
+// Lua, often per frame, and get_param_types/get_param_modifiers allocate. Methods live as long as the type database,
+// so the pointer is a stable key. thread_local because scripts can run on several threads.
+const std::vector<NumericParam>& numeric_param_kinds(::sdk::REMethodDefinition* fn) {
+    thread_local std::unordered_map<::sdk::REMethodDefinition*, std::vector<NumericParam>> cache{};
+
+    if (auto it = cache.find(fn); it != cache.end()) {
+        return it->second;
+    }
+
+    const auto param_types = fn->get_param_types();
+    const auto param_modifiers = fn->get_param_modifiers();
+    std::vector<NumericParam> kinds(param_types.size(), NumericParam::OTHER);
+
+    for (size_t i = 0; i < param_types.size(); ++i) {
+        // An out/ref/pointer parameter takes an address: a Lua number passed there is a pointer, not a value of the
+        // pointed-to type.
+        if (i < param_modifiers.size() && param_modifiers[i] != ::sdk::REMethodDefinition::ParamModifier::None) {
+            continue;
+        }
+
+        kinds[i] = classify_numeric_param(param_types[i]);
+    }
+
+    return cache.emplace(fn, std::move(kinds)).first->second;
+}
+}
+
+std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn) {
     auto l = va.lua_state();
 
     static std::vector<void*> args{};
@@ -1331,6 +1520,21 @@ std::vector<void*>& build_args(sol::variadic_args va) {
 
     args.clear();
     vec_storage.clear();
+
+    // Per-parameter number encoding, looked up only if a number argument needs it.
+    const std::vector<NumericParam>* kinds = nullptr;
+
+    const auto numeric_param = [&](size_t index) {
+        if (fn == nullptr) {
+            return NumericParam::OTHER;
+        }
+
+        if (kinds == nullptr) {
+            kinds = &numeric_param_kinds(fn);
+        }
+
+        return index < kinds->size() ? (*kinds)[index] : NumericParam::OTHER;
+    };
 
     for (auto&& arg : va) {
         auto i = arg.stack_index();
@@ -1348,13 +1552,19 @@ std::vector<void*>& build_args(sol::variadic_args va) {
         } else if (lua_type(l, i) == LUA_TSTRING) {
             auto s = lua_tostring(l, i);
             args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
-        } else if (lua_isinteger(l, i)) {
-            auto n = (intptr_t)lua_tointeger(l, i);
-            args.push_back((void*)n);
-        } else if (lua_isnumber(l, i)) {
-            auto f = lua_tonumber(l, i);
-            auto n = *(intptr_t*)&f;
-            args.push_back((void*)n);
+        } else if (lua_type(l, i) == LUA_TNUMBER) {
+            // Encode by the parameter's type when it is known, not by the Lua subtype: 5 passed to a
+            // System.Single parameter must arrive as 5.0, and 4/2 (a float) passed to System.Int32 as 2.
+            const auto kind = numeric_param(args.size());
+
+            if (lua_isinteger(l, i) && kind != NumericParam::FLOATING) {
+                args.push_back((void*)(intptr_t)lua_tointeger(l, i));
+            } else if (kind == NumericParam::INTEGRAL) {
+                args.push_back((void*)(intptr_t)(int64_t)lua_tonumber(l, i));
+            } else {
+                const double f = lua_tonumber(l, i);
+                args.push_back(*(void**)&f);
+            }
         } else if (arg.is<Vector2f>()) {
             auto& v = arg.as<Vector2f&>();
             args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
@@ -1391,8 +1601,8 @@ sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* 
         return sol::make_object(l, sol::nil);
     }
 
-    auto real_obj = get_real_obj(obj);
-    auto ret_val = fn->invoke(real_obj, build_args(va));
+    auto real_obj = get_invoke_this(obj, fn);
+    auto ret_val = fn->invoke(real_obj, build_args(va, fn));
 
     if (ret_val.exception_thrown) {
         throw sol::error("Invoke threw an exception");
@@ -1655,16 +1865,51 @@ T read_memory(::REManagedObject* obj, int32_t offset) {
 }
 }
 
+void bindings::rotate_recent_wrappers(lua_State* l) {
+    // The older set is cleared in place and becomes this frame's set, so rotating allocates nothing. Clearing existing
+    // fields while traversing with lua_next is allowed.
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pushnil(l);
+
+    while (lua_next(l, -2) != 0) {
+        lua_pop(l, 1);
+        lua_pushvalue(l, -1);
+        lua_pushnil(l);
+        lua_rawset(l, -4);
+    }
+
+    lua_rawgetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
+    lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key);
+    lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
+}
+
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
 
     //lua["_sol_lua_push_objects"] = std::unordered_map<::REManagedObject*, sol::object>();
     lua.do_string(R"(
         _sol_lua_push_objects = setmetatable({}, { __mode = "v" })
-        _sol_lua_push_usertypes = {}
         _sol_lua_push_ref_counts = {}
         _sol_lua_push_ephemeral_counts = {}
     )");
+
+    // The push hot path reaches these through the registry instead of by global name (see detail::s_objects_key).
+    {
+        const auto l = lua.lua_state();
+
+        lua_getglobal(l, "_sol_lua_push_objects");
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_objects_key);
+        lua_getglobal(l, "_sol_lua_push_ref_counts");
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_ref_counts_key);
+        lua_newtable(l);
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
+        lua_newtable(l);
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key);
+    }
 
     auto sdk = lua.create_table();
     sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->get_version(); };
@@ -1861,8 +2106,8 @@ void bindings::open_sdk(ScriptState* s) {
     auto method_call = [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
         auto l = va.lua_state();
 
-        auto real_obj = ::api::sdk::get_real_obj(obj);
-        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+        auto real_obj = ::api::sdk::get_invoke_this(obj, def);
+        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va, def));
 
         if (ret_val.exception_thrown) {
             throw sol::error("Invoke threw an exception");

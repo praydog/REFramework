@@ -1,0 +1,8 @@
+{
+  "comment": "Copy to local.json (gitignored) and fill in what applies to this machine. Every key is optional.",
+  "build": "C:\\path\\to\\REFramework\\build\\bin\\REFramework\\dinput8.dll",
+  "csharpBin": "C:\\path\\to\\REFramework\\csharp-api\\build\\bin",
+  "procdump": "C:\\path\\to\\procdump64.exe",
+  "outDir": "C:\\path\\to\\rftest-results",
+  "steamCloudBackupDir": "C:\\path\\to\\steam-cloud-backup"
+}

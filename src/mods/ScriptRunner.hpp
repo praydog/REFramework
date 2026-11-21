@@ -184,6 +184,13 @@ public:
             if (!it->second.empty()) {
                 it->second.pop_back();
             }
+
+            // A hooked call made from inside another hook's callback returns here; the enclosing hook's
+            // storage is the new top of this thread's stack and must stay reachable for the rest of its callback.
+            if (!it->second.empty()) {
+                m_current_hook_storage = it->second.back();
+                return;
+            }
         }
 
         m_current_hook_storage = sol::nil;
@@ -374,6 +381,14 @@ public:
 
     const auto& get_state() {
         return m_main_state;
+    }
+
+    // Runs fn(main state, possibly null) while holding the lock reset_scripts() takes, so the main state can't be
+    // destroyed or replaced meanwhile.
+    template <typename F>
+    void with_main_state(F&& fn) {
+        std::scoped_lock _{m_access_mutex};
+        fn(m_main_state);
     }
 
     void lock() {
