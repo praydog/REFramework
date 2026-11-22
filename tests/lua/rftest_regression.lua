@@ -1,8 +1,9 @@
 -- rftest regression suite: tests for the Lua bugs fixed in the 2026-11 bug hunt (some bugs have several).
 -- Game-agnostic: uses only System.*, via.* types and REFramework APIs. The tests fail on a build without the
--- corresponding fix and pass with it, except three controls ("relative paths still work", "integer address to an out
+-- corresponding fix and pass with it, except four controls ("relative paths still work", "integer address to an out
 -- System.Single / System.Double parameter", "a wrapper that calls add_ref() again after release() releases that
--- reference when collected") that pass on both. See tests/README.md.
+-- reference when collected", "REManagedObject read_dword(0xE) on a String reads across the header's end") that pass
+-- on both. See tests/README.md.
 --
 -- Needs from the runner (tests/run/Run-RFTests.ps1):
 --   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one); without it the package.loadlib
@@ -171,6 +172,120 @@ S:test("ValueType read_* rejects reads that run past the buffer", function()
     H.eq(vt:read_qword(size - 4), 0, "qword crossing the end")
     H.eq(vt:read_byte(size), 0, "byte at size")
 end)
+
+-- REManagedObject read_*/write_* must reject a value that starts inside the object and ends past it. A new System.Byte
+-- array is the object: is_valid_offset bounds an array by its data offset + length (one dimension), so its last element
+-- is its last valid byte. Unfixed, a read starting there returns that byte plus memory past the object; fixed, 0. The
+-- reads run first (unfixed, read_short runs 1 byte past and fails the test), the out-of-range writes only once they
+-- are rejected.
+S:test("REManagedObject read_*/write_* reject values that run past the object", function()
+    local N = 13
+    local arr = H.truthy(sdk.create_managed_array("System.Byte", N), "create_managed_array")
+    arr[0] = sdk.create_byte(0x5A)
+    arr[N - 1] = sdk.create_byte(0xA5)
+    -- Find the data offset with single-byte reads (never past the object, fixed or not): 0x5A, N - 2 zeros, 0xA5.
+    local data
+    for o = 0, 0x100 - N do
+        if arr:read_byte(o) == 0x5A and arr:read_byte(o + N - 1) == 0xA5 then
+            local zeros = true
+            for i = 1, N - 2 do if arr:read_byte(o + i) ~= 0 then zeros = false break end end
+            if zeros then data = o break end
+        end
+    end
+    H.truthy(data, "array data found by read_byte")
+    H.eq(arr:read_dword(data - 4), N, "element count right before the data")
+    H.truthy(arr:read_dword(data - 8) <= 1, "one-dimensional array (the bound is data offset + length)")
+    local last = data + N - 1
+    -- In range on either build.
+    H.eq(arr:read_byte(data), 0x5A, "byte at the first element")
+    H.eq(arr:read_dword(data), 0x5A, "dword at the first element")
+    H.eq(arr:read_byte(last), 0xA5, "byte at the last element")
+    H.eq(arr:read_dword(last - 3), 0xA5000000, "last full dword")
+    H.eq(arr:read_qword(last - 7), 0xA5 << 56, "last full qword")
+    -- Crossing the end.
+    H.eq(arr:read_short(last), 0, "short starting at the last byte")
+    H.eq(arr:read_dword(last), 0, "dword starting at the last byte")
+    H.eq(arr:read_qword(last), 0, "qword starting at the last byte")
+    H.eq(arr:read_qword(last - 3), 0, "qword starting 4 bytes before the end")
+    arr:write_dword(last, 0x11111111)
+    arr:write_qword(last - 3, 0x2222222222222222)
+    H.eq(arr:read_dword(last - 3), 0xA5000000, "last dword after the rejected writes")
+    arr:write_dword(last - 3, 0x01020304)
+    H.eq(arr:read_dword(last - 3), 0x01020304, "in-range dword write")
+    arr:write_qword(last - 7, 0x0102030405060708)
+    H.eq(arr:read_qword(last - 7), 0x0102030405060708, "in-range qword write")
+end)
+
+-- A String's real size is 0x14 + 2 * (length + 1): the 0x10-byte header, the length dword at 0x10, then the UTF-16
+-- characters from 0x14 and a terminator. is_valid_offset bounded every object but an array by its type's size, and
+-- the String type's size S is one fixed number per game: 0x10 (the header alone) in some games, 0x18 in others.
+-- With S = 0x10 every read at 0x10 or later returned 0, the length included. With S = 0x18 reads past 0x18 returned
+-- 0, while reads starting below 0x18 on a 1- or 2-character String (0x18 / 0x1A bytes) ran past its end. The first
+-- version of the whole-value rule also rejected in-object reads that cross S. Strings are now bounded by their own
+-- size. The layout is checked with get_object_size(), which reads the length at 0x10 itself, before anything relies
+-- on it. Reads inside the object run first, the writes past its end only once the reads past it returned 0.
+do
+    local function new_string(text)
+        local str = H.truthy(sdk.create_managed_string(text), "create_managed_string(\"" .. text .. "\")")
+        H.eq(str:get_object_size(), 0x14 + 2 * (#text + 1), "get_object_size() of \"" .. text .. "\"")
+        return str
+    end
+
+    -- Control: passes without the fix too. Guards the fix against its first version, which rejected this read where
+    -- S = 0x10 (it lies inside S = 0x18 everywhere else, so only those games can show that).
+    S:test("REManagedObject read_dword(0xE) on a String reads across the header's end (control)", function()
+        local str = new_string("0123456789")
+        H.eq(str:read_dword(0xE) >> 16, 10, "upper half of the dword at 0xE (the length's low half)")
+    end)
+
+    S:test("REManagedObject read_*/write_* on a String are bounded by the String's own size", function()
+        local text = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_"
+        local n = #text
+        local function ch(i) return text:byte(i + 1) end -- character i, 0-based
+        local last = 0x14 + 2 * (n - 1) -- offset of the last character
+        local str = new_string(text)
+        -- Inside the object.
+        H.eq(str:read_dword(0x10), n, "length at 0x10")
+        H.eq(str:read_short(0x14), ch(0), "first character")
+        H.eq(str:read_qword(0x10), n | (ch(0) << 32) | (ch(1) << 48), "qword at 0x10 (length, first two characters)")
+        H.eq(str:read_dword(0x16), ch(1) | (ch(2) << 16), "dword at 0x16 (characters 1 and 2)")
+        H.eq(str:read_short(last), ch(n - 1), "last character")
+        H.eq(str:read_short(last + 2), 0, "terminator")
+        H.eq(str:read_dword(last), ch(n - 1), "dword ending at the object's end")
+        H.eq(str:read_qword(last - 4), ch(n - 3) | (ch(n - 2) << 16) | (ch(n - 1) << 32), "qword ending at the object's end")
+        -- Past the end.
+        H.eq(str:read_qword(last), 0, "qword starting at the last character")
+        H.eq(str:read_dword(last + 2), 0, "dword starting at the terminator")
+        str:write_qword(last, 0x0041004100410041)
+        str:write_dword(last + 2, 0x00410041)
+        H.eq(str:read_dword(last), ch(n - 1), "last character and terminator after the rejected writes")
+        -- In range.
+        str:write_short(0x14 + 2 * 10, string.byte("!"))
+        H.eq(str:read_short(0x14 + 2 * 10), string.byte("!"), "in-range write to character 10")
+        H.eq(str:call("ToString"), text:sub(1, 10) .. "!" .. text:sub(12), "the String's text after the write")
+    end)
+
+    -- 1- and 2-character Strings end at 0x18 / 0x1A, at or just past S = 0x18: there the reads past their end are
+    -- what the type-size bound let through. With S = 0x10 the in-object reads are the ones that fail without the fix.
+    S:test("REManagedObject read_*/write_* on a short String stop at the String's end", function()
+        for _, text in ipairs({ "A", "BC" }) do
+            local str = new_string(text)
+            local size = 0x14 + 2 * (#text + 1)
+            local last_char = text:byte(-1)
+            local label = "\"" .. text .. "\": "
+            -- Inside the object.
+            H.eq(str:read_short(0x14), text:byte(1), label .. "first character")
+            H.eq(str:read_dword(size - 4), last_char, label .. "dword ending at the object's end")
+            -- Past the end.
+            H.eq(str:read_qword(0x14), 0, label .. "qword at 0x14")
+            H.eq(str:read_qword(size - 4), 0, label .. "qword starting at the last character")
+            H.eq(str:read_dword(size - 2), 0, label .. "dword starting at the terminator")
+            str:write_qword(size - 4, 0x0041004100410041)
+            str:write_dword(size - 2, 0x00410041)
+            H.eq(str:read_dword(size - 4), last_char, label .. "last character and terminator after the rejected writes")
+        end
+    end)
+end
 
 -------------------------------------------------------------------------------------------------------------------
 -- release() right after add_ref() on a new object. A new small object (an array here) lives in one of the engine's
