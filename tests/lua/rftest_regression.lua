@@ -1,7 +1,8 @@
 -- rftest regression suite: tests for the Lua bugs fixed in the 2026-11 bug hunt (some bugs have several).
 -- Game-agnostic: uses only System.*, via.* types and REFramework APIs. The tests fail on a build without the
--- corresponding fix and pass with it, except two controls ("relative paths still work", "integer address to an out
--- System.Single / System.Double parameter") that pass on both. See tests/README.md.
+-- corresponding fix and pass with it, except three controls ("relative paths still work", "integer address to an out
+-- System.Single / System.Double parameter", "a wrapper that calls add_ref() again after release() releases that
+-- reference when collected") that pass on both. See tests/README.md.
 --
 -- Needs from the runner (tests/run/Run-RFTests.ps1):
 --   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one); without it the package.loadlib
@@ -332,6 +333,110 @@ do
         if frame < 30 then return false end
         restore_gc()
         for _, arr in ipairs(held) do arr:release() end
+        return true
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
+-- add_ref() then release() on a new (local) object: release() has to drop REFramework's cached wrapper, like it does
+-- for any other object. add_ref() left the local-object count at 0 instead of removing it, and release() keeps the
+-- cached wrapper while that count exists. The next push of the address then returned the old wrapper without taking
+-- a reference: for an object the engine still holds, and for a new object the engine allocates at that address once
+-- the old one is freed (which may be a different type).
+-- An extra add_ref_permanent() keeps the array alive across release(), so the same address can be pushed again (with
+-- sdk.to_managed_object) without depending on address reuse. That push has to take an engine reference of its own.
+-- The array is never freed: the old wrapper is still alive, and on a build whose wrappers release by address in
+-- __gc, once the array were gone that __gc could release a reference owned by a later object at the same address. A
+-- full collection first removes wrappers of freed objects that Lua no longer reaches, so the new array's push can't
+-- hit one.
+-------------------------------------------------------------------------------------------------------------------
+S:test("an object pushed again after add_ref() and release() holds its own reference", function()
+    collectgarbage("collect")
+    local a = sdk.create_managed_array("System.Object", 1)
+    a:add_ref()
+    a:add_ref_permanent()
+    a:release()
+    local addr = a:get_address()
+    local rc_before = a:get_reference_count()
+    H.truthy(rc_before > 0, "test setup: reference count after add_ref_permanent() and release() is " .. rc_before)
+    local b = H.truthy(sdk.to_managed_object(addr), "to_managed_object")
+    H.eq(b:get_reference_count(), rc_before + 1, "reference count after pushing the object again")
+    H.truthy(not rawequal(a, b), "pushing the object again returned the released wrapper")
+end)
+
+-------------------------------------------------------------------------------------------------------------------
+-- A wrapper's __gc released one reference by address, also when the script had already given that wrapper's
+-- reference up with release(). Once the object had been fetched again, the reference it released belonged to the
+-- new wrapper, and the new wrapper's cache entry went with it: the script held a wrapper the engine could free under
+-- it, and the next fetch of the address made yet another wrapper. Wrappers without __gc release nothing when they
+-- are collected: REFramework releases an address's reference a few frames after the address has no cached wrapper
+-- left, so a wrapper fetched again keeps it.
+-- The wrappers are made in helpers, so no stack slot keeps them reachable. A build that keeps the wrappers pushed in
+-- the last two frames strongly (f35d040a) lets them be collected only from frame 4 on, so the test collects then.
+-- The `seen` tables (weak values) show when they have been collected; where wrappers have a __gc, a full collection
+-- runs the finalizers of what it collects before it returns. add_ref_permanent() keeps each array alive whatever is
+-- released; the arrays are never freed (see the test above).
+-------------------------------------------------------------------------------------------------------------------
+do
+    local function collect_until_gone(seen)
+        for _ = 1, 5 do
+            if next(seen) == nil then return end
+            collectgarbage("collect")
+        end
+        H.eq(next(seen), nil, "test setup: a wrapper the test dropped is still alive after 5 full collections")
+    end
+
+    local seen, st = setmetatable({}, { __mode = "v" }), {}
+    local function create_and_release()
+        local w1 = sdk.create_managed_array("System.Object", 1)
+        w1:add_ref()
+        w1:add_ref_permanent()
+        w1:release()
+        seen[1] = w1
+        return w1:get_address(), w1:get_reference_count()
+    end
+    S:frame_test("a wrapper fetched after release() keeps its reference when the released wrapper is collected", function(frame)
+        if frame == 1 then
+            local addr, rc_released = create_and_release()
+            st.addr = addr
+            st.w2 = H.truthy(sdk.to_managed_object(addr), "to_managed_object")
+            st.rc = st.w2:get_reference_count()
+            H.eq(st.rc, rc_released + 1, "test setup: reference count after fetching the released object again")
+            return false
+        end
+        if frame < 4 then return false end
+        collect_until_gone(seen)
+        H.eq(st.w2:get_reference_count(), st.rc, "reference count after the released wrapper was collected")
+        H.truthy(rawequal(sdk.to_managed_object(st.addr), st.w2), "fetching the object again returns the live wrapper")
+        return true
+    end)
+
+    -- Control for the fix: add_ref() after release() gives the wrapper a reference of its own again, and that
+    -- reference has to be given back once the wrapper is gone (the fix must not skip it). add_ref() makes the wrapper
+    -- it's called on the cached one again, so the object it returns is that wrapper (on a build whose add_ref()
+    -- doesn't, a second wrapper with a reference of its own, released by its __gc). Once they are collected, the
+    -- reference is released a few frames later, or taken over by a push of the address before that: either way a new
+    -- fetch leaves the array with the permanent reference plus exactly one.
+    local seen2, st2 = setmetatable({}, { __mode = "v" }), {}
+    local function release_then_add_ref()
+        local w = sdk.create_managed_array("System.Object", 1)
+        w:add_ref()
+        w:add_ref_permanent()
+        w:release()
+        local rc_released = w:get_reference_count()
+        seen2[1] = w
+        seen2[2] = w:add_ref()
+        return w:get_address(), rc_released
+    end
+    S:frame_test("a wrapper that calls add_ref() again after release() releases that reference when collected", function(frame)
+        if frame == 1 then
+            st2.addr, st2.rc_released = release_then_add_ref()
+            return false
+        end
+        if frame < 4 then return false end
+        collect_until_gone(seen2)
+        local w3 = H.truthy(sdk.to_managed_object(st2.addr), "to_managed_object")
+        H.eq(w3:get_reference_count(), st2.rc_released + 1, "reference count of a new fetch after both wrappers were collected")
         return true
     end)
 end
