@@ -2083,7 +2083,7 @@ void REFramework::draw_about() {
 
         for (const auto& license : licenses) {
             if (ImGui::CollapsingHeader(license.name.c_str())) {
-                ImGui::TextWrapped(license.text.c_str());
+                ImGui::TextWrapped("%s", license.text.c_str());
             }
         }
 

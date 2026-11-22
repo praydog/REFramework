@@ -843,7 +843,7 @@ void PluginLoader::on_draw_ui() {
             ImGui::Text("Loaded plugins:");
 
             for (auto&& [name, _] : m_plugins) {
-                ImGui::Text(name.c_str());
+                ImGui::TextUnformatted(name.c_str());
             }
         } else {
             ImGui::Text("No plugins loaded.");
