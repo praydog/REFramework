@@ -9,7 +9,7 @@ installed game.
 | `api` | `lua/rftest_api.lua` | The documented Lua API (reframework-book `src/api`): `re`, `log`, `thread`, `json`, `fs`, `io`, `sdk` type database, managed objects, strings, arrays, `ValueType`, scene access, `sdk.hook`, math types, `imgui`, `draw` | all PASS |
 | `regression` | `lua/rftest_regression.lua` | Tests for the Lua bugs fixed in the 2026-11 bug hunt; some bugs have several, and a few ImGui fixes have none (`set_tooltip`/`tree_node_*` format strings, `end_rect`, `add_ellipse`, `path_elliptical_arc_to`, the `world_text` default color) | all PASS. On builds without the fixes all FAIL except two controls |
 | `plugin_api` | `plugin/rftest_plugin.cpp` | The C plugin API (`include/reframework/API.h`) and its C++ wrapper `API.hpp` (which the C# API uses): type database, invoke, managed objects, singletons, arrays, hooks, callbacks | all PASS |
-| `plugin_regression` | `plugin/rftest_plugin.cpp` | Plugin API bugs fixed in the same bug hunt, including two callback deadlocks | all PASS (the game hangs on builds without the deadlock fix; see below) |
+| `plugin_regression` | `plugin/rftest_plugin.cpp` | Plugin API bugs fixed in the same bug hunt, including two callback deadlocks; a Lua state the plugin creates with `create_script_state` keeps objects its script `add_ref()`s and releases them when deleted | all PASS (the game hangs on builds without the deadlock fix; see below) |
 | `csharp` | `csharp/rftest_csharp.cs` | The C# API (REFramework.NET), untyped: type database, method and field lookup, static/instance invoke, managed strings, struct arguments and returns, `ValueType` and boxed value-type instance calls, `MethodHook` (args, return replacement, `Skip`, a struct return with a Double), the `UpdateBehavior` callback | all PASS. Not in the default `-Suites`; needs REFramework.NET (`-CSharpBin`). The first launch in a game generates its reference assemblies, which takes a few minutes |
 | `config` | `run/Run-RFTests.ps1 -Scenario MalformedConfig` | A non-numeric value for a numeric config key must not stop REFramework from starting or discard later settings (kananlib `Config::get`) | PASS |
 
@@ -193,4 +193,6 @@ fix goes in `S:last_frame_test(name, fn)` (same contract as `frame_test`). New L
 to `Install-Suites` and `Get-ExpectedSuites` in the runner.
 
 Plugin: add a `record(...)` call to the matching stage in `rftest_plugin.cpp`; tests that need the game running go in
-`api_runtime_tests` (game thread) or the `on_present` schedule.
+`api_runtime_tests` (game thread) or the `on_present` schedule; tests over several frames on the game thread step from
+`on_pre_update` (like `multistate_step`). The plugin links REFramework's Lua (`dependencies/lua`, compiled in by
+`build.bat`) to run code in the Lua states it creates; call into them only between `lock_lua` and `unlock_lua`.

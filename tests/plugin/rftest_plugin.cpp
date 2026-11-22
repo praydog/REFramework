@@ -5,6 +5,9 @@
 //   plugin_api         documented plugin API behavior; every test passes on a healthy build.
 //   plugin_regression  bugs fixed in the 2026-11 bug hunt; fail without the fixes.
 //
+// plugin_regression also runs Lua code in a Lua state the plugin creates (create_script_state), through the copy of
+// dependencies/lua that build.bat compiles into the plugin.
+//
 // The two callback re-entrancy tests run last because, without the fix, they deadlock the game. Before running them
 // the plugin waits for the Lua suites' result files (or a frame budget), writes every result so far, and pre-records
 // those two tests as FAIL, so a hang still leaves a complete results file behind.
@@ -544,6 +547,247 @@ void on_lua_created_registers(lua_State*) {
 }
 
 // ----------------------------------------------------------------------------------------------------------------
+// plugin_regression: a Lua state the plugin creates (create_script_state / delete_script_state)
+// ----------------------------------------------------------------------------------------------------------------
+// REFramework keeps its bookkeeping for engine objects (the wrapper cache, the engine references Lua holds, the
+// wrappers pushed recently) in each Lua state's registry. A state a plugin creates must get its own, keep what its
+// scripts add_ref() like the main state does, and give its references back when the plugin deletes it.
+//
+// The state, L2, creates an array and keeps it with add_ref() the way the Lua regression test "an array kept with
+// add_ref() stays intact across frames" does: stored into a table a full collection made old, then two forced steps.
+// For MS_FRAMES frames L2 then collects every frame and checks the array's size and elements, and that pushing its
+// address again gives the wrapper it holds. The plugin takes its own engine reference before the forced steps, so the
+// array outlives L2 (a build whose collector finalizes the held wrapper fails on the count instead of freeing the
+// array under L2) and its count can be read throughout: the count must not move while L2 holds the array, and must
+// drop by exactly one (L2's reference) once ScriptRunner has processed the deletion, which it does in its next on_frame.
+//
+// Runs on the game thread (UpdateBehavior) while the main state's suites run. Every call into L2 is under lock_lua,
+// which also keeps REFramework's per-frame collection of L2 out. A script reset destroys plugin-created states; the
+// runner never resets scripts.
+const char* const MULTI_STATE = "a plugin-created Lua state keeps add_ref'd objects and releases them when deleted";
+constexpr int MS_FRAMES = 30;         // frames L2 holds the array, collecting every frame
+constexpr int MS_DELETE_FRAMES = 300; // budget for the deletion to be processed
+constexpr int MS_SETTLE_FRAMES = 10;  // frames after the count first moves before the final read
+constexpr int MS_START_FRAMES = 600;  // budget for the main state to exist (the first script reset destroys states
+                                      // created before it)
+
+const char* const MS_SETUP = R"lua(
+local M = { held = {} }
+rftest_ms = M
+-- In a separate function, so no stale stack slot keeps the array reachable during the collections.
+local function make()
+    local arr = sdk.create_managed_array("System.String", 4)
+    if arr == nil then error("sdk.create_managed_array returned nil") end
+    for i = 0, 3 do arr[i] = sdk.create_managed_string("rftest_ms_" .. i) end
+    M.held[1] = arr:add_ref()
+    M.elements = {}
+    for i = 0, 3 do M.elements[i] = arr:get_element(i):get_address() end
+    M.addr = arr:get_address()
+end
+collectgarbage("collect")
+make()
+
+-- Called once the plugin holds its own reference: two minor collections right after the store.
+function M.settle()
+    collectgarbage("step")
+    collectgarbage("step")
+end
+
+-- Returns nil if the held array is intact, else what is wrong with it.
+function M.check()
+    collectgarbage("collect")
+    for _ = 1, 4 do collectgarbage("step") end
+    local arr = M.held[1]
+    if arr == nil then return "held[1] is nil" end
+    local ok, n = pcall(arr.get_size, arr)
+    if not (ok and n == 4) then return "size is " .. tostring(n) end
+    for i = 0, 3 do
+        local okp, p = pcall(function() return arr:get_element(i):get_address() end)
+        if not (okp and p == M.elements[i]) then
+            return string.format("element %d is %s, was %x", i, okp and string.format("%x", p) or tostring(p), M.elements[i])
+        end
+    end
+    if not rawequal(sdk.to_managed_object(M.addr), arr) then
+        return "sdk.to_managed_object(address) gave a different wrapper than the one held"
+    end
+    return nil
+end
+
+return M.addr
+)lua";
+
+struct MultiState {
+    int step{0};  // 0 waiting for the main state, 1 L2 holds the array, 2 L2 deleted, 3 count moved, 4 done
+    int frame{0}; // frames in the current step
+    lua_State* L{};
+    API::ManagedObject* arr{};
+    int rc_before{0}; // the array's engine reference count before the plugin's add_ref
+    int rc_held{0};   // after it, while L2 holds the array
+    int rc_moved{0};  // the first different count after delete_script_state
+    int delete_frames{0};
+};
+
+MultiState g_ms{};
+std::atomic<bool> g_ms_done{false};
+
+std::string pop_lua_error(lua_State* L) {
+    const auto msg = lua_tostring(L, -1);
+    std::string out = msg != nullptr ? msg : "(error object is not a string)";
+    lua_pop(L, 1);
+    return out;
+}
+
+// Runs MS_SETUP in L. Returns an error message, or "" with the array's address in addr.
+std::string ms_setup(lua_State* L, uintptr_t& addr) {
+    if (luaL_loadstring(L, MS_SETUP) != LUA_OK || lua_pcall(L, 0, 1, 0) != LUA_OK) {
+        return pop_lua_error(L);
+    }
+
+    int is_num = 0;
+    addr = (uintptr_t)lua_tointegerx(L, -1, &is_num);
+    lua_pop(L, 1);
+    return is_num ? "" : "the setup chunk returned no address";
+}
+
+// Calls rftest_ms[name]() in L, which returns nil when all is well. Returns "", or what it returned or raised.
+std::string ms_call(lua_State* L, const char* name) {
+    if (lua_getglobal(L, "rftest_ms") != LUA_TTABLE) {
+        lua_pop(L, 1);
+        return "rftest_ms is gone";
+    }
+
+    lua_getfield(L, -1, name);
+    lua_remove(L, -2);
+
+    if (lua_pcall(L, 0, 1, 0) != LUA_OK) {
+        return pop_lua_error(L);
+    }
+
+    const auto msg = lua_tostring(L, -1);
+    std::string out = lua_isnil(L, -1) ? "" : msg != nullptr ? msg : fmt("%s() returned a non-string", name);
+    lua_pop(L, 1);
+    return out;
+}
+
+void ms_finish(bool ok, const std::string& detail) {
+    auto& m = g_ms;
+
+    if (m.L != nullptr) {
+        g_param->functions->delete_script_state(m.L);
+        m.L = nullptr;
+    }
+
+    if (m.arr != nullptr) {
+        m.arr->release();
+        m.arr = nullptr;
+    }
+
+    g_regression.record(MULTI_STATE, ok, detail);
+    m.step = 4;
+    g_ms_done = true;
+}
+
+// Called once per frame from on_pre_update until g_ms_done.
+void multistate_step() {
+    auto& m = g_ms;
+    const auto fns = g_param->functions;
+    ++m.frame;
+
+    switch (m.step) {
+    case 0: {
+        if (g_lua_created == 0) {
+            if (m.frame > MS_START_FRAMES) {
+                ms_finish(false, fmt("no main Lua state after %d frames", MS_START_FRAMES));
+            }
+            return;
+        }
+
+        m.L = fns->create_script_state();
+        if (m.L == nullptr) {
+            ms_finish(false, "create_script_state returned null");
+            return;
+        }
+
+        // The plugin's reference is taken under the same lock as the setup, before any collection of L2.
+        uintptr_t addr = 0;
+        int rc_settled = 0;
+        fns->lock_lua();
+        auto err = ms_setup(m.L, addr);
+        if (err.empty() && !g_param->sdk->managed_object->is_managed_object((void*)addr)) {
+            err = fmt("address 0x%llx from L2 is not a managed object", (unsigned long long)addr);
+        }
+        if (err.empty()) {
+            m.arr = (API::ManagedObject*)addr;
+            m.rc_before = m.arr->get_ref_count();
+            m.arr->add_ref();
+            m.rc_held = m.arr->get_ref_count();
+            err = ms_call(m.L, "settle");
+            rc_settled = m.arr->get_ref_count();
+        }
+        fns->unlock_lua();
+
+        if (!err.empty()) {
+            ms_finish(false, "setup in L2: " + err);
+        } else if (m.rc_held != m.rc_before + 1) {
+            ms_finish(false, fmt("the plugin's add_ref moved the engine reference count %d -> %d", m.rc_before, m.rc_held));
+        } else if (rc_settled != m.rc_held) {
+            ms_finish(false, fmt("engine refs %d after two collection steps in L2, expected %d (L2 released the array it holds)",
+                rc_settled, m.rc_held));
+        } else {
+            m.step = 1;
+            m.frame = 0;
+        }
+        break;
+    }
+
+    case 1: {
+        fns->lock_lua();
+        const auto err = ms_call(m.L, "check");
+        fns->unlock_lua();
+        const auto rc = m.arr->get_ref_count();
+
+        if (!err.empty()) {
+            ms_finish(false, fmt("frame %d, in L2: %s (engine refs %d, expected %d)", m.frame, err.c_str(), rc, m.rc_held));
+        } else if (rc != m.rc_held) {
+            ms_finish(false, fmt("frame %d: engine refs %d while L2 holds the array, expected %d (L2 released it)", m.frame, rc,
+                m.rc_held));
+        } else if (m.frame >= MS_FRAMES) {
+            fns->delete_script_state(m.L);
+            m.L = nullptr;
+            m.step = 2;
+            m.frame = 0;
+        }
+        break;
+    }
+
+    case 2: {
+        const auto rc = m.arr->get_ref_count();
+
+        if (rc != m.rc_held) {
+            m.rc_moved = rc;
+            m.delete_frames = m.frame;
+            m.step = 3;
+            m.frame = 0;
+        } else if (m.frame > MS_DELETE_FRAMES) {
+            ms_finish(false, fmt("engine refs still %d %d frames after delete_script_state: the deleted state kept its reference",
+                rc, MS_DELETE_FRAMES));
+        }
+        break;
+    }
+
+    case 3:
+        if (m.frame >= MS_SETTLE_FRAMES) {
+            const auto rc = m.arr->get_ref_count();
+            ms_finish(rc == m.rc_held - 1,
+                fmt("engine refs %d before the plugin's add_ref, %d while L2 held the array (%d frames, collected every frame), "
+                    "%d after delete_script_state (expected %d; first moved to %d after %d frames)",
+                    m.rc_before, m.rc_held, MS_FRAMES, rc, m.rc_held - 1, m.rc_moved, m.delete_frames));
+        }
+        break;
+    }
+}
+
+// ----------------------------------------------------------------------------------------------------------------
 // Callbacks and the test schedule
 // ----------------------------------------------------------------------------------------------------------------
 enum class Stage { WaitGame, Runtime, WaitLua, LuaCreated, Present, Finish, Done };
@@ -617,6 +861,11 @@ void on_pre_update() {
         api_runtime_tests();
         api_hook_install();
     }
+
+    // g_ms_done is set only once the test has recorded its result: on_present writes the file as soon as it sees it.
+    if (!g_ms_done && g_stage.load() == Stage::WaitLua) {
+        multistate_step();
+    }
 }
 
 void on_post_update() {
@@ -644,9 +893,9 @@ void on_present() {
 
     // Progress trail for runs that stall: what the plugin is waiting on and whether the game thread is still updating.
     if (frame % 300 == 0 && g_stage.load() != Stage::Done) {
-        g_param->functions->log_info("[rftest] plugin: frame %d stage %d (%d frames in) pre_update %d post_update %d lua_done %d hooks_tested %d",
+        g_param->functions->log_info("[rftest] plugin: frame %d stage %d (%d frames in) pre_update %d post_update %d lua_done %d hooks_tested %d multistate_done %d",
             frame, (int)g_stage.load(), g_stage_frame.load(), g_pre_update.load(), g_post_update.load(), (int)lua_suites_done(),
-            (int)g_hooks_tested.load());
+            (int)g_hooks_tested.load(), (int)g_ms_done.load());
     }
 
     switch (g_stage.load()) {
@@ -667,7 +916,7 @@ void on_present() {
 
     case Stage::WaitLua:
         // Wait for the Lua suites (so a hang below cannot cost their results), at most ~3000 frames.
-        if (g_hooks_tested && (lua_suites_done() || g_stage_frame > 3000)) {
+        if (g_hooks_tested && g_ms_done && (lua_suites_done() || g_stage_frame > 3000)) {
             auto& S = g_api;
             // Late, not in api_runtime_tests: by now the game has created most of its managed singletons, which is
             // when a fixed-size buffer in the wrapper runs out.
