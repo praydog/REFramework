@@ -819,4 +819,166 @@ do
     end)
 end
 
+-------------------------------------------------------------------------------------------------------------------
+-- draw.sphere / draw.capsule when the camera's up vector can't be found. get_camera_up() looks up the camera's
+-- GameObject, its transform, the transform's joints and the first joint, and has to give up (the shape isn't drawn)
+-- when one of them is null. It wrote `std::nullopt;` without `return`, so it went on with the null.
+-- REFramework calls via.Transform.get_GameObject and get_Joints through their function pointers, so the test's hooks
+-- replace REFramework's own calls while the test draws: get_Joints returns null or an empty via.Joint[] (whose
+-- element 0 is null), get_GameObject returns null or a GameObject whose transform field is null. The step an
+-- unfixed build takes next with the null is a hooked method too (get_Joints on the transform, System.Array.GetLength
+-- on the array, via.Joint.get_Rotation on the joint): its hook counts the call and skips the original, so the
+-- unfixed build fails on that count instead of running engine code on a null object.
+-- A null GameObject is different: REFramework reads the transform field itself, so no hook can stop it, and an
+-- unfixed build takes an access violation there (REFramework is built with /EHa, so sol is expected to turn it into
+-- a Lua error). That case runs after every other last test has finished.
+-- Both are last tests: game code calls the hooked methods too, and every call runs the Lua hooks for the rest of the
+-- session. Their pass details count the calls the hooks passed through since they were installed.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local transform_t = sdk.find_type_definition("via.Transform")
+    local get_go = transform_t:get_method("get_GameObject")
+    local get_joints = transform_t:get_method("get_Joints")
+    local get_length = sdk.find_type_definition("System.Array"):get_method("GetLength")
+    local get_rotation = sdk.find_type_definition("via.Joint"):get_method("get_Rotation")
+    local NULL_GO, NO_TRANSFORM = "null GameObject", "GameObject without a transform"
+    local NULL_JOINTS, NO_JOINT = "null joints array", "empty joints array"
+    local armed_tid, mode, run, installed_frame = nil, nil, nil, nil
+    local passed = { get_GameObject = 0, get_Joints = 0, GetLength = 0, get_Rotation = 0 }
+
+    local function ours() return armed_tid ~= nil and thread.get_id() == armed_tid end
+    local function is_null(p) return sdk.to_int64(p) == 0 end
+
+    local function install_hooks()
+        -- Only the first get_GameObject call is replaced: an unfixed build that went on draws with the real camera.
+        sdk.hook(get_go, function(args)
+            if ours() and (mode == NULL_GO or mode == NO_TRANSFORM) and not run.go_replaced then
+                run.go_replaced, run.go_pending = true, true
+                return sdk.PreHookResult.SKIP_ORIGINAL
+            end
+            passed.get_GameObject = passed.get_GameObject + 1
+        end, function(retval)
+            if not (ours() and run.go_pending) then return retval end
+            run.go_pending = false
+            return sdk.to_ptr(mode == NULL_GO and 0 or run.fake_go)
+        end)
+        sdk.hook(get_joints, function(args)
+            if ours() and is_null(args[2]) then
+                run.joints_on_null, run.joints_pending = run.joints_on_null + 1, true
+                return sdk.PreHookResult.SKIP_ORIGINAL
+            end
+            if ours() and (mode == NULL_JOINTS or mode == NO_JOINT) then
+                run.joints_replaced, run.joints_pending = run.joints_replaced + 1, true
+                return sdk.PreHookResult.SKIP_ORIGINAL
+            end
+            passed.get_Joints = passed.get_Joints + 1
+        end, function(retval)
+            if not (ours() and run.joints_pending) then return retval end
+            run.joints_pending = false
+            return sdk.to_ptr(mode == NO_JOINT and run.empty:get_address() or 0)
+        end)
+        sdk.hook(get_length, function(args)
+            if ours() and is_null(args[2]) then
+                run.length_on_null, run.length_pending = run.length_on_null + 1, true
+                return sdk.PreHookResult.SKIP_ORIGINAL
+            end
+            passed.GetLength = passed.GetLength + 1
+        end, function(retval)
+            if not (ours() and run.length_pending) then return retval end
+            run.length_pending = false
+            return sdk.to_ptr(0)
+        end)
+        -- A struct return: args[1] is the return buffer, args[3] the joint.
+        sdk.hook(get_rotation, function(args)
+            if ours() and is_null(args[3]) then
+                run.rotation_on_null, run.rotation_buffer = run.rotation_on_null + 1, sdk.to_int64(args[1])
+                return sdk.PreHookResult.SKIP_ORIGINAL
+            end
+            passed.get_Rotation = passed.get_Rotation + 1
+        end, function(retval)
+            if not (ours() and run.rotation_buffer ~= nil) then return retval end
+            local buffer = run.rotation_buffer
+            run.rotation_buffer = nil
+            return sdk.to_ptr(buffer)
+        end)
+    end
+
+    -- Color 0 (transparent) and no outline: an unfixed build that goes on draws nothing visible.
+    local draws = {
+        { "draw.sphere", function() draw.sphere(Vector3f.new(0, 0, 0), 1.0, 0, false) end },
+        { "draw.capsule", function() draw.capsule(Vector3f.new(0, 0, 0), Vector3f.new(0, 1, 0), 1.0, 0, false) end },
+    }
+
+    local function run_case(case_mode, setup)
+        for _, d in ipairs(draws) do
+            local label = d[1] .. ", " .. case_mode
+            run = { joints_replaced = 0, joints_on_null = 0, length_on_null = 0, rotation_on_null = 0 }
+            setup(run)
+            mode, armed_tid = case_mode, thread.get_id()
+            local ok, err = pcall(d[2])
+            mode, armed_tid = nil, nil
+            H.truthy(ok, label .. ": raised " .. tostring(err))
+            if case_mode == NULL_GO or case_mode == NO_TRANSFORM then
+                H.truthy(run.go_replaced, label .. ": the get_GameObject hook replaced REFramework's call")
+            else
+                H.truthy(run.joints_replaced > 0, label .. ": the get_Joints hook replaced REFramework's call")
+            end
+            H.eq(run.joints_on_null, 0, label .. ": via.Transform.get_Joints calls on the null transform")
+            H.eq(run.length_on_null, 0, label .. ": System.Array.GetLength calls on the null joints array")
+            H.eq(run.rotation_on_null, 0, label .. ": via.Joint.get_Rotation calls on the null joint")
+        end
+    end
+
+    local function need_camera()
+        H.truthy(sdk.get_primary_camera(), "sdk.get_primary_camera() (without a camera get_camera_up returns before "
+            .. "the calls this test replaces)")
+    end
+
+    local function passed_through(frame)
+        return string.format("calls the hooks passed through in the %d frames since they were installed: "
+            .. "get_GameObject %d, get_Joints %d, System.Array.GetLength %d, via.Joint.get_Rotation %d",
+            frame, passed.get_GameObject, passed.get_Joints, passed.GetLength, passed.get_Rotation)
+    end
+
+    S:last_frame_test("draw.sphere / draw.capsule draw nothing when the camera's transform or joints are missing", function(frame)
+        if frame == 1 then
+            H.truthy(get_go, "via.Transform.get_GameObject (get_camera_up calls it)")
+            H.truthy(get_joints, "via.Transform.get_Joints (get_camera_up calls it)")
+            H.truthy(get_length, "System.Array.GetLength (get_camera_up calls it on the joints array)")
+            H.truthy(get_rotation, "via.Joint.get_Rotation (get_camera_up calls it on the first joint)")
+            install_hooks()
+            installed_frame = S.frame
+            return false
+        end
+        if frame < 3 then return false end
+        need_camera()
+
+        run_case(NULL_JOINTS, function() end)
+        run_case(NO_JOINT, function(r)
+            r.empty = H.truthy(sdk.create_managed_array("via.Joint", 0), "create_managed_array(via.Joint, 0)")
+        end)
+        -- The fake GameObject starts 0x40 bytes into a new System.Byte[0x100], inside its zeroed data (the array
+        -- header is 0x20 or 0x30 bytes), so the transform field REFramework reads (at 0x18 or 0x20) is 0.
+        run_case(NO_TRANSFORM, function(r)
+            r.fake_array = H.truthy(sdk.create_managed_array("System.Byte", 0x100), "create_managed_array(System.Byte, 0x100)")
+            for off = 0x40, 0x78, 8 do H.eq(r.fake_array:read_qword(off), 0, string.format("fake GameObject bytes at 0x%X", off)) end
+            r.fake_go = r.fake_array:get_address() + 0x40
+        end)
+
+        return passed_through(S.frame - installed_frame)
+    end)
+
+    local NULL_GO_TEST = "draw.sphere / draw.capsule draw nothing when the camera's GameObject is null"
+    S:last_frame_test(NULL_GO_TEST, function(frame)
+        -- An unfixed build takes an access violation here: wait until no other last test is still pending.
+        for _, r in ipairs(S.results) do
+            if r.name ~= NULL_GO_TEST and tostring(r.detail):sub(1, 8) == "pending:" then return false end
+        end
+        H.truthy(installed_frame, "hooks installed by the transform/joints test")
+        need_camera()
+        run_case(NULL_GO, function() end)
+        return passed_through(S.frame - installed_frame)
+    end)
+end
+
 S:finish()

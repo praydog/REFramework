@@ -136,6 +136,12 @@ The regression suites are meant to fail on such builds, and they do so safely wh
 - The Lua regression test for hooking a struct-returning method with a float parameter hangs the
   game without the fix. It is a `last_frame_test`: it runs after the plugin suite finished, with its result
   pre-recorded as FAIL.
+- The Lua regression tests for `draw.sphere`/`draw.capsule` when the camera's GameObject, transform or joints are
+  missing replace REFramework's calls to `via.Transform.get_GameObject` and `get_Joints` with hooks. Without the fix
+  REFramework goes on with the null; the next engine call it makes with it is hooked too, counted and skipped, so the
+  test fails without running engine code on a null object. A null GameObject is read by REFramework itself: without
+  the fix that is an access violation, expected to surface as a Lua error. Both are `last_frame_test`s (the hooked
+  methods are hot in game code), the null-GameObject one after every other last test.
 
 ## Other tools
 
