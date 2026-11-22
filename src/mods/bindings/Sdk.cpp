@@ -2265,7 +2265,7 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
     throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
 }
 
-bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
+bool is_valid_offset(::REManagedObject* obj, int32_t offset, uint32_t value_size) {
     if (obj == nullptr || !REManagedObject::is_managed_object(obj)) {
         return false;
     }
@@ -2276,9 +2276,11 @@ bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
         return false;
     }
 
+    // The type's size, except for the kinds whose real size depends on their contents and is known: arrays (elements
+    // after the header) and strings (0x14 + 2 * (length + 1)). Other kinds, delegates included, keep the type's size.
     auto size = typedefinition->get_size();
 
-    if (typedefinition->is_array()) {
+    if (typedefinition->is_array() || typedefinition->get_vm_obj_type() == via::clr::VMObjType::String) {
         size = obj->get_size();
     }
 
@@ -2287,12 +2289,13 @@ bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
         return false;
     }
 
-    return true;
+    // The whole value must fit, not just its first byte.
+    return value_size <= size - (uint32_t)offset;
 }
 
 template <typename T>
 void write_memory(::REManagedObject* obj, int32_t offset, T value) {
-    if (!is_valid_offset(obj, offset)) {
+    if (!is_valid_offset(obj, offset, sizeof(T))) {
         return;
     }
 
@@ -2301,7 +2304,7 @@ void write_memory(::REManagedObject* obj, int32_t offset, T value) {
 
 template <typename T>
 T read_memory(::REManagedObject* obj, int32_t offset) {
-    if (!is_valid_offset(obj, offset)) {
+    if (!is_valid_offset(obj, offset, sizeof(T))) {
         return 0;
     }
 
