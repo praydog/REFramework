@@ -550,8 +550,9 @@ void on_lua_created_registers(lua_State*) {
 // plugin_regression: a Lua state the plugin creates (create_script_state / delete_script_state)
 // ----------------------------------------------------------------------------------------------------------------
 // REFramework keeps its bookkeeping for engine objects (the wrapper cache, the engine references Lua holds, the
-// wrappers pushed recently) in each Lua state's registry. A state a plugin creates must get its own, keep what its
-// scripts add_ref() like the main state does, and give its references back when the plugin deletes it.
+// tracker that releases them once their wrappers are gone) in each Lua state's registry. A state a plugin creates
+// must get its own, keep what its scripts add_ref() like the main state does, and give its references back when the
+// plugin deletes it.
 //
 // The state, L2, creates an array and keeps it with add_ref() the way the Lua regression test "an array kept with
 // add_ref() stays intact across frames" does: stored into a table a full collection made old, then two forced steps.

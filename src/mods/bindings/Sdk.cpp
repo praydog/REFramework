@@ -85,7 +85,7 @@ void set_count(lua_State* l, const void* key, lua_Integer addr, std::optional<lu
     lua_pop(l, 1);
 }
 
-// Lifetime of managed object wrappers (experiment E-lite). Wrappers have no __gc: the collector frees a dead wrapper
+// Lifetime of managed object wrappers. Wrappers have no __gc: the collector frees a dead wrapper
 // like any other userdata (no finalizer call, no resurrection, no second cycle) and clears its weak cache entry. Engine
 // references are kept per address instead of per wrapper: WrapperLifetime knows every address Lua holds a reference
 // for, and scan_wrapper_references (once per frame, after the frame's GC step) visits them round-robin. A visit that

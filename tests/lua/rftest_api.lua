@@ -814,8 +814,10 @@ end)
 -- The box a ValueType gets for a System.Enum method is a temporary engine object. A first version of that code took
 -- and released a reference on it: one call returned the right string, but 2000 calls per frame raised exceptions and
 -- crashed RE9 and SF6 within a frame. Runs last, recorded as FAIL before it starts, because the failure is a crash.
--- (It doesn't check other objects for corruption: arrays a script holds across frames with add_ref() get corrupted
--- without any of these calls, on master too, so such a check can't tell the box apart.)
+-- (It doesn't check other objects for corruption: when it was written, arrays a script holds across frames with
+-- add_ref() were corrupted without any of these calls, on master too, so such a check couldn't tell the box apart.
+-- That was a separate bug, fixed since; the regression test "an array kept with add_ref() stays intact across frames"
+-- covers it.)
 do
     local names = { [0] = "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" }
     S:last_frame_test("ValueType System.Enum calls stay correct under load (2000 per frame, 30 frames)", function(frame)
