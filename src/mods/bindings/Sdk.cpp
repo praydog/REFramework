@@ -563,9 +563,8 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
 
     const auto addr = (lua_Integer)(uintptr_t)obj;
 
-    // only add a reference if it's a "local" object, indicated by a negative reference count
-    //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
-    // addendum: only do it when reference count is > 0, local objects seem buggy...
+    // only add a reference when the reference count is > 0. Local objects (count <= 0) get wrappers without one and
+    // aren't counted: with no __gc on wrappers, nothing would ever take such a count back down.
     // The engine count, not get_visible_ref_count(): an object whose last release REFramework has queued is still a
     // counted global object, so a push takes a reference on it like on any other.
     if (force || (int32_t)obj->get_ref_count() > 0) {
