@@ -5,6 +5,9 @@
 //   plugin_api         documented plugin API behavior; every test passes on a healthy build.
 //   plugin_regression  bugs fixed in the 2026-11 bug hunt; fail without the fixes.
 //
+// plugin_regression also runs Lua code in a Lua state the plugin creates (create_script_state), through the copy of
+// dependencies/lua that build.bat compiles into the plugin.
+//
 // The two callback re-entrancy tests run last because, without the fix, they deadlock the game. Before running them
 // the plugin waits for the Lua suites' result files (or a frame budget), writes every result so far, and pre-records
 // those two tests as FAIL, so a hang still leaves a complete results file behind.
@@ -23,8 +26,6 @@
 
 #include <reframework/API.hpp>
 
-// The Lua REFramework links (dependencies/lua), compiled into this plugin by build.bat, to run code in a Lua state the
-// plugin creates with create_script_state.
 #include <lua.hpp>
 
 using API = reframework::API;

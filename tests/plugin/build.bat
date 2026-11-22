@@ -18,8 +18,8 @@ call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul || exit /b 1
 set "OUT=%HERE%out"
 if not exist "%OUT%" mkdir "%OUT%"
 rem vcvars may change the current directory, so every output path is explicit.
-rem The plugin runs code in a Lua state it creates, so it links the Lua REFramework links: every C file in
-rem dependencies\lua\src, built without extra defines like REFramework's own lua target.
+rem The plugin registers a Lua function (rftest_peek) in REFramework's Lua state, so it links the Lua REFramework
+rem links: every C file in dependencies\lua\src, built without extra defines like REFramework's own lua target.
 set "LUASRC=%HERE%..\..\dependencies\lua\src"
 set "LUAOUT=%OUT%\lua"
 if not exist "%LUAOUT%" mkdir "%LUAOUT%"
