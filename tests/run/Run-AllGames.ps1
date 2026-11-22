@@ -5,8 +5,9 @@ Runs the in-game test suites (Run-RFTests.ps1) on every installed game, one afte
 .DESCRIPTION
 Games come from games.json; by default every one Steam has installed. Each game's results land in
 <OutDir>\<alias>\ (see Run-RFTests.ps1), and the combined results in <OutDir>\summary.md and summary.json.
-Exit code 0 means no suite failed in any game. Skips don't fail the run, but every one is listed with its reason
-in summary.md: a skip is lost coverage, and a skip that wasn't there before is a regression until shown otherwise.
+Exit code 0 means no suite failed and no game crashed (see Run-RFTests.ps1). Skips don't fail the run, but every one
+is listed with its reason in summary.md: a skip is lost coverage, and a skip that wasn't there before is a regression
+until shown otherwise.
 
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File tests\run\Run-AllGames.ps1 -Build C:\builds\dinput8.dll
@@ -59,7 +60,7 @@ foreach ($g in $targets) {
     $summary = Join-Path $gameOut 'summary.json'
     if (Test-Path -LiteralPath $summary) {
         $s = Get-Content -LiteralPath $summary -Raw | ConvertFrom-Json
-        $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @($s.suites); failed = @($s.failed); skipped = @($s.skipped); deviceResets = $s.deviceResets }
+        $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @($s.suites); failed = @($s.failed); skipped = @($s.skipped); crash = $s.crash; deviceResets = $s.deviceResets }
     } else {
         $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @(); failed = @('runner produced no summary'); deviceResets = 0 }
     }
@@ -68,18 +69,20 @@ foreach ($g in $targets) {
 # Combined summary: one row per game, one column per suite (pass/fail/skip).
 $suiteNames = @($all | ForEach-Object { $_.suites } | ForEach-Object { $_.Suite } | Select-Object -Unique)
 $md = @(
-    ("| Game | " + ($suiteNames -join ' | ') + " | Resets |"),
-    ("|---|" + (($suiteNames | ForEach-Object { '---' }) -join '|') + "|---|")
+    ("| Game | " + ($suiteNames -join ' | ') + " | Resets | Crash |"),
+    ("|---|" + (($suiteNames | ForEach-Object { '---' }) -join '|') + "|---|---|")
 )
 foreach ($r in $all) {
     $cells = foreach ($n in $suiteNames) {
         $s = $r.suites | Where-Object { $_.Suite -eq $n } | Select-Object -First 1
         if ($s) { "$($s.Pass)/$($s.Fail)/$($s.Skip)" } else { '-' }
     }
-    $md += "| $($r.game) | " + ($cells -join ' | ') + " | $($r.deviceResets) |"
+    $crashCell = if ($r.crash) { ($r.crash -split ':')[0] } else { '-' }
+    $md += "| $($r.game) | " + ($cells -join ' | ') + " | $($r.deviceResets) | $crashCell |"
 }
 $md += ''
 $md += 'Cells are pass/fail/skip. Thousands of device resets mean the game was stuck resizing (see tests/README.md).'
+$md += 'Crash: REFramework wrote reframework_crash.dmp during the run (also while the game was closing); it fails the game.'
 $failures = @($all | Where-Object { $_.failed.Count -gt 0 })
 if ($failures) {
     $md += ''
