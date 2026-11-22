@@ -1876,6 +1876,17 @@ sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition
     }
 
     const auto field_type = field->get_type();
+
+    // A literal String field has no managed String: its data is the constant's UTF-8 text in the type database's
+    // string table. Init data outside the string table is left to the path below.
+    static const auto system_string = ::sdk::find_type_definition("System.String");
+
+    if (field_type != nullptr && field_type == system_string && field->is_literal() && field->is_static()) {
+        if (const auto text = field->get_init_data_string(); text != nullptr) {
+            return sol::make_object(l, std::string_view{text});
+        }
+    }
+
     auto data = field->get_data_raw(real_obj, ty->is_value_type() && !managed_obj_passed);
 
     if (data == nullptr) {

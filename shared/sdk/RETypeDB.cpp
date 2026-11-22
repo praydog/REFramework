@@ -335,6 +335,18 @@ void* REField::get_init_data() const {
     return init_data;
 }
 
+const char* REField::get_init_data_string() const {
+    auto tdb = RETypeDB::get();
+
+    const auto init_data_offset = tdb->get_init_data_at(get_init_data_index());
+
+    if (init_data_offset >= 0) {
+        return nullptr;
+    }
+
+    return tdb->get_string(0u - (uint32_t)init_data_offset);
+}
+
 uint32_t REField::get_offset_from_fieldptr() const {
     if (sdk::tdb_dispatch::needs_pre_impl()) {
         // TDB 67 (DMC5): offset directly on tdb67::REField.
