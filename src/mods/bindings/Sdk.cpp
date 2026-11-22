@@ -1,6 +1,10 @@
 #include <cstdint>
 #include <concepts>
+#include <algorithm>
+#include <bit>
+#include <memory>
 #include <unordered_map>
+#include <vector>
 
 #include <hde64.h>
 
@@ -17,6 +21,8 @@
 #include "utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
+
+#include <lstate.h> // weird include order because of sol
 
 #include "Sdk.hpp"
 
@@ -37,6 +43,507 @@ struct BehaviorTree : public ::REManagedObject {
 
 namespace detail {
 constexpr uintptr_t FAKE_OBJECT_ADDR = 12345;
+
+// Registry keys: only their addresses matter. Each Lua state's registry holds its own tables under them (set up in
+// open_sdk), so the push path and the reference bookkeeping reach them with lua_rawgetp instead of looking up globals
+// by name or going through sol objects (each of which takes and drops a registry reference).
+char s_objects_key{};             // _sol_lua_push_objects: weak cache of wrappers, keyed by object address
+char s_ref_counts_key{};          // _sol_lua_push_ref_counts: engine references Lua holds, keyed by object address
+char s_lifetime_key{};            // WrapperLifetime userdata: the addresses Lua holds a reference for (see below)
+
+// The bookkeeping tables hold Lua integers keyed by object address; a missing entry reads as nullopt.
+std::optional<lua_Integer> get_count(lua_State* l, const void* key, lua_Integer addr) {
+    std::optional<lua_Integer> result{};
+
+    lua_rawgetp(l, LUA_REGISTRYINDEX, key);
+
+    if (lua_rawgeti(l, -1, addr) == LUA_TNUMBER) {
+        result = lua_tointeger(l, -1);
+    }
+
+    lua_pop(l, 2);
+    return result;
+}
+
+bool has_entry(lua_State* l, const void* key, lua_Integer addr) {
+    lua_rawgetp(l, LUA_REGISTRYINDEX, key);
+    const bool present = lua_rawgeti(l, -1, addr) != LUA_TNIL;
+    lua_pop(l, 2);
+    return present;
+}
+
+void set_count(lua_State* l, const void* key, lua_Integer addr, std::optional<lua_Integer> value) {
+    lua_rawgetp(l, LUA_REGISTRYINDEX, key);
+
+    if (value) {
+        lua_pushinteger(l, *value);
+    } else {
+        lua_pushnil(l);
+    }
+
+    lua_rawseti(l, -2, addr);
+    lua_pop(l, 1);
+}
+
+// Lifetime of managed object wrappers (experiment E-lite). Wrappers have no __gc: the collector frees a dead wrapper
+// like any other userdata (no finalizer call, no resurrection, no second cycle) and clears its weak cache entry. Engine
+// references are kept per address instead of per wrapper: WrapperLifetime knows every address Lua holds a reference
+// for, and scan_wrapper_references (once per frame, after the frame's GC step) visits them round-robin. A visit that
+// finds no cached wrapper marks the address; a later visit at least RELEASE_AFTER_FRAMES frames on that still finds
+// none releases its reference. A push that misses the cache while the address is still tracked reuses the reference
+// instead of adding one.
+//
+// Invariants:
+// - An address is tracked exactly while ref_counts[addr] > 0: track_reference and untrack_reference run where the
+//   ref_counts entry is created or removed (add_ref, release, the scan, close). Pushes reuse a tracked reference, so
+//   ref_counts[addr] stays 1.
+// - While a wrapper that relies on an address's reference is alive, the cache holds a wrapper for that address: every
+//   push caches the wrapper it makes, add_ref() caches the wrapper it's called on if release() had dropped the entry,
+//   and release() untracks the address when it drops the entry. One exception: Lua clears weak values before it
+//   resurrects objects for finalization (lgc.c, atomic), so a wrapper reachable only from objects waiting for their
+//   finalizers loses its entry while those finalizers can still use it. The scan releases nothing while any finalizer
+//   is pending (finalizers_pending): the generational collector runs them at the end of the collection, the
+//   incremental one only after the whole sweep, possibly many frames later, and an emergency collection leaves them
+//   for the next one. A finalizer that stores the wrapper away keeps a wrapper without a reference, as it did when the
+//   wrapper's own __gc released the reference.
+// - So a visit that finds no cached wrapper while no finalizer is pending could release at once. The second visit is
+//   for objects a script pushes again and again whose wrappers keep dying (minor collections): a push between the
+//   visits caches a wrapper again, takes the reference over, and the next visit clears the mark, instead of paying an
+//   engine release and add_ref each time.
+// - Passes. A pass starts with the scan after the last one ended and covers the N slots tracked then: a slot tracked
+//   during the pass counts as visited (it goes in at the cursor, see track_reference), and untracking moves no slot
+//   not visited yet behind the cursor (see free_slot). Each scan of the pass visits
+//   max(MIN_VISITS, ceil(N / PASS_FRAMES)) slots, plus INFLOW_VISITS * I where I is the smaller of the numbers of
+//   addresses tracked anew in the last two frames, so a pass ends within PASS_FRAMES scans whatever is tracked or
+//   released meanwhile.
+// - Latency. Whatever collection freed a wrapper (minor or major, generational or incremental), the first visit of
+//   its slot at or after the next scan s marks it: within the rest of the current pass, or within the next pass if the
+//   slot was visited just before. Its first later visit at least RELEASE_AFTER_FRAMES frames after the mark that finds
+//   no finalizer pending releases it, normally in the pass after. A release() at a pass boundary moves the last slot
+//   into the hole, and the slot the last scan of a pass marked can land where the next pass visits it one frame later,
+//   too early; its next visit is then up to two passes away. So the reference is released within 4 * PASS_FRAMES scans
+//   counting s, and each visit that finds a finalizer pending postpones it by up to 2 * PASS_FRAMES scans. While all
+//   slots fit in one scan's visits, the release comes RELEASE_AFTER_FRAMES scans after s. A script whose wrappers die
+//   at I per frame keeps at most 4 * PASS_FRAMES * I addresses tracked beyond the ones it holds.
+// - Inflow. Without the INFLOW_VISITS term, more than about MIN_VISITS / 2 short-lived addresses tracked a frame would
+//   make passes, the backlog and the latency jump: a slot is marked in the pass after the one it was tracked in and
+//   released in the one after that, so a pass of L scans leaves about 3 * I * L slots for the next one, and passes
+//   grow from 2 scans to PASS_FRAMES once 3 * I exceeds the visits of a scan. With the term, a scan visits more than
+//   that: with nothing held, passes take at most 2 scans, so about 8 * I addresses stay tracked and each is released
+//   within about 6 scans. Held addresses H lengthen passes to about H / (INFLOW_VISITS * I) scans. A burst in a
+//   single frame adds no visits: its addresses are released within the bound above, at the pass's share per scan.
+// - Cost. A scan does max(MIN_VISITS, ceil(N / PASS_FRAMES)) + INFLOW_VISITS * I cache lookups plus its releases,
+//   with no time budget: MIN_VISITS while fewer than MIN_VISITS * PASS_FRAMES addresses are tracked and none come in,
+//   growing with N, held or not. One lookup walks the hash chain of the address's integer key: Lua 5.4.3 hashes
+//   integers by their low bits (ltable.c, hashint), which a 16-byte aligned address leaves zero, so chains are about
+//   16 times longer than with spread keys; master's pushes pay the same.
+//   MIN_VISITS 1024 against 256 costs a few microseconds more a scan and cuts the release latency of up to 64k tracked
+//   addresses fourfold; PASS_FRAMES 32 would halve the latency and the backlog but double the scans after a burst of
+//   500k and the cost of holding many wrappers.
+// - The cache and the reference counts are the script-visible globals _sol_lua_push_objects and
+//   _sol_lua_push_ref_counts (the registry keys point at the same tables). A script that clears a live wrapper's cache
+//   entry makes the scan release its reference two visits later; one that sets a count n makes the scan or close
+//   release n references. Master's __gc read the same tables. Nothing in this repository writes them; private registry
+//   tables with read-only views under the old names would close this (a decision for the maintainer).
+constexpr uint32_t RELEASE_AFTER_FRAMES = 2;
+constexpr size_t MIN_VISITS = 1024;
+constexpr size_t PASS_FRAMES = 64;
+constexpr size_t INFLOW_VISITS = 4;
+constexpr size_t TRIM_MIN = 4096; // containers smaller than this keep their capacity
+
+// True while the collector has objects whose finalizers it queued but hasn't run. Reads global_State::tobefnz of the
+// Lua 5.4.3 built into REFramework (dependencies/lua): atomic() moves unreachable finalizable objects there
+// (separatetobefnz) and GCTM takes them off as it calls their finalizers. No public API tells: lua_gc reports memory,
+// whether the collector runs and whether a step finished a cycle, none of which says finalizers are still pending.
+// Read only.
+bool finalizers_pending(lua_State* l) {
+    return G(l)->tobefnz != nullptr;
+}
+
+// Maps an object address (never 0) to its slot. Open addressing with linear probing and backward-shift deletion (no
+// tombstones), so tracking an address allocates nothing unless the table grows.
+class AddressTable {
+public:
+    uint32_t* find(lua_Integer key) {
+        if (m_size == 0) {
+            return nullptr;
+        }
+
+        for (size_t i = home(key);; i = (i + 1) & m_mask) {
+            if (m_keys[i] == key) {
+                return &m_values[i];
+            }
+
+            if (m_keys[i] == 0) {
+                return nullptr;
+            }
+        }
+    }
+
+    // Returns the value slot for key and whether it was inserted (with value).
+    std::pair<uint32_t*, bool> try_emplace(lua_Integer key, uint32_t value) {
+        if ((m_size + 1) * 4 > m_keys.size() * 3) {
+            rehash(m_keys.empty() ? 16 : m_keys.size() * 2);
+        }
+
+        for (size_t i = home(key);; i = (i + 1) & m_mask) {
+            if (m_keys[i] == key) {
+                return {&m_values[i], false};
+            }
+
+            if (m_keys[i] == 0) {
+                m_keys[i] = key;
+                m_values[i] = value;
+                ++m_size;
+                return {&m_values[i], true};
+            }
+        }
+    }
+
+    void erase(lua_Integer key) {
+        if (m_size == 0) {
+            return;
+        }
+
+        auto hole = home(key);
+
+        while (m_keys[hole] != key) {
+            if (m_keys[hole] == 0) {
+                return;
+            }
+
+            hole = (hole + 1) & m_mask;
+        }
+
+        // Moves later entries of the probe run into the hole unless their home lies after it.
+        for (auto j = (hole + 1) & m_mask; m_keys[j] != 0; j = (j + 1) & m_mask) {
+            if (((j - home(m_keys[j])) & m_mask) >= ((j - hole) & m_mask)) {
+                m_keys[hole] = m_keys[j];
+                m_values[hole] = m_values[j];
+                hole = j;
+            }
+        }
+
+        m_keys[hole] = 0;
+        --m_size;
+    }
+
+    size_t size() const { return m_size; }
+    size_t capacity() const { return m_keys.size(); }
+
+    // Empties the table, sized for `expected` entries.
+    void reset(size_t expected) {
+        m_keys = {};
+        m_values = {};
+        m_size = 0;
+
+        if (expected > 0) {
+            auto capacity = (size_t)16;
+
+            while (capacity * 3 < expected * 4 + 4) {
+                capacity *= 2;
+            }
+
+            rehash(capacity);
+        }
+    }
+
+private:
+    size_t home(lua_Integer key) const { return (size_t)(((uint64_t)key * 0x9E3779B97F4A7C15ull) >> m_shift); }
+
+    void rehash(size_t capacity) {
+        std::vector<lua_Integer> keys(capacity, 0);
+        std::vector<uint32_t> values(capacity);
+        std::swap(keys, m_keys);
+        std::swap(values, m_values);
+        m_mask = capacity - 1;
+        m_shift = 64 - std::countr_zero(capacity);
+
+        for (size_t k = 0; k < keys.size(); ++k) {
+            if (keys[k] != 0) {
+                auto i = home(keys[k]);
+
+                while (m_keys[i] != 0) {
+                    i = (i + 1) & m_mask;
+                }
+
+                m_keys[i] = keys[k];
+                m_values[i] = values[k];
+            }
+        }
+    }
+
+    std::vector<lua_Integer> m_keys{};
+    std::vector<uint32_t> m_values{};
+    size_t m_mask{0};
+    int m_shift{64};
+    size_t m_size{0};
+};
+
+struct WrapperLifetime {
+    struct Slot {
+        lua_Integer addr{0};
+        uint32_t dead_since{0}; // frame a visit first found the address without a wrapper; 0: it has one
+    };
+
+    std::vector<Slot> slots{};                                    // dense: untracking moves the last slot into the hole
+    AddressTable slot_of{};                                       // address -> index in `slots`
+    std::vector<std::pair<lua_Integer, lua_Integer>> releasing{}; // scan scratch: address, reference count
+    size_t cursor{0};                                             // [0, cursor) visited this pass
+    size_t pass_visits{MIN_VISITS};                               // visits per scan of the pass under way
+    size_t tracked_since_scan{0};                                 // new slots since the last scan
+    size_t tracked_last_scan{0};                                  // new slots between the two scans before
+    uint32_t frame{1};
+
+    void start_pass() {
+        cursor = 0;
+        pass_visits = std::max(MIN_VISITS, (slots.size() + PASS_FRAMES - 1) / PASS_FRAMES);
+    }
+
+    Slot* find(lua_Integer addr) {
+        const auto index = slot_of.find(addr);
+        return index != nullptr ? &slots[*index] : nullptr;
+    }
+};
+
+// The registry userdata holds a pointer: code that runs after the close handler (other finalizers in lua_close) finds
+// nullptr instead of a destroyed object, and tracks nothing.
+struct WrapperLifetimeBox {
+    WrapperLifetime* lifetime;
+};
+
+WrapperLifetime* wrapper_lifetime(lua_State* l) {
+    lua_rawgetp(l, LUA_REGISTRYINDEX, &s_lifetime_key);
+    const auto box = (WrapperLifetimeBox*)lua_touserdata(l, -1);
+    lua_pop(l, 1);
+
+    return box != nullptr ? box->lifetime : nullptr;
+}
+
+// Untracks the slot at index. The last slot moves into the hole; if that would move a slot the round-robin hasn't
+// visited yet behind the cursor, it goes to cursor - 1 instead (whose visited slot fills the hole) and the cursor steps
+// back, so a pass still visits every slot that stays tracked through it exactly once.
+void free_slot(WrapperLifetime& lt, size_t index) {
+    lt.slot_of.erase(lt.slots[index].addr);
+    const auto last = lt.slots.size() - 1;
+
+    const auto move = [&](size_t from, size_t to) {
+        lt.slots[to] = lt.slots[from];
+        *lt.slot_of.find(lt.slots[to].addr) = (uint32_t)to;
+    };
+
+    if (index != last) {
+        if (index < lt.cursor && last >= lt.cursor) {
+            const auto behind = lt.cursor - 1;
+
+            if (behind != index) {
+                move(behind, index);
+            }
+
+            move(last, behind);
+            lt.cursor = behind;
+        } else {
+            move(last, index);
+        }
+    }
+
+    lt.slots.pop_back();
+    lt.cursor = std::min(lt.cursor, lt.slots.size());
+}
+
+// ref_counts[addr] was created (Lua took an engine reference for addr). A new slot counts as visited by the pass
+// under way: it goes in at the cursor, the slot there (not visited yet) moves to the end, and the cursor steps past
+// it. Appended at the end, new slots would keep a pass from ending while addresses are tracked faster than the
+// visits go, and the slots it already visited would never be checked again.
+void track_reference(lua_State* l, lua_Integer addr) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return;
+    }
+
+    auto& lt = *lifetime;
+    const auto [index, inserted] = lt.slot_of.try_emplace(addr, (uint32_t)lt.cursor);
+
+    if (inserted) {
+        if (lt.cursor < lt.slots.size()) {
+            const auto unvisited = lt.slots[lt.cursor];
+            lt.slots.push_back(unvisited);
+            *lt.slot_of.find(unvisited.addr) = (uint32_t)(lt.slots.size() - 1);
+            lt.slots[lt.cursor] = {addr};
+        } else {
+            lt.slots.push_back({addr});
+        }
+
+        ++lt.cursor;
+        ++lt.tracked_since_scan;
+    }
+
+    lt.slots[*index].dead_since = 0;
+}
+
+// ref_counts[addr] was removed.
+void untrack_reference(lua_State* l, lua_Integer addr) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return;
+    }
+
+    if (const auto index = lifetime->slot_of.find(addr); index != nullptr) {
+        free_slot(*lifetime, *index);
+    }
+}
+
+// A push missed the cache. Returns true if Lua still holds addr's reference: the new wrapper takes it over.
+bool reuse_reference(lua_State* l, lua_Integer addr) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return false;
+    }
+
+    const auto slot = lifetime->find(addr);
+
+    if (slot == nullptr) {
+        return false;
+    }
+
+    slot->dead_since = 0;
+    return true;
+}
+
+// Gives back the capacity of a vector that holds less than an eighth of it after a burst. `in_use` is the fill to plan
+// for; twice that is kept, so a steady load doesn't shrink and regrow every frame. The copy is at most an eighth of the
+// capacity the burst allocated.
+template <typename T>
+void trim(std::vector<T>& v, size_t in_use) {
+    if (v.capacity() > TRIM_MIN && v.capacity() > 8 * in_use) {
+        std::vector<T> trimmed{};
+        trimmed.reserve(2 * in_use);
+        trimmed.assign(v.begin(), v.end());
+        v.swap(trimmed);
+    }
+}
+
+// Once per frame, after the frame's GC step: the next round-robin visits (see the invariants above). The visits run no
+// Lua code; the engine releases come last, after the bookkeeping is final, as they can re-enter Lua.
+void scan_wrapper_references(lua_State* l) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return;
+    }
+
+    auto& lt = *lifetime;
+    ++lt.frame;
+
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_objects_key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    const auto cache = lua_gettop(l);
+    const bool may_release = !finalizers_pending(l);
+    auto releasing = std::move(lt.releasing);
+
+    // Addresses tracked anew in each of the last two frames: the smaller of the two is an inflow that has lasted (a
+    // burst in a single frame adds nothing). Each scan visits INFLOW_VISITS times that many slots more than the pass's
+    // share: otherwise, with more than about MIN_VISITS / 2 short-lived addresses tracked a frame, passes would grow
+    // from 2 scans to PASS_FRAMES and the backlog with them (see the invariants above).
+    const auto inflow = std::min(lt.tracked_since_scan, lt.tracked_last_scan);
+    lt.tracked_last_scan = lt.tracked_since_scan;
+    lt.tracked_since_scan = 0;
+
+    if (lt.cursor >= lt.slots.size()) {
+        lt.start_pass();
+    }
+
+    // A pass that ends here leaves the rest of this scan's visits unused: the next pass starts with the next scan.
+    for (auto visits = lt.pass_visits + INFLOW_VISITS * inflow; visits > 0 && lt.cursor < lt.slots.size(); --visits) {
+        auto& slot = lt.slots[lt.cursor];
+        const bool cached = lua_rawgeti(l, cache, slot.addr) != LUA_TNIL;
+        lua_pop(l, 1);
+
+        if (cached) {
+            slot.dead_since = 0;
+        } else if (slot.dead_since == 0) {
+            slot.dead_since = lt.frame;
+        } else if (may_release && lt.frame - slot.dead_since >= RELEASE_AFTER_FRAMES) {
+            releasing.emplace_back(slot.addr, get_count(l, &s_ref_counts_key, slot.addr).value_or(0));
+            set_count(l, &s_ref_counts_key, slot.addr, std::nullopt);
+            free_slot(lt, lt.cursor); // the last slot, not visited yet, takes its place under the cursor
+            continue;
+        }
+
+        ++lt.cursor;
+    }
+
+    lua_pop(l, 1);
+
+    // After a burst: rebuild the address table at its live size once it holds less than an eighth of its capacity, so
+    // the copy is at most an eighth of what the burst allocated. Giving a burst-sized buffer back to the system costs
+    // about 0.6 ms per 12 MB (measured), so this and the slots trim below don't run in the same scan.
+    const bool rebuild = lt.slot_of.capacity() > TRIM_MIN && lt.slot_of.capacity() > 8 * lt.slots.size();
+
+    if (rebuild) {
+        lt.slot_of.reset(lt.slots.size());
+
+        for (size_t i = 0; i < lt.slots.size(); ++i) {
+            lt.slot_of.try_emplace(lt.slots[i].addr, (uint32_t)i);
+        }
+    }
+
+    for (const auto& [addr, count] : releasing) {
+        for (lua_Integer i = 0; i < count; ++i) {
+            ((::REManagedObject*)(uintptr_t)addr)->release();
+        }
+    }
+
+    trim(releasing, releasing.size());
+    releasing.clear();
+    lt.releasing = std::move(releasing);
+
+    if (!rebuild) {
+        trim(lt.slots, lt.slots.size());
+    }
+}
+
+// __gc of the WrapperLifetime userdata: runs when the Lua state closes. Releases every reference Lua still holds,
+// once, and stops tracking.
+int wrapper_lifetime_gc(lua_State* l) {
+    // A script can reach the metamethod (debug.getregistry) and call it with anything: act only on the registry's box.
+    lua_rawgetp(l, LUA_REGISTRYINDEX, &s_lifetime_key);
+    const bool is_box = lua_type(l, 1) == LUA_TUSERDATA && lua_rawequal(l, 1, -1);
+    lua_pop(l, 1);
+
+    const auto box = is_box ? (WrapperLifetimeBox*)lua_touserdata(l, 1) : nullptr;
+
+    if (box == nullptr || box->lifetime == nullptr) {
+        return 0;
+    }
+
+    const std::unique_ptr<WrapperLifetime> lifetime{box->lifetime};
+    box->lifetime = nullptr;
+
+    std::vector<std::pair<lua_Integer, lua_Integer>> releasing{};
+    releasing.reserve(lifetime->slot_of.size());
+
+    for (const auto& slot : lifetime->slots) {
+        if (slot.addr != 0) {
+            releasing.emplace_back(slot.addr, get_count(l, &s_ref_counts_key, slot.addr).value_or(0));
+            set_count(l, &s_ref_counts_key, slot.addr, std::nullopt);
+        }
+    }
+
+    for (const auto& [addr, count] : releasing) {
+        for (lua_Integer i = 0; i < count; ++i) {
+            ((::REManagedObject*)(uintptr_t)addr)->release();
+        }
+    }
+
+    return 0;
+}
 }
 
 namespace api::cached_usertype {
@@ -48,17 +555,13 @@ namespace detail {
 namespace api::re_managed_object {
 namespace detail {
 void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
-    auto sv = sol::state_view{l};
-    
     // we shouldn't really do this very much
     // so it shouldn't be too terrible on performance
     if (!REManagedObject::is_managed_object(obj)) {
         throw sol::error{(std::stringstream{} << "sol_lua_push: " << (uintptr_t)obj << " is not a managed object").str()};
     }
 
-    // Throwing automatic add_ref on the backburner; it doesn't seem to work
-    // very well with lua's garbage collector.
-    // addendum: maybe figured it out
+    const auto addr = (lua_Integer)(uintptr_t)obj;
 
     // only add a reference if it's a "local" object, indicated by a negative reference count
     //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
@@ -70,12 +573,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
             obj->add_ref();
         }
 
-        // the reference counting is not necessary, but it will let us
-        // catch bugs if an REManagedObject pointer is being created
-        // without coming through our sol_lua_push function
-        sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
-        sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
-        std::optional<int> current_ref_count = ref_counts[(uintptr_t)obj];
+        const auto current_ref_count = ::detail::get_count(l, &::detail::s_ref_counts_key, addr);
 
         if (current_ref_count && *current_ref_count > 0) {
             // don't unnecessarily increase the ref count
@@ -84,7 +582,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
                 return;
             }
 
-            ref_counts[(uintptr_t)obj] = *current_ref_count + 1;
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, *current_ref_count + 1);
         } else {
             // only add the ref once when the user requests it
             // so they don't screw something up
@@ -92,40 +590,33 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
                 obj->add_ref();
             }
 
-            ref_counts[(uintptr_t)obj] = 1;
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, 1);
+            ::detail::track_reference(l, addr);
         }
-
-        // when the user adds a ref to an ephemeral object
-        if (force) {
-            std::optional<int> current_ephemeral_count = ephemeral_counts[(uintptr_t)obj];
-
-            if (current_ephemeral_count && *current_ephemeral_count > 0) {
-                ephemeral_counts[(uintptr_t)obj] = *current_ephemeral_count - 1;
-            } else {
-                ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-            }
-        }
-    } else {
-        // ephemeral counts is just a table
-        // to help with tracking the local objects
-        // so we don't spam the log with warnings when they get gc'd
-        sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
-        std::optional<int> current_ref_count = ephemeral_counts[(uintptr_t)obj];
-
-        if (current_ref_count) {
-            ephemeral_counts[(uintptr_t)obj] = *current_ref_count + 1;
-        } else {
-            ephemeral_counts[(uintptr_t)obj] = 1;
-        }
-
-        //ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
     }
 }
-}
+} // namespace detail
 
 // used by metatable for REManagedObject
 ::REManagedObject* add_ref(sol::this_state s, ::REManagedObject* obj) {
-    detail::add_ref(s.lua_state(), obj, true);
+    const auto l = s.lua_state();
+    const auto addr = (lua_Integer)(uintptr_t)obj;
+
+    detail::add_ref(l, obj, true);
+
+    // release() drops the cache entry. If the script kept that wrapper and calls add_ref() on it, it has to become the
+    // cached wrapper again: the scan keeps the reference only while the address has a cached wrapper.
+    // Misuse this can't tell apart: after release() the engine may free the object and put a new one at the address.
+    // add_ref() on the old wrapper then takes a reference on the new object and makes the old wrapper its cached one;
+    // later pushes of the address return it, with the old object's usertype, until it is gone. The wrapper doesn't
+    // record the static type it was pushed as, so comparing usertypes would also flag legitimate wrappers.
+    if (lua_type(l, 1) == LUA_TUSERDATA && !::detail::has_entry(l, &::detail::s_objects_key, addr)) {
+        lua_rawgetp(l, LUA_REGISTRYINDEX, &::detail::s_objects_key);
+        lua_pushvalue(l, 1);
+        lua_rawseti(l, -2, addr);
+        lua_pop(l, 1);
+        ::detail::reuse_reference(l, addr);
+    }
 
     return obj;
 }
@@ -140,48 +631,31 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     return obj;
 }
 
-void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
-    auto l = s.lua_state();
-    auto sv = sol::state_view(l);
+void release(lua_State* l, ::REManagedObject* obj, bool force = false) {
+    const auto addr = (lua_Integer)(uintptr_t)obj;
 
-    sol::lua_table objects = sv["_sol_lua_push_objects"];
-    sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
-    sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
-
-    if (std::optional<int> ref_count = ref_counts[(uintptr_t)obj]; ref_count && *ref_count > 0) {
+    if (const auto ref_count = ::detail::get_count(l, &::detail::s_ref_counts_key, addr); ref_count && *ref_count > 0) {
         // because of our internal refcount keeping, we shouldn't need to double check
         // whether it's an actual object or not. hopefully?
-        //if (REManagedObject::is_managed_object(obj)) {
-            obj->release();
-        //}
+        obj->release();
 
-        int new_ref_count = *ref_count - 1;
+        const auto new_ref_count = *ref_count - 1;
 
         if (new_ref_count == 0) {
-            if (sol::object object = ephemeral_counts[(uintptr_t)obj]; !object.valid()) {
-                objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-            }
-
-            ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+            ::detail::set_count(l, &::detail::s_objects_key, addr, std::nullopt);
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, std::nullopt);
+            ::detail::untrack_reference(l, addr);
         } else {
-            ref_counts[(uintptr_t)obj] = new_ref_count;
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, new_ref_count);
         }
-
-        //ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-    } else if (std::optional<int> ephemeral_count = ephemeral_counts[(uintptr_t)obj]; ephemeral_count && *ephemeral_count > 0) {
+    } else if (::detail::has_entry(l, &::detail::s_objects_key, addr)) {
+        // A cached wrapper without a reference: the wrapper of a local object. Nothing to give back (unless forced),
+        // but the wrapper is dropped from the cache, so the next push of the address makes a new one.
         if (force && REManagedObject::is_managed_object(obj)) {
             obj->release();
         }
 
-        // ephemeral counts don't actually release the object, they just decrement the count.
-        int new_ephemeral_count = *ephemeral_count - 1;
-
-        if (new_ephemeral_count == 0) {
-            objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-            ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-        } else {
-            ephemeral_counts[(uintptr_t)obj] = new_ephemeral_count;
-        }
+        ::detail::set_count(l, &::detail::s_objects_key, addr, std::nullopt);
     } else {
         if (force) {
             if (REManagedObject::is_managed_object(obj)) {
@@ -192,17 +666,13 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
         }
     }
 }
+
+void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
+    release(s.lua_state(), obj, force);
 }
+} // namespace api::re_managed_object
 
 namespace detail {
-// Registry keys: only their addresses matter. Each Lua state's registry holds its own tables under them (set up in
-// open_sdk), so the push hot path reaches them with lua_rawgetp instead of looking up globals by name or going
-// through sol objects (each of which takes and drops a registry reference).
-char s_objects_key{};     // _sol_lua_push_objects: weak cache of wrappers, keyed by object address
-char s_ref_counts_key{};  // _sol_lua_push_ref_counts: engine references Lua holds, keyed by object address
-char s_recent_key{};      // wrappers pushed this frame
-char s_recent_prev_key{}; // wrappers pushed last frame
-
 // Pushes the cached wrapper for addr from the cache table under key. Returns false (and pushes nothing) if there is none.
 bool push_cached_wrapper(lua_State* l, const void* key, lua_Integer addr) {
     if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) != LUA_TTABLE) {
@@ -233,6 +703,22 @@ void cache_wrapper(lua_State* l, const void* key, int index, lua_Integer addr) {
     lua_pop(l, 1);
 }
 
+// Caches the new wrapper a push left at the top of the stack (count values), or, if the cache already holds one for
+// addr, replaces it with that one and returns 1. Allocating the new wrapper can run a collection (only while Lua's own
+// collector runs) whose finalizers push the same object: that push found no cached wrapper either, took the reference
+// over and cached its own wrapper. Two wrappers would then share one reference while only one is cached, and the scan
+// would release it once the cached one is gone.
+int cache_new_wrapper(lua_State* l, const void* key, int count, lua_Integer addr) {
+    if (push_cached_wrapper(l, key, addr)) {
+        lua_replace(l, -1 - count);
+        lua_pop(l, count - 1);
+        return 1;
+    }
+
+    cache_wrapper(l, key, -count, addr);
+    return count;
+}
+
 // Creates a weak-valued cache table under key if the registry doesn't have one yet.
 void ensure_weak_cache(lua_State* l, const void* key) {
     if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) == LUA_TTABLE) {
@@ -249,39 +735,6 @@ void ensure_weak_cache(lua_State* l, const void* key) {
     lua_rawsetp(l, LUA_REGISTRYINDEX, key);
 }
 
-// Wrappers pushed this frame and last frame are kept in a strong set, rotated once per frame by
-// rotate_recent_wrappers. Scripts push the same objects again and again (singletons, components); without this, every
-// Lua collection drops those wrappers and the next push builds a new one, which costs an engine add_ref and later a
-// finalizer and an engine release each time. Measured with 1000 objects pushed twice a frame: ~997 wrappers recreated
-// per frame and +30-45% per push without it. Only wrappers that can't go stale are kept: ones holding an engine
-// reference (the object can't be freed and its address reused while they live) and type-database metadata. A plain
-// strong reference keeps Lua's write barrier intact, unlike the old "touch".
-void keep_recent_wrapper(lua_State* l, int index) {
-    index = lua_absindex(l, index);
-
-    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_recent_key) != LUA_TTABLE) {
-        lua_pop(l, 1);
-        return;
-    }
-
-    lua_pushvalue(l, index);
-    lua_pushboolean(l, 1);
-    lua_rawset(l, -3);
-    lua_pop(l, 1);
-}
-
-bool lua_holds_engine_reference(lua_State* l, lua_Integer addr) {
-    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_ref_counts_key) != LUA_TTABLE) {
-        lua_pop(l, 1);
-        return false;
-    }
-
-    lua_rawgeti(l, -1, addr);
-    const auto held = lua_tointeger(l, -1) > 0;
-    lua_pop(l, 2);
-
-    return held;
-}
 }
 
 // specialization for REManagedObject to automatically add a reference
@@ -293,16 +746,13 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
 
         // Push the cached wrapper as it is. It used to be "touched" here by clearing its GC color bits directly, which
         // also stopped Lua's write barrier from seeing it: stored into an old table (held[#held + 1] = arr:add_ref()),
-        // the wrapper was swept and finalized under the generational collector while still referenced, and its __gc
-        // released the engine object under the script. keep_recent_wrapper gives the lifetime the touch was for.
+        // the wrapper was swept while still referenced and the engine object released under the script. Wrappers have
+        // no __gc now; a wrapper the collector freed leaves its address tracked for a few frames (see WrapperLifetime),
+        // and a new wrapper takes that reference over instead of adding another.
         if (detail::push_cached_wrapper(l, &detail::s_objects_key, addr)) {
-            if (detail::lua_holds_engine_reference(l, addr)) {
-                detail::keep_recent_wrapper(l, -1);
-            }
-
             return 1;
         } else {
-            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR && !detail::reuse_reference(l, addr)) {
                 api::re_managed_object::detail::add_ref(l, (::REManagedObject*)obj, false);
             }
 
@@ -352,13 +802,7 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                 }
 
                 // keep a weak reference to the object for caching
-                detail::cache_wrapper(l, &detail::s_objects_key, -backpedal, addr);
-
-                if (detail::lua_holds_engine_reference(l, addr)) {
-                    detail::keep_recent_wrapper(l, -backpedal);
-                }
-
-                return backpedal;
+                return detail::cache_new_wrapper(l, &detail::s_objects_key, backpedal, addr);
             } else {
                 backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
             }
@@ -370,6 +814,17 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     return sol::stack::push(l, sol::nil);
 }
 
+// Other translation units (ScriptRunner.cpp, RE8VR.cpp) push these types too but only see the declaration in
+// ScriptRunner.hpp, so they link against the instantiations emitted here. Instantiate them explicitly so the symbols
+// don't depend on which of these types this file happens to push itself.
+template int sol_lua_push<::REManagedObject>(sol::types<::REManagedObject*>, lua_State*, ::REManagedObject*);
+template int sol_lua_push<::REComponent>(sol::types<::REComponent*>, lua_State*, ::REComponent*);
+template int sol_lua_push<::RETransform>(sol::types<::RETransform*>, lua_State*, ::RETransform*);
+template int sol_lua_push<::sdk::SystemArray>(sol::types<::sdk::SystemArray*>, lua_State*, ::sdk::SystemArray*);
+template int sol_lua_push<::sdk::Delegate>(sol::types<::sdk::Delegate*>, lua_State*, ::sdk::Delegate*);
+template int sol_lua_push<::api::sdk::BehaviorTreeCoreHandle>(sol::types<::api::sdk::BehaviorTreeCoreHandle*>, lua_State*, ::api::sdk::BehaviorTreeCoreHandle*);
+template int sol_lua_push<::api::sdk::BehaviorTree>(sol::types<::api::sdk::BehaviorTree*>, lua_State*, ::api::sdk::BehaviorTree*);
+
 // specialization for any custom usertype we exposed to sol to automatically add a reference
 // when lua pushes a pointer to the object onto the stack
 template<detail::CachedUserType T>
@@ -379,18 +834,9 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
         static char s_cache_key{};
         const auto addr = (lua_Integer)(uintptr_t)obj;
 
-        // Type-database metadata lives as long as the TDB, so its wrappers can be kept without going stale. The other
-        // cached types (behavior tree nodes, native arrays) are engine memory that can be freed without a reference
-        // Lua holds, so their wrappers aren't kept.
-        constexpr bool keep_recent = std::is_base_of_v<sdk::RETypeDefinition, T> || std::is_base_of_v<sdk::REMethodDefinition, T>
-                                     || std::is_base_of_v<sdk::REField, T>;
-
-        // Push the cached wrapper as it is; see the managed object push above for why it isn't "touched".
+        // Push the cached wrapper as it is; see the managed object push above for why it isn't "touched". These
+        // wrappers hold no engine reference, so nothing tracks them: they live as long as Lua reaches them.
         if (detail::push_cached_wrapper(l, &s_cache_key, addr)) {
-            if constexpr (keep_recent) {
-                detail::keep_recent_wrapper(l, -1);
-            }
-
             return 1;
         }
 
@@ -399,10 +845,6 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
         if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
             detail::ensure_weak_cache(l, &s_cache_key);
             detail::cache_wrapper(l, &s_cache_key, -backpedal, addr);
-
-            if constexpr (keep_recent) {
-                detail::keep_recent_wrapper(l, -backpedal);
-            }
         }
 
         return backpedal;
@@ -1868,32 +2310,16 @@ T read_memory(::REManagedObject* obj, int32_t offset) {
 }
 }
 
-void bindings::rotate_recent_wrappers(lua_State* l) {
-    // The older set is cleared in place and becomes this frame's set, so rotating allocates nothing. Clearing existing
-    // fields while traversing with lua_next is allowed.
-    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key) != LUA_TTABLE) {
-        lua_pop(l, 1);
-        return;
-    }
-
-    lua_pushnil(l);
-
-    while (lua_next(l, -2) != 0) {
-        lua_pop(l, 1);
-        lua_pushvalue(l, -1);
-        lua_pushnil(l);
-        lua_rawset(l, -4);
-    }
-
-    lua_rawgetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
-    lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key);
-    lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
+void bindings::scan_wrapper_references(lua_State* l) {
+    detail::scan_wrapper_references(l);
 }
 
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
 
     //lua["_sol_lua_push_objects"] = std::unordered_map<::REManagedObject*, sol::object>();
+    // _sol_lua_push_ephemeral_counts is no longer written (it counted wrappers of local objects for their __gc, which
+    // wrappers no longer have); it stays for scripts and tools that read it.
     lua.do_string(R"(
         _sol_lua_push_objects = setmetatable({}, { __mode = "v" })
         _sol_lua_push_ref_counts = {}
@@ -1908,10 +2334,16 @@ void bindings::open_sdk(ScriptState* s) {
         lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_objects_key);
         lua_getglobal(l, "_sol_lua_push_ref_counts");
         lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_ref_counts_key);
-        lua_newtable(l);
-        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_key);
-        lua_newtable(l);
-        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_recent_prev_key);
+
+        // Tracked engine references (detail::WrapperLifetime); the userdata's __gc releases them when the state closes.
+        const auto box = (detail::WrapperLifetimeBox*)lua_newuserdatauv(l, sizeof(detail::WrapperLifetimeBox), 0);
+        box->lifetime = nullptr;
+        lua_createtable(l, 0, 1);
+        lua_pushcfunction(l, &detail::wrapper_lifetime_gc);
+        lua_setfield(l, -2, "__gc");
+        lua_setmetatable(l, -2);
+        box->lifetime = new detail::WrapperLifetime{};
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_lifetime_key);
     }
 
     auto sdk = lua.create_table();
@@ -2246,36 +2678,11 @@ void bindings::open_sdk(ScriptState* s) {
         "read_double", &api::re_managed_object::read_memory<double>
     );
 
-    // templated lambda
-    auto create_managed_object_ptr_gc = [&]<detail::ManagedObjectBased T>(T* obj) {
-        lua["__REManagedObjectPtrInternalCreate"] = [s]() -> sol::object {
-            return sol::make_object(s->lua(), (T*)detail::FAKE_OBJECT_ADDR);
-        };
-
-        lua.do_string(R"(
-            local fake_obj = __REManagedObjectPtrInternalCreate()
-            local mt = getmetatable(fake_obj)
-
-            fake_obj = nil
-            collectgarbage("collect")
-
-            mt.__gc = function(obj)
-                obj:release()
-            end
-        )");
-
-        lua["__REManagedObjectPtrInternalCreate"] = sol::make_object(lua, sol::nil);
-    };
-
-    create_managed_object_ptr_gc((::REManagedObject*)nullptr);
-
     lua.new_usertype<REComponent>("REComponent",
         sol::base_classes, sol::bases<::REManagedObject>(),
         sol::meta_function::index, &api::re_managed_object::index,
         sol::meta_function::new_index, &api::re_managed_object::new_index
     );
-
-    create_managed_object_ptr_gc((::REComponent*)nullptr);
 
     lua.new_usertype<RETransform>("RETransform",
         sol::meta_function::index, &api::re_managed_object::index,
@@ -2317,8 +2724,6 @@ void bindings::open_sdk(ScriptState* s) {
         },
         sol::base_classes, sol::bases<::REComponent, ::REManagedObject>()
     );
-
-    create_managed_object_ptr_gc((::RETransform*)nullptr);
 
     lua.new_usertype<sdk::SystemArray>("SystemArray",
         "get_size", &sdk::SystemArray::get_size,
@@ -2365,16 +2770,12 @@ void bindings::open_sdk(ScriptState* s) {
         sol::base_classes, sol::bases<::REManagedObject>()
     );
 
-    create_managed_object_ptr_gc((sdk::SystemArray*)nullptr);
-
     lua.new_usertype<sdk::Delegate>("Delegate",
         "add", &api::delegate::add_lua_delegate,
         "invoke", &sdk::Delegate::invoke,
         sol::meta_function::new_index, &api::delegate::new_index,
         sol::base_classes, sol::bases<::REManagedObject>()
     );
-
-    create_managed_object_ptr_gc((sdk::Delegate*)nullptr);
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
@@ -2697,8 +3098,6 @@ void bindings::open_sdk(ScriptState* s) {
         }
     );
 
-    create_managed_object_ptr_gc((api::sdk::BehaviorTreeCoreHandle*)nullptr);
-
     lua.new_usertype<api::sdk::BehaviorTree>("BehaviorTree",
         sol::meta_function::index, &api::re_managed_object::index,
         sol::meta_function::new_index, &api::re_managed_object::new_index,
@@ -2713,6 +3112,4 @@ void bindings::open_sdk(ScriptState* s) {
             return ((sdk::behaviortree::BehaviorTree*)tree)->get_trees<api::sdk::BehaviorTreeCoreHandle>();
         }
     );
-
-    create_managed_object_ptr_gc((api::sdk::BehaviorTree*)nullptr);
 }

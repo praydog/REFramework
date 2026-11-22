@@ -658,11 +658,6 @@ void ScriptState::on_application_entry(size_t hash) {
         ScriptRunner::get()->spew_error("Unknown exception in on_application_entry");
     }
 
-    if (hash == "EndRendering"_fnv) {
-        std::scoped_lock _{ m_execution_mutex };
-        bindings::rotate_recent_wrappers(m_lua);
-    }
-
     if (hash == "EndRendering"_fnv && m_gc_data.gc_handler == ScriptState::GarbageCollectionHandler::REFRAMEWORK_MANAGED) {
         std::scoped_lock _{ m_execution_mutex };
 
@@ -692,6 +687,12 @@ void ScriptState::on_application_entry(size_t hash) {
                 lua_gc(m_lua, LUA_GCCOLLECT);
                 break;
         };
+    }
+
+    // After the GC step, so wrappers it freed are found in this frame's scan.
+    if (hash == "EndRendering"_fnv) {
+        std::scoped_lock _{ m_execution_mutex };
+        bindings::scan_wrapper_references(m_lua);
     }
 }
 

@@ -285,10 +285,11 @@ do
     -- REFramework runs Lua's collector in generational mode by default. A full collection first makes everything that
     -- exists old (`held` included) and resets the growth baseline, so the two steps after storing are minor
     -- collections even after the suite's own allocations; a minor collection is what swept the wrapper. A wrapper on
-    -- the array metatable's __gc counts finalizations of held arrays; it is removed before any assertion can fail.
+    -- the array metatable's __gc counts finalizations of held arrays; it is removed before any assertion can fail. On a
+    -- build whose wrappers have no __gc it is the only __gc there, and removing it leaves none.
     local held, info = {}, {}
-    local finalized, mt, orig_gc = 0, nil, nil
-    local function restore_gc() if mt ~= nil and orig_gc ~= nil then mt.__gc = orig_gc end end
+    local finalized, mt, orig_gc, installed = 0, nil, nil, false
+    local function restore_gc() if installed then mt.__gc = orig_gc installed = false end end
     -- In a separate function, so no stale stack slot keeps an array reachable during the collections.
     local function make_and_hold(frame)
         local arr = sdk.create_managed_array("System.String", 4)
@@ -297,8 +298,9 @@ do
             orig_gc = mt.__gc
             mt.__gc = function(o)
                 for _, h in ipairs(held) do if rawequal(o, h) then finalized = finalized + 1 end end
-                return orig_gc(o)
+                if orig_gc ~= nil then return orig_gc(o) end
             end
+            installed = true
         end
         for i = 0, 3 do arr[i] = sdk.create_managed_string("s" .. i) end
         held[#held + 1] = arr:add_ref()
