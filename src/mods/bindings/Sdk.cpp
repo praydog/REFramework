@@ -63,6 +63,8 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     // only add a reference if it's a "local" object, indicated by a negative reference count
     //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
     // addendum: only do it when reference count is > 0, local objects seem buggy...
+    // The engine count, not get_visible_ref_count(): an object whose last release REFramework has queued is still a
+    // counted global object, so a push takes a reference on it like on any other.
     if (force || (int32_t)obj->get_ref_count() > 0) {
         if (!force) {
             obj->add_ref();
@@ -911,6 +913,7 @@ sol::object create_resource(sol::this_state s, std::string type_name, std::strin
 }
 
 sol::object create_global_object(sol::this_state &s, ::REManagedObject *obj) {
+    // The engine count: an object with a queued last release is global, not local.
     bool is_currently_local = static_cast<std::int32_t>(obj->get_ref_count()) <= 0;
 
     // Mark object as global so that lua knows
@@ -2202,7 +2205,9 @@ void bindings::open_sdk(ScriptState* s) {
 
             return obj->deserialize_native(data.data(), data.size(), objects);
         },
-        "get_reference_count", [] (::REManagedObject* obj) { return obj->get_ref_count(); },
+        // Without a last release REFramework still owes the engine: 0 right after the last release() (see
+        // REManagedObject::get_visible_ref_count for a game where the engine delays it once more).
+        "get_reference_count", [] (::REManagedObject* obj) { return obj->get_visible_ref_count(); },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", [](::REManagedObject* obj) { return obj->get_type_definition(); },
         "get_field", [s](REManagedObject* obj, const char* name) {

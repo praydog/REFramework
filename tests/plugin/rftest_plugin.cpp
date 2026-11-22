@@ -9,7 +9,11 @@
 // the plugin waits for the Lua suites' result files (or a frame budget), writes every result so far, and pre-records
 // those two tests as FAIL, so a hang still leaves a complete results file behind.
 //
-// Build: tests/plugin/build.bat (MSVC, C++20). Install: copy rftest_plugin.dll to reframework/plugins.
+// It also registers rftest_peek(address, size) in REFramework's Lua state for the Lua regression suite: a guarded raw
+// memory read (nil instead of a crash when the memory isn't readable).
+//
+// Build: tests/plugin/build.bat (MSVC, C++20; links dependencies/lua). Install: copy rftest_plugin.dll to
+// reframework/plugins.
 
 #include <windows.h>
 
@@ -22,6 +26,8 @@
 #include <vector>
 
 #include <reframework/API.hpp>
+
+#include <lua.hpp>
 
 using API = reframework::API;
 
@@ -546,7 +552,61 @@ std::atomic<int> g_stage_frame{0};
 std::atomic<bool> g_runtime_requested{false};
 std::atomic<bool> g_hooks_tested{false};
 
-void on_lua_state_created(lua_State*) { ++g_lua_created; }
+// ----------------------------------------------------------------------------------------------------------------
+// rftest_peek(address [, size = 8]) for the Lua regression suite: the size (1, 2, 4 or 8) bytes at address as an
+// unsigned integer, or nil when any of them isn't committed, readable memory. The Lua test reads engine headers at
+// addresses it derives from an object's own header, so a game whose layout differs gets nil rather than a crash.
+// ----------------------------------------------------------------------------------------------------------------
+bool is_readable(uintptr_t addr, size_t size) {
+    constexpr DWORD readable = PAGE_READONLY | PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READ |
+        PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+    const auto end = addr + size;
+    if (addr == 0 || end < addr) {
+        return false;
+    }
+    for (auto p = addr; p < end;) {
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (VirtualQuery((LPCVOID)p, &mbi, sizeof(mbi)) == 0 || mbi.State != MEM_COMMIT ||
+            (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) != 0 || (mbi.Protect & readable) == 0) {
+            return false;
+        }
+        p = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
+    }
+    return true;
+}
+
+// Memory can still be released between the check and the copy; the SEH guard covers that.
+bool copy_guarded(uintptr_t addr, void* out, size_t size) {
+    __try {
+        memcpy(out, (const void*)addr, size);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+int rftest_peek(lua_State* L) {
+    const auto addr = (uintptr_t)luaL_checkinteger(L, 1);
+    const auto size = luaL_optinteger(L, 2, 8);
+    luaL_argcheck(L, size == 1 || size == 2 || size == 4 || size == 8, 2, "size must be 1, 2, 4 or 8");
+    uint64_t value{};
+    if (is_readable(addr, (size_t)size) && copy_guarded(addr, &value, (size_t)size)) {
+        lua_pushinteger(L, (lua_Integer)value);
+    } else {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+void on_lua_state_created(lua_State* L) {
+    ++g_lua_created;
+    // This runs the plugin's own copy of Lua (build.bat compiles dependencies/lua/src) on REFramework's state, and an
+    // error in rftest_peek long-jumps from it into REFramework's. Both must be the same Lua release and build options:
+    // build the plugin from a checkout whose dependencies/lua matches the REFramework build under test
+    // (`git diff <build commit> -- dependencies/lua` empty; LUA_VERSION_RELEASE in dependencies/lua/src/lua.h). Nothing
+    // checks this at run time.
+    lua_register(L, "rftest_peek", rftest_peek);
+}
 void on_imgui_frame(REFImGuiFrameCbData*) { ++g_imgui_frames; }
 
 void on_pre_update() {

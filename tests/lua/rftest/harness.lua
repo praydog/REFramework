@@ -136,8 +136,8 @@ function Suite:test(test_name, fn)
     if ok then self:record(test_name, "PASS") else self:record(test_name, classify(err)) end
 end
 
--- fn(frame) runs once per frame, starting next frame, until it returns true (PASS), raises (FAIL/SKIP), or the
--- suite's frame budget runs out (FAIL).
+-- fn(frame) runs once per frame, starting next frame, until it returns true or a string (PASS; the string is the
+-- result's detail), raises (FAIL/SKIP), or the suite's frame budget runs out (FAIL).
 function Suite:frame_test(test_name, fn)
     self.pending[#self.pending + 1] = { name = test_name, fn = fn, frames = 0 }
 end
@@ -186,7 +186,7 @@ function Suite:run_pending()
         if not ok then
             self:record(t.name, classify(done))
         elseif done then
-            self:record(t.name, "PASS")
+            self:record(t.name, "PASS", type(done) == "string" and done or nil)
         elseif t.frames >= self.max_frames then
             self:record(t.name, "FAIL", "did not finish within " .. self.max_frames .. " frames")
         else

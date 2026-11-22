@@ -18,7 +18,14 @@ namespace via::clr { enum class VMObjType : int64_t; }
 #pragma pack(push, 1)
 class REManagedObject : public REObject {
 public:
+    // The engine's count, including a last release REFramework has queued but not carried out yet (see release()).
+    // For deciding whether an object is local (< 0) or global; what callers are shown is get_visible_ref_count().
     int32_t get_ref_count() const { return m_ref_count; }
+    // The count without REFramework's queued last release: 0 right after the last release(), until REFramework hands
+    // the release to the engine two frames later. If the engine then delays it once more (it does while one of its
+    // update scopes is active, e.g. RE9), this reads the engine's 1 until the engine flushes, as it did right after
+    // the release before the queue existed in that game. For modder-facing getters (Lua, plugin API, C#).
+    int32_t get_visible_ref_count() const;
     void set_ref_count(int32_t v) { m_ref_count = v; }
     int32_t* ref_count_ptr() { return &m_ref_count; }
 
@@ -40,9 +47,19 @@ public:
 
     // Ref counting
     void add_ref();
+    // Gives up one reference. The last one (count 1) reaches the engine two frames later, at the second
+    // drain_deferred_releases() after this call: released earlier, an object made global this frame could free the
+    // engine's local page it lives in while the thread still uses it. get_visible_ref_count() reads 0 meanwhile, and
+    // a further release at visible count 0 is an over-release and is dropped. Any thread.
     void release();
     static void resolve_add_ref();
     static void resolve_release();
+    // Carries out the last releases queued before the previous call. Once a frame, on the game thread, before scripts
+    // run (Hooks: BeginRendering).
+    static void drain_deferred_releases();
+    // Once a frame at its end, on the game thread (Hooks: EndRendering): lets the queue log once when frames keep
+    // ending without a drain while releases are queued.
+    static void note_frame_end();
 
     // Size
     uint32_t get_size() const;
