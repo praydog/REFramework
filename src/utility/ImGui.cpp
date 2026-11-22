@@ -89,25 +89,25 @@ std::optional<Vector3f> get_camera_up() {
     auto camera_gameobject = get_gameobject_method->call<::REGameObject*>(sdk::get_thread_context(), camera);
 
     if (camera_gameobject == nullptr) {
-        std::nullopt;
+        return std::nullopt;
     }
 
     auto camera_transform = camera_gameobject->get_transform();
 
     if (camera_transform == nullptr) {
-        std::nullopt;
+        return std::nullopt;
     }
 
     auto camera_joints = get_joints_method->call<sdk::SystemArray*>(sdk::get_thread_context(), camera_transform);
 
     if (camera_joints == nullptr) {
-        std::nullopt;
+        return std::nullopt;
     }
 
     auto camera_joint = (::REJoint*)camera_joints->get_element(0);
 
     if (camera_joint == nullptr) {
-        std::nullopt;
+        return std::nullopt;
     }
 
     return sdk::get_joint_rotation(camera_joint) * Vector3f{ 0.0f, 1.0f, 0.0f };
