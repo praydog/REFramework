@@ -1,9 +1,10 @@
 -- rftest regression suite: tests for the Lua bugs fixed in the 2026-11 bug hunt (some bugs have several).
 -- Game-agnostic: uses only System.*, via.* types and REFramework APIs. The tests fail on a build without the
--- corresponding fix and pass with it, except four controls ("relative paths still work", "integer address to an out
+-- corresponding fix and pass with it, except five controls ("relative paths still work", "integer address to an out
 -- System.Single / System.Double parameter", "a wrapper that calls add_ref() again after release() releases that
--- reference when collected", "REManagedObject read_dword(0xE) on a String reads across the header's end") that pass
--- on both. See tests/README.md.
+-- reference when collected", "REField:get_data(nil) on a non-literal static System.String field reads the String",
+-- "REManagedObject read_dword(0xE) on a String reads across the header's end") that pass on both. See
+-- tests/README.md.
 --
 -- Needs from the runner (tests/run/Run-RFTests.ps1):
 --   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one); without it the package.loadlib
@@ -286,6 +287,43 @@ do
         end
     end)
 end
+
+-------------------------------------------------------------------------------------------------------------------
+-- Static String fields read through REField:get_data(nil). A literal (const) field has no storage: its data is the
+-- constant's text in the type database's string table, which the String read used as a pointer to a managed String,
+-- so every such read raised "caught (...) exception". No System.* literal String field is in every game; of the two
+-- below, each game has one or both (System.Exception.InnerExceptionPrefix is in 11 of the 20 games, the LinkedList
+-- one in 13). Every one the game has is checked; the pass detail names them.
+-------------------------------------------------------------------------------------------------------------------
+S:frame_test("REField:get_data(nil) on a literal System.String field returns the constant's text", function()
+    local candidates = {
+        { "System.Exception", "InnerExceptionPrefix", " ---> " },
+        { "System.Collections.Generic.LinkedList`1<!0>", "VersionName", "Version" },
+    }
+    local found = {}
+    for _, c in ipairs(candidates) do
+        local t = sdk.find_type_definition(c[1])
+        local f = t and t:get_field(c[2])
+        if f ~= nil then
+            local name = c[1] .. "." .. c[2]
+            H.eq(f:get_type():get_full_name(), "System.String", name .. " type")
+            H.eq(f:is_literal(), true, name .. " is_literal()")
+            H.eq(f:get_data(nil), c[3], name .. " get_data(nil)")
+            found[#found + 1] = name
+        end
+    end
+    H.truthy(#found > 0, "System.Exception.InnerExceptionPrefix or System.Collections.Generic.LinkedList`1<!0>.VersionName "
+        .. "in this game")
+    return "checked " .. table.concat(found, ", ")
+end)
+
+-- Control: passes without the fix too. A static String field that isn't a literal holds a managed String.
+S:test("REField:get_data(nil) on a non-literal static System.String field reads the String (control)", function()
+    local f = H.truthy(sdk.find_type_definition("System.String"):get_field("Empty"), "System.String.Empty")
+    H.eq(f:is_static(), true, "is_static()")
+    H.eq(f:is_literal(), false, "is_literal()")
+    H.eq(f:get_data(nil), "", "get_data(nil)")
+end)
 
 -------------------------------------------------------------------------------------------------------------------
 -- release() right after add_ref() on a new object. A new small object (an array here) lives in one of the engine's
