@@ -1700,7 +1700,7 @@ void bindings::open_sdk(ScriptState* s) {
     sdk["copy_to_clipboard"] = api::sdk::copy_to_clipboard;
     sdk["hook"] = api::sdk::hook;
     sdk["hook_vtable"] = api::sdk::hook_vtable;
-    sdk.new_enum("PreHookResult", "CALL_ORIGINAL", HookManager::PreHookResult::CALL_ORIGINAL, "SKIP_ORIGINAL", HookManager::PreHookResult::SKIP_ORIGINAL);
+    sdk.new_enum<HookManager::PreHookResult>("PreHookResult", {{"CALL_ORIGINAL", HookManager::PreHookResult::CALL_ORIGINAL}, {"SKIP_ORIGINAL", HookManager::PreHookResult::SKIP_ORIGINAL}});
     sdk["is_managed_object"] = api::sdk::is_managed_object;
     sdk["to_managed_object"] = [](sol::this_state s, sol::object ptr) { 
         if (ptr.is<::REManagedObject*>()) {

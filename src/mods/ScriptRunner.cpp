@@ -152,10 +152,10 @@ ScriptState::ScriptState(const ScriptState::GarbageCollectionData& gc_data,bool 
     re["on_frame"] = [this](sol::function fn) { m_on_frame_fns.add(fn); };
     re["on_script_reset"] = [this](sol::function fn) { m_on_script_reset_fns.add(fn); };
     re["on_config_save"] = [this](sol::function fn) { m_on_config_save_fns.add(fn); };
-    re.new_enum("CallbackNextAction",
-        "CONTINUE", ReCallbackNextAction::CONTINUE,
-        "STOP", ReCallbackNextAction::STOP
-    );
+    re.new_enum<ReCallbackNextAction>("CallbackNextAction", {
+        {"CONTINUE", ReCallbackNextAction::CONTINUE},
+        {"STOP", ReCallbackNextAction::STOP}
+    });
     m_lua["re"] = re;
 
     auto thread = m_lua.create_table();
