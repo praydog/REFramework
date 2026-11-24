@@ -283,9 +283,11 @@ function Wait-Results {
             Write-Warning "REFramework initialization failed: $((Select-String -LiteralPath $log.FullName -Pattern 'Initialization of mods failed').Line)"
             return $false
         }
-        # Every suite wrote results but one stays pending: a deadlock test hung the game.
+        # Every suite wrote results but one stays pending: a deadlock test hung the game. The 120 s count from the
+        # moment every suite has written results, not from the launch: a game can take longer than that to get there.
         $present = @($expected | Where-Object { Test-Path -LiteralPath (Join-Path $Results "$_.json") })
-        if ($present.Count -eq $expected.Count -and ((Get-Date) - $lastChange).TotalSeconds -gt 120) {
+        if ($present.Count -ne $expected.Count) { $lastChange = Get-Date }
+        elseif (((Get-Date) - $lastChange).TotalSeconds -gt 120) {
             Write-Warning 'a suite stayed pending for 120 s (game hung?)'
             return $false
         }
