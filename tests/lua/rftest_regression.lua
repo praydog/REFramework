@@ -217,6 +217,22 @@ S:test("REManagedObject read_*/write_* reject values that run past the object", 
     H.eq(arr:read_qword(last - 7), 0x0102030405060708, "in-range qword write")
 end)
 
+-- arr[i] = <ValueType> must store the value. DMC5's (TDB 67) array types declare only Set/Get, so the "set_Item" the
+-- binding looks up first is the parent's System.Array.set_Item(Int32, Object). That one takes an object: the engine
+-- read the value's bytes as one and faulted ("Invoke threw an exception"), and the element stayed 0. The other games'
+-- array types declare their own set_Item(Int32, T), so this passes there on any build.
+S:test("array[i] = ValueType stores the value (System.Guid)", function()
+    local arr = H.truthy(sdk.create_managed_array("System.Guid", 3), "create_managed_array")
+    local v = ValueType.new(sdk.find_type_definition("System.Guid"))
+    v:write_qword(0, 0x1122334455667788)
+    v:write_qword(8, 0x0102030405060708)
+    arr[1] = v
+    -- Reading an element gives a boxed copy: its data follows the 0x10-byte object header.
+    local e = H.truthy(arr[1], "arr[1]")
+    H.eq(e:read_qword(0x10), 0x1122334455667788, "element 1, bytes 0-7")
+    H.eq(e:read_qword(0x18), 0x0102030405060708, "element 1, bytes 8-15")
+end)
+
 -- A String's real size is 0x14 + 2 * (length + 1): the 0x10-byte header, the length dword at 0x10, then the UTF-16
 -- characters from 0x14 and a terminator. is_valid_offset bounded every object but an array by its type's size, and
 -- the String type's size S is one fixed number per game: 0x10 (the header alone) in some games, 0x18 in others.
