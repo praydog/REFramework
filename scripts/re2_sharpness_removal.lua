@@ -1,3 +1,5 @@
+if true then return end -- deprecated script - not needed in pd-upscaler. cannot completely delete as needs to overwrite existing ones.
+
 if reframework:get_game_name() ~= "re2" and reframework:get_game_name() ~= "re3" then
     return
 end

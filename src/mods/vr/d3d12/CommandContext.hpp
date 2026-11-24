@@ -12,9 +12,12 @@ struct CommandContext {
     CommandContext() = default;
     virtual ~CommandContext() { this->reset(); }
 
-    bool setup(const wchar_t* name = L"CommandContext object");
+    bool setup(const wchar_t* name);
     void reset();
     void wait(uint32_t ms);
+    // True while the fence says the GPU has not finished the last submission. Never recycle or
+    // release the allocator/list while this holds.
+    bool gpu_busy() const;
     void copy(ID3D12Resource* src, ID3D12Resource* dst, 
         D3D12_RESOURCE_STATES src_state = D3D12_RESOURCE_STATE_PRESENT,
         D3D12_RESOURCE_STATES dst_state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -36,7 +39,11 @@ struct CommandContext {
 
     bool waiting_for_fence{false};
     bool has_commands{false};
+    // Whether cmd_list is in the recording state. execute() closes it; wait() reopens it.
+    // If a reopen fails (GPU still using the allocator) this stays false and every recording
+    // call is dropped instead of failing with COMMAND_LIST_CLOSED until a later wait() succeeds.
+    bool is_open{false};
 
-    std::wstring internal_name{L"CommandContext object"};
+    std::wstring internal_name{L"<unnamed CommandContext>"};
 };
 }
