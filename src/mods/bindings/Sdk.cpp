@@ -2,6 +2,7 @@
 #include <concepts>
 #include <algorithm>
 #include <bit>
+#include <deque>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -882,6 +883,15 @@ void new_index(sol::this_state s, ::sdk::Delegate* delegate, sol::object lua_obj
 }
 
 namespace api::sdk {
+// A Lua-to-engine call in progress, from before its arguments are built until it has returned. Calls nest: a hook
+// callback runs inside one and can make another. build_args gives each level its own buffers.
+struct InvokeScope {
+    InvokeScope() { ++s_depth; }
+    ~InvokeScope() { --s_depth; }
+
+    static inline size_t s_depth{0};
+};
+
 std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn = nullptr);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
@@ -958,6 +968,7 @@ struct ValueType {
         }
 
         reframework::InvokeRet ret_val{};
+        const ::api::sdk::InvokeScope invoke_scope{};
         auto vec_args = ::api::sdk::build_args(va, def);
 
         const auto mo_runtime_size = REManagedObject::runtime_size();
@@ -1970,11 +1981,27 @@ const std::vector<NumericParam>& numeric_param_kinds(::sdk::REMethodDefinition* 
 std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn) {
     auto l = va.lua_state();
 
-    static std::vector<void*> args{};
-    static std::vector<Vector4f> vec_storage{};
+    // The engine reads the argument list, and the Vector2f/Vector3f arguments through their addresses in vec_storage,
+    // while the call runs. So a call made from a hook callback must not reuse the buffers of the call it interrupts:
+    // each nesting level has its own (a deque, so that adding a level leaves the others where they are).
+    struct Buffers {
+        std::vector<void*> args{};
+        std::vector<Vector4f> vec_storage{};
+    };
+
+    static std::deque<Buffers> levels{};
+
+    while (levels.size() <= InvokeScope::s_depth) {
+        levels.emplace_back();
+    }
+
+    auto& args = levels[InvokeScope::s_depth].args;
+    auto& vec_storage = levels[InvokeScope::s_depth].vec_storage;
 
     args.clear();
     vec_storage.clear();
+    // Addresses of its elements are handed out below: it must not grow and move in the middle of that.
+    vec_storage.reserve(va.size());
 
     // Per-parameter number encoding, looked up only if a number argument needs it.
     const std::vector<NumericParam>* kinds = nullptr;
@@ -2057,6 +2084,7 @@ sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* 
     }
 
     auto real_obj = get_invoke_this(obj, fn);
+    const InvokeScope invoke_scope{};
     auto ret_val = fn->invoke(real_obj, build_args(va, fn));
 
     if (ret_val.exception_thrown) {
@@ -2557,6 +2585,7 @@ void bindings::open_sdk(ScriptState* s) {
         auto l = va.lua_state();
 
         auto real_obj = ::api::sdk::get_invoke_this(obj, def);
+        const ::api::sdk::InvokeScope invoke_scope{};
         auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va, def));
 
         if (ret_val.exception_thrown) {
