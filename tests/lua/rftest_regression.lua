@@ -729,6 +729,40 @@ do
 end
 
 -------------------------------------------------------------------------------------------------------------------
+-- A call made from a hook callback must not change the arguments of the call it interrupts. Vector2f / Vector3f
+-- arguments are passed as addresses into a buffer REFramework keeps for the call. The nested call reused that buffer,
+-- so the outer method computed with the nested call's vectors: (1, 2, 3) + (4, 5, 6) gave (110, 220, 330).
+-------------------------------------------------------------------------------------------------------------------
+do
+    local vec3_t = sdk.find_type_definition("via.vec3")
+    local add = vec3_t and vec3_t:get_method("op_Addition(via.vec3, via.vec3)")
+    local sub = vec3_t and vec3_t:get_method("op_Subtraction(via.vec3, via.vec3)")
+    local armed, armed_thread, nested = false, nil, nil
+    local function fmt(v) return string.format("(%g, %g, %g)", v.x, v.y, v.z) end
+
+    if add and sub then
+        sdk.hook(add, function(args)
+            -- The game adds vectors too, on any thread: only the test's own call counts.
+            if not armed or thread.get_id() ~= armed_thread then return end
+            armed = false
+            nested = sub:call(nil, Vector3f.new(100, 200, 300), Vector3f.new(10, 20, 30))
+        end, function(retval) return retval end)
+    end
+
+    S:frame_test("a vector call made from a hook leaves the outer call's vector arguments alone", function(frame)
+        if not (add and sub) then H.skip("need via.vec3.op_Addition and op_Subtraction") end
+        if frame < 5 then return false end
+        armed, armed_thread = true, thread.get_id()
+        local sum = add:call(nil, Vector3f.new(1, 2, 3), Vector3f.new(4, 5, 6))
+        armed = false
+        H.truthy(nested ~= nil, "hook on op_Addition fired for the test's own call")
+        H.eq(fmt(nested), "(90, 180, 270)", "nested (100, 200, 300) - (10, 20, 30)")
+        H.eq(fmt(sum), "(5, 7, 9)", "outer (1, 2, 3) + (4, 5, 6)")
+        return true
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
 -- imgui bindings. Each check runs inside a window in a frame test.
 -------------------------------------------------------------------------------------------------------------------
 local function width_of(draw)
