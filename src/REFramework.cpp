@@ -512,12 +512,6 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     }
 
-    LooseTextureLoader::get().early_initialize();
-
-    if (gi.tdb_ver() >= 81) {
-        FaultyFileDetector::early_init();
-    }
-
     if (gi.is_re8()) {
         auto startup_lookup_thread = std::make_unique<std::thread>([this]() {
             // Fixes a crash on some machines when starting the game
@@ -550,6 +544,15 @@ REFramework::REFramework(HMODULE reframework_module)
     if (gi.is_reengine_at()) {
         utility::ThreadSuspender suspender{};
         IntegrityCheckBypass::PristineSyscalls pristine_syscalls{};
+
+        // Inside the frozen region, so that these hooks and the pak hooks below are in place before the game
+        // mounts its paks. Before it, their scans took long enough for the game to mount first on some setups.
+        LooseTextureLoader::get().early_initialize();
+
+        if (gi.tdb_ver() >= 81) {
+            FaultyFileDetector::early_init();
+        }
+
         IntegrityCheckBypass::ignore_application_entries();
 
         if (gi.is_re8() || gi.is_re4() || gi.is_sf6()) {
