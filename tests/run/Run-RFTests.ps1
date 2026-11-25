@@ -61,6 +61,8 @@ param(
     # The C# API build output (csharp-api\build\bin) for the csharp suite. Its files are installed only if the game does
     # not already have REFramework.NET, and removed again afterwards. Default: local.json "csharpBin".
     [string] $CSharpBin,
+    # Regenerate REFramework.NET's reference assemblies even when a set kept from an earlier run would fit.
+    [switch] $FreshAssemblies,
     [int] $TimeoutSeconds = 900,
     # Where results are copied. Default: <local.json "outDir" or tests\out>\<game>-<time>.
     [string] $OutDir
@@ -101,6 +103,21 @@ $RootFiles = 're2_fw_config.txt', 're2_framework_log.txt', 're2_framework_log.pr
 $CSharpPluginFiles = 'REFramework.NET.dll', 'REFramework.NET.runtimeconfig.json', 'Ijwhost.dll'
 $CSharpDependencyFiles = 'AssemblyGenerator.dll', 'REFCoreDeps.dll', 'Microsoft.CodeAnalysis.CSharp.dll', 'Microsoft.CodeAnalysis.dll',
     'Hexa.NET.ImGui.dll', 'HexaGen.Runtime.dll'
+
+# REFramework.NET's generated reference assemblies, kept between runs: making them takes 15 s to 3.5 minutes per game.
+# REFramework.NET regenerates them itself when the game's executable or REFramework.NET.dll changed. The folder name
+# under here is a key over every C# file the runner installs, so a changed generator (AssemblyGenerator.dll) starts
+# fresh too.
+$AssemblyCache = Join-Path $GameDir 'rftest-assemblies'
+
+function Get-AssemblyCacheKey {
+    $hashes = foreach ($f in $CSharpPluginFiles + $CSharpDependencyFiles) {
+        (Get-FileHash -LiteralPath (Join-Path $CSharpBin $f) -Algorithm SHA256).Hash
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try { return (-join ($sha.ComputeHash([Text.Encoding]::ASCII.GetBytes($hashes -join '')) | ForEach-Object { $_.ToString('x2') })).Substring(0, 16) }
+    finally { $sha.Dispose() }
+}
 
 function Get-ConfigPath { Join-Path $GameDir 're2_fw_config.txt' }
 
@@ -178,6 +195,11 @@ function Install-Suites {
             New-Item -ItemType Directory -Force -Path $deps | Out-Null
             foreach ($f in $CSharpPluginFiles) { Copy-Item -LiteralPath (Join-Path $CSharpBin $f) -Destination $Plugins -Force }
             foreach ($f in $CSharpDependencyFiles) { Copy-Item -LiteralPath (Join-Path $CSharpBin $f) -Destination $deps -Force }
+            $kept = Join-Path $AssemblyCache (Get-AssemblyCacheKey)
+            if ((Test-Path -LiteralPath $kept) -and -not $FreshAssemblies) {
+                Copy-Item -LiteralPath $kept -Destination (Join-Path $Plugins 'managed\generated') -Recurse
+                Write-Host 'reusing the reference assemblies kept from an earlier run (-FreshAssemblies regenerates them)'
+            }
         }
         Copy-Item -LiteralPath (Join-Path $TestsDir 'csharp\rftest_csharp.cs') -Destination $source -Force
     }
@@ -193,6 +215,19 @@ function Uninstall-Suites {
     # Everything under reframework\ that wasn't there before: the suites, REFramework.NET, generated assemblies, fonts...
     $before = @{}
     foreach ($p in @(Get-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8)) { if ($p) { $before[$p] = $true } }
+    # Keep the reference assemblies this run made or reused (see $AssemblyCache). Only after a complete csharp suite:
+    # then they were all written and loaded. Only when the runner installed REFramework.NET: a game's own copy keeps
+    # its own.
+    $generated = Join-Path $Plugins 'managed\generated'
+    if ($CSharpBin -and $Suites -contains 'csharp' -and (Test-SuiteComplete 'csharp') -and -not $before[$generated] -and
+        -not $before[(Join-Path $Plugins 'REFramework.NET.dll')] -and (Test-Path -LiteralPath (Join-Path $generated 'metadata.json'))) {
+        try {
+            $kept = Join-Path $AssemblyCache (Get-AssemblyCacheKey)
+            Remove-Item -LiteralPath $AssemblyCache -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Path $AssemblyCache | Out-Null
+            Move-Item -LiteralPath $generated -Destination $kept
+        } catch { Write-Warning "could not keep the reference assemblies: $_" }
+    }
     # A file or folder can stay in use for a moment after the game exits; retry, and name whatever still can't go.
     $new = @()
     for ($try = 0; $try -lt 5; ++$try) {

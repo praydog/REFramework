@@ -24,6 +24,8 @@ param(
     # REFramework build (dinput8.dll) to test. Default: local.json "build", else what each game already has.
     [string] $Build,
     [string] $CSharpBin,
+    # Regenerate REFramework.NET's reference assemblies in every game (see Run-RFTests.ps1).
+    [switch] $FreshAssemblies,
     [int] $TimeoutSeconds = 900,
     # Default: <local.json "outDir" or tests\out>\all-<time>.
     [string] $OutDir
@@ -56,6 +58,7 @@ foreach ($g in $targets) {
         '-Scenario', $Scenario, '-TimeoutSeconds', $TimeoutSeconds, '-OutDir', $gameOut)
     if ($Build) { $runArgs += @('-Build', $Build) }
     if ($CSharpBin) { $runArgs += @('-CSharpBin', $CSharpBin) }
+    if ($FreshAssemblies) { $runArgs += '-FreshAssemblies' }
     & $ps @runArgs
     $summary = Join-Path $gameOut 'summary.json'
     if (Test-Path -LiteralPath $summary) {
