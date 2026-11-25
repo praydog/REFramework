@@ -52,6 +52,11 @@ instantiated-methods test, as the SDK has no instantiation data there. Game-spec
      left from an earlier session is set aside at install and restored afterwards, so it never counts.
    - `-Suites api,regression,plugin` picks suites. Add `csharp` for the C# suite; `-CSharpBin <csharp-api\build\bin>`
      installs REFramework.NET for the run if the game doesn't have it.
+   - REFramework.NET's generated reference assemblies are kept between runs in `<game>\rftest-assemblies\` (making
+     them takes 15 s to 3.5 minutes per game, well over half of a full run). REFramework.NET regenerates them itself
+     when the game or `REFramework.NET.dll` changed, and the runner starts fresh when any C# file in `-CSharpBin`
+     changed. `-FreshAssemblies` regenerates them anyway: use it for the last run before a release. Delete the
+     folder to get the space back.
    - `-Scenario MalformedConfig` adds the config check.
    - `-Action Install|Wait|Collect|Uninstall` splits the run for setups where the game is started some other way.
 
