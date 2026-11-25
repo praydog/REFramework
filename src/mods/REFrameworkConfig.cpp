@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include "../REFramework.hpp"
 
 #include "REFrameworkConfig.hpp"
@@ -34,13 +35,15 @@ std::optional<std::string> REFrameworkConfig::on_initialize() {
 }
 
 void REFrameworkConfig::on_draw_ui() {
-    if (!ImGui::CollapsingHeader("Configuration")) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label("Configuration").c_str())) {
         return;
     }
 
     ImGui::TreePush("Configuration");
 
     bool changed = false;
+
+    changed |= m_ui_language->draw("Interface Language");
 
     changed |= m_menu_key->draw("Menu Key");
     changed |= m_show_cursor_key->draw("Show Cursor Key");
@@ -93,6 +96,9 @@ void REFrameworkConfig::on_config_load(const utility::Config& cfg) {
         ? m_ui_font_size->value()
         : static_cast<float>(m_font_size->value());
     g_framework->set_font_size_for_display(saved_font_size, static_cast<float>(m_ui_monitor_height->value()));
+
+    // Publish only after the initial background config load has finished writing the language.
+    reframework::localization::set_language_provider([]() { return REFrameworkConfig::get()->get_ui_language(); });
 }
 
 void REFrameworkConfig::on_config_save(utility::Config& cfg) {

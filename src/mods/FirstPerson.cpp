@@ -1,3 +1,4 @@
+#include "Localization.hpp"
 #include <unordered_set>
 
 #include <spdlog/spdlog.h>
@@ -87,7 +88,7 @@ void FirstPerson::on_frame() {
 void FirstPerson::on_draw_ui() {
     ImGui::SetNextItemOpen(false, ImGuiCond_::ImGuiCond_FirstUseEver);
 
-    if (!ImGui::CollapsingHeader(get_name().data())) {
+    if (!ImGui::CollapsingHeader(reframework::localization::label(get_name()).c_str())) {
         return;
     }
 
@@ -223,7 +224,7 @@ void FirstPerson::on_draw_ui() {
 
     m_body_rotate_speed->draw("BodyRotateSpeed");
 
-    if (ImGui::InputText("Joint", m_attach_bone_imgui.data(), 256)) {
+    if (ImGui::InputText(reframework::localization::label("Joint").c_str(), m_attach_bone_imgui.data(), 256)) {
         m_attach_bone = std::wstring{ std::begin(m_attach_bone_imgui), std::end(m_attach_bone_imgui) };
     }
 
