@@ -1415,7 +1415,9 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
                 WM_CLOSE,
                 WM_DPICHANGED,
                 WM_SIZING,
-                WM_MOUSEACTIVATE
+                WM_MOUSEACTIVATE,
+                // Not input for the UI. The game refuses SC_MONITORPOWER; DefWindowProc would turn the display off.
+                WM_SYSCOMMAND
             };
 
             if (!forcefully_allowed_messages.contains(message)) {
