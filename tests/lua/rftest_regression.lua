@@ -327,6 +327,46 @@ S:test("array[i] = value checks the index and the kind of value", function()
     H.truthy(err:find("Cannot assign a number", 1, true), "rejected as a number, got: " .. err)
 end)
 
+-- arr[0] = "text" on a two-dimensional System.String array. Its Set is Set(Int32, Int32, String), which arr[i] = v
+-- can't call; up to TDB 71 the array inherits System.Array.set_Item(Int32, Object), and master stored the string
+-- through it (in the element [0,0]). The Set checks above left such an array no setter at all: "Attempted to new_index
+-- invalid REManagedObject field". The type database can't create a multi-dimensional array (its System.Array has only
+-- CreateInstance(Type, Int32)), so the test clones one the game holds in a static field and writes only into the
+-- clone. The fields below are the System.String[,] instances a search of every type's fields found (SF6, MH Rise; the
+-- other games have none, or no such type). Where System.Array has no set_Item (TDB 73 and later), no build stores a
+-- value through arr[i] = v in such an array, and the test skips.
+local STRING_2D_FIELDS = {
+    { "app.UIPartsContactPanelBase", "mArrPlayStateName" },        -- SF6
+    { "snow.eventcut.UniqueEventManager", "OtomoClipNodeMatrix" }, -- MH Rise
+}
+S:frame_test("a string written into a two-dimensional string array is stored", function(frame)
+    local array_t = H.truthy(sdk.find_type_definition("System.Array"), "System.Array")
+    if array_t:get_method("set_Item") == nil then
+        H.skip("System.Array.set_Item(Int32, Object) is not in this game: no build stores arr[i] = v in a multi-dimensional array")
+    end
+    local looked, field, src = {}, nil, nil
+    for _, c in ipairs(STRING_2D_FIELDS) do
+        looked[#looked + 1] = c[1] .. "." .. c[2]
+        local t = sdk.find_type_definition(c[1])
+        local f = t and t:get_field(c[2])
+        if f ~= nil and f:is_static() then field = looked[#looked]; src = f:get_data(nil); break end
+    end
+    if field == nil then H.skip("no System.String[,] instance known in this game (looked for the static fields " .. table.concat(looked, ", ") .. ")") end
+    -- The game fills the field itself; wait for it (the suite's frame budget bounds the wait).
+    if src == nil then return false end
+    H.eq(H.type_name(src), "System.String[,]", field)
+    local clone_m = H.truthy(src:get_type_definition():get_method("Clone"), "System.String[,] Clone()")
+    local clone = H.truthy(clone_m:call(src), field .. ":Clone()")
+    H.ne(clone:get_address(), src:get_address(), "Clone() returned a new array")
+    local original = src:call("Get", 0, 0)
+    H.eq(clone:call("Get", 0, 0), original, "the clone's [0,0] before the write")
+    H.ne(original, "rftest-2d", "the game's [0,0]")
+    H.no_raise(function() clone[0] = "rftest-2d" end, "clone[0] = 'rftest-2d'")
+    H.eq(clone:call("Get", 0, 0), "rftest-2d", "the clone's [0,0] after clone[0] = 'rftest-2d'")
+    H.eq(src:call("Get", 0, 0), original, "the game's " .. field .. " [0,0] after the write into its clone")
+    return string.format("%s (cloned, frame %d): [0,0] %s -> rftest-2d", field, frame, tostring(original))
+end)
+
 -- A String's real size is 0x14 + 2 * (length + 1): the 0x10-byte header, the length dword at 0x10, then the UTF-16
 -- characters from 0x14 and a terminator. is_valid_offset bounded every object but an array by its type's size, and
 -- the String type's size S is one fixed number per game: 0x10 (the header alone) in some games, 0x18 in others.

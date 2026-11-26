@@ -2303,6 +2303,13 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
         }
     }
 
+    // Arrays without Set(Int32, T), the multi-dimensional ones, keep the set_Item they inherit for a string. It is
+    // System.Array.set_Item(Int32, Object): a number or a ValueType is not an object and faults inside the engine.
+    if (auto fn = type_def->get_method("set_Item"); fn != nullptr && type_def->is_array() && assign.get_type() == sol::type::string) {
+        ::api::sdk::call_native_func_direct(lua_obj, fn, args);
+        return;
+    }
+
     throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
 }
 
