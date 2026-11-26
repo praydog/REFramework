@@ -375,7 +375,8 @@ void bindings::open_fs(ScriptState* s) {
         }
 
         // Do not allow modification of the package path or cpath. We restore it to a pristine value before calling the original require.
-        auto lua = sol::state_view{l};
+        // The main thread: the searcher wrappers below outlive this call, and l can be a coroutine that is collected first.
+        auto lua = sol::state_view{sol::main_thread(l, l)};
         lua["package"]["path"] = lua.registry()["package_path"];
         lua["package"]["cpath"] = lua.registry()["package_cpath"];
         lua["package"]["searchers"] = lua.create_table();

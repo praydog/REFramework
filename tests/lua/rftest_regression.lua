@@ -12,7 +12,9 @@
 --   reframework/plugins/rftest_plugin.dll the plugin suite's DLL: it registers rftest_peek (a guarded memory read);
 --                                         without it the local page test fails.
 -- Side effect on unfixed builds: the root-relative write tests create \rftest_escape\ at the root of the game's
--- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there.
+-- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there, except
+-- "require inside a coroutine that is collected afterwards": its failure is the corruption, so it runs after every
+-- other test.
 
 local H = require("rftest.harness")
 local S = H.suite("regression")
@@ -128,6 +130,75 @@ S:test("loadlib and require refuse a file reached by an 8.3 short name ending in
     H.eq(loaded, false, "require succeeded")
     H.truthy(tostring(rerr):find("is not a DLL", 1, true), "require refused it as not a DLL, got: " .. tostring(rerr))
 end)
+
+-- require inside a coroutine. The require wrapper built the C searcher wrappers it puts into package.searchers (3 and
+-- 4) from the calling thread's lua_State, and they outlive the call: the next require replaces package.searchers, and
+-- when the old table is collected each wrapper releases its reference through that lua_State. Once the coroutine had
+-- been collected that was freed memory: luaL_unref on a freed lua_State, an access violation in lua_rawgeti as soon as
+-- the block had been reused (RE2 and DMC5, in the first frame of a probe doing the steps below 25 times per frame;
+-- under cdb after 31 and 33 coroutines). Nothing a script can read shows the freed state (require returns the module
+-- inside the coroutine on every build), so the failure is what the writes through it do. Depending on what reused the
+-- block that is the access violation (RE2, DMC5, SF6, MH Rise with the regression and plugin suites installed) or,
+-- with the api suite installed too, the C-call count of the thread running the test growing by 5 per iteration until
+-- require raises "C stack overflow" (iteration 50 in the same four games); with every coroutine kept alive neither
+-- happens. Each iteration creates the timing: require of an already loaded module (no file is searched) in a fresh
+-- coroutine, a full collection that frees the coroutine, strings of the sizes of the freed blocks that reuse them,
+-- require on the main thread (the old searchers table becomes garbage) and a full collection that finalizes its
+-- wrappers. Runs last, after every other last test, recorded as FAIL before it starts. The module is put into
+-- package.loaded for the test and taken out again.
+local REQUIRE_CO_TEST = "require inside a coroutine that is collected afterwards"
+do
+    local MODULE, ITERATIONS, PER_FRAME = "rftest_require_in_coroutine", 300, 25
+    local st = nil
+    -- Long strings (never interned) of the sizes a freed thread leaves: its lua_State (~0xd0 bytes) and its first
+    -- stack (45 TValues, 720 bytes). 0xFF bytes, so a lua_State read from a reused block holds garbage pointers.
+    local function churn(i)
+        local keep = {}
+        for n = 0, 63 do keep[#keep + 1] = string.rep("\255", 150 + n) .. i end
+        for n = 0, 15 do keep[#keep + 1] = string.rep("\255", 680 + n * 8) .. i end
+        return keep
+    end
+    -- In a separate function, so no stack slot keeps the coroutine reachable.
+    local function require_in_coroutine(weak)
+        local co = coroutine.create(function() return require(MODULE) end)
+        weak[co] = true
+        return coroutine.resume(co)
+    end
+    local function iteration()
+        st.i = st.i + 1
+        local weak = setmetatable({}, { __mode = "k" })
+        local ok, r = require_in_coroutine(weak)
+        if not (ok and rawequal(r, st.module)) then st.wrong[#st.wrong + 1] = string.format("%d: %s %s", st.i, tostring(ok), tostring(r)) end
+        collectgarbage("collect")
+        if next(weak) == nil then st.collected = st.collected + 1 end
+        local keep = churn(st.i)
+        if not rawequal(require(MODULE), st.module) then st.wrong[#st.wrong + 1] = string.format("%d: main thread", st.i) end
+        keep = nil
+        collectgarbage("collect")
+    end
+    S:last_frame_test(REQUIRE_CO_TEST, function(frame)
+        -- An unfixed build can crash here: wait until no other last test is still pending.
+        for _, r in ipairs(S.results) do
+            if r.name ~= REQUIRE_CO_TEST and tostring(r.detail):sub(1, 8) == "pending:" then return false end
+        end
+        if st == nil then
+            st = { i = 0, collected = 0, wrong = {}, module = { name = MODULE }, before = package.loaded[MODULE], first = frame }
+            package.loaded[MODULE] = st.module
+        end
+        local ok, err = pcall(function()
+            for _ = 1, PER_FRAME do
+                if st.i >= ITERATIONS then break end
+                iteration()
+            end
+        end)
+        if not ok or st.i >= ITERATIONS then package.loaded[MODULE] = st.before end
+        if not ok then error(string.format("iteration %d of %d: %s", st.i, ITERATIONS, tostring(err)), 0) end
+        if st.i < ITERATIONS then return false end
+        H.eq(#st.wrong, 0, "require returned another value than the loaded module (" .. table.concat(st.wrong, ", ") .. ")")
+        H.eq(st.collected, ITERATIONS, "coroutines collected by the full collection after their require")
+        return string.format("%d coroutines, each collected right after its require, in %d frames", ITERATIONS, frame - st.first + 1)
+    end)
+end
 
 -------------------------------------------------------------------------------------------------------------------
 -- ValueType field writes and bounds.
@@ -254,6 +325,46 @@ S:test("array[i] = value checks the index and the kind of value", function()
     local strings = H.truthy(sdk.create_managed_array("System.String", 2), "create_managed_array(System.String)")
     err = tostring(H.raises(function() strings[0] = 5 end, "a number into a System.String element"))
     H.truthy(err:find("Cannot assign a number", 1, true), "rejected as a number, got: " .. err)
+end)
+
+-- arr[0] = "text" on a two-dimensional System.String array. Its Set is Set(Int32, Int32, String), which arr[i] = v
+-- can't call; up to TDB 71 the array inherits System.Array.set_Item(Int32, Object), and master stored the string
+-- through it (in the element [0,0]). The Set checks above left such an array no setter at all: "Attempted to new_index
+-- invalid REManagedObject field". The type database can't create a multi-dimensional array (its System.Array has only
+-- CreateInstance(Type, Int32)), so the test clones one the game holds in a static field and writes only into the
+-- clone. The fields below are the System.String[,] instances a search of every type's fields found (SF6, MH Rise; the
+-- other games have none, or no such type). Where System.Array has no set_Item (TDB 73 and later), no build stores a
+-- value through arr[i] = v in such an array, and the test skips.
+local STRING_2D_FIELDS = {
+    { "app.UIPartsContactPanelBase", "mArrPlayStateName" },        -- SF6
+    { "snow.eventcut.UniqueEventManager", "OtomoClipNodeMatrix" }, -- MH Rise
+}
+S:frame_test("a string written into a two-dimensional string array is stored", function(frame)
+    local array_t = H.truthy(sdk.find_type_definition("System.Array"), "System.Array")
+    if array_t:get_method("set_Item") == nil then
+        H.skip("System.Array.set_Item(Int32, Object) is not in this game: no build stores arr[i] = v in a multi-dimensional array")
+    end
+    local looked, field, src = {}, nil, nil
+    for _, c in ipairs(STRING_2D_FIELDS) do
+        looked[#looked + 1] = c[1] .. "." .. c[2]
+        local t = sdk.find_type_definition(c[1])
+        local f = t and t:get_field(c[2])
+        if f ~= nil and f:is_static() then field = looked[#looked]; src = f:get_data(nil); break end
+    end
+    if field == nil then H.skip("no System.String[,] instance known in this game (looked for the static fields " .. table.concat(looked, ", ") .. ")") end
+    -- The game fills the field itself; wait for it (the suite's frame budget bounds the wait).
+    if src == nil then return false end
+    H.eq(H.type_name(src), "System.String[,]", field)
+    local clone_m = H.truthy(src:get_type_definition():get_method("Clone"), "System.String[,] Clone()")
+    local clone = H.truthy(clone_m:call(src), field .. ":Clone()")
+    H.ne(clone:get_address(), src:get_address(), "Clone() returned a new array")
+    local original = src:call("Get", 0, 0)
+    H.eq(clone:call("Get", 0, 0), original, "the clone's [0,0] before the write")
+    H.ne(original, "rftest-2d", "the game's [0,0]")
+    H.no_raise(function() clone[0] = "rftest-2d" end, "clone[0] = 'rftest-2d'")
+    H.eq(clone:call("Get", 0, 0), "rftest-2d", "the clone's [0,0] after clone[0] = 'rftest-2d'")
+    H.eq(src:call("Get", 0, 0), original, "the game's " .. field .. " [0,0] after the write into its clone")
+    return string.format("%s (cloned, frame %d): [0,0] %s -> rftest-2d", field, frame, tostring(original))
 end)
 
 -- A String's real size is 0x14 + 2 * (length + 1): the 0x10-byte header, the length dword at 0x10, then the UTF-16
@@ -1081,9 +1192,10 @@ do
 
     local NULL_GO_TEST = "draw.sphere / draw.capsule draw nothing when the camera's GameObject is null"
     S:last_frame_test(NULL_GO_TEST, function(frame)
-        -- An unfixed build takes an access violation here: wait until no other last test is still pending.
+        -- An unfixed build takes an access violation here: wait until no other last test is still pending (but the
+        -- require-in-a-coroutine test, which waits for this one).
         for _, r in ipairs(S.results) do
-            if r.name ~= NULL_GO_TEST and tostring(r.detail):sub(1, 8) == "pending:" then return false end
+            if r.name ~= NULL_GO_TEST and r.name ~= REQUIRE_CO_TEST and tostring(r.detail):sub(1, 8) == "pending:" then return false end
         end
         H.truthy(installed_frame, "hooks installed by the transform/joints test")
         need_camera()
