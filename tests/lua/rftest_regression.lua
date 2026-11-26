@@ -233,6 +233,29 @@ S:test("array[i] = ValueType stores the value (System.Guid)", function()
     H.eq(e:read_qword(0x18), 0x0102030405060708, "element 1, bytes 8-15")
 end)
 
+-- arr[i] = value must check the index and the kind of value. The checks sit on the array's Set. Arrays with a set_Item
+-- of their own (every game but DMC5, DD2 and PRAGMATA) never got there: a string stored its managed string's pointer
+-- bits in a value element, and a fractional index wrote the element below it. The number into a reference element
+-- comes last: unchecked, it would leave a bogus pointer in the array, and an unfixed build fails before it.
+S:test("array[i] = value checks the index and the kind of value", function()
+    local arr = H.truthy(sdk.create_managed_array("System.Int32", 3), "create_managed_array")
+    arr[1] = 0x11223344
+    -- Reading an element gives a boxed copy: its data follows the 0x10-byte object header.
+    H.eq(arr[1]:read_dword(0x10), 0x11223344, "element 1 after a number")
+
+    local err = tostring(H.raises(function() arr[1] = "text" end, "a string into a System.Int32 element"))
+    H.truthy(err:find("Cannot assign a string", 1, true), "rejected as a string, got: " .. err)
+    H.eq(arr[1]:read_dword(0x10), 0x11223344, "element 1 after the rejected string")
+
+    err = tostring(H.raises(function() arr[1.5] = 7 end, "index 1.5"))
+    H.truthy(err:find("Array index must be an integer", 1, true), "rejected as a fractional index, got: " .. err)
+    H.eq(arr[1]:read_dword(0x10), 0x11223344, "element 1 after the rejected index")
+
+    local strings = H.truthy(sdk.create_managed_array("System.String", 2), "create_managed_array(System.String)")
+    err = tostring(H.raises(function() strings[0] = 5 end, "a number into a System.String element"))
+    H.truthy(err:find("Cannot assign a number", 1, true), "rejected as a number, got: " .. err)
+end)
+
 -- A String's real size is 0x14 + 2 * (length + 1): the 0x10-byte header, the length dword at 0x10, then the UTF-16
 -- characters from 0x14 and a terminator. is_valid_offset bounded every object but an array by its type's size, and
 -- the String type's size S is one fixed number per game: 0x10 (the header alone) in some games, 0x18 in others.

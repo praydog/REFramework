@@ -2244,9 +2244,9 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
         }
     }
 
-    // An array type without a set_Item of its own (DMC5, TDB 67) gets System.Array.set_Item(Int32, Object) here, which
-    // takes an object and faults on a number or a ValueType. Its Set, below, takes the element type.
-    if (auto fn = type_def->get_method("set_Item"); fn != nullptr && !(type_def->is_array() && fn->get_declaring_type() != type_def)) {
+    // Arrays go to Set below, which checks the index and the kind of value. Their set_Item does not, and in DMC5
+    // (TDB 67) it is System.Array.set_Item(Int32, Object), which takes an object and faults on anything else.
+    if (auto fn = type_def->get_method("set_Item"); fn != nullptr && !type_def->is_array()) {
         const auto params = fn->get_param_types();
 
         if (!params.empty()) {
