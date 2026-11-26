@@ -151,11 +151,12 @@ ROOT_FILES="re2_fw_config.txt re2_framework_log.txt re2_framework_log.prev.txt r
 
 restore() {
   # Everything under reframework/ that wasn't there before: the suites, REFramework.NET, generated assemblies, fonts...
-  if [ -d "$RF" ]; then
-    find "$RF" -depth -print | while IFS= read -r p; do grep -Fxq -- "$p" "$WORK/rf-before" || rm -rf -- "$p"; done
+  if [ -d "$RF" ] && [ -f "$WORK/rf-before" ]; then
+    find -H "$RF" -depth -print | while IFS= read -r p; do grep -Fxq -- "$p" "$WORK/rf-before" || rm -rf -- "$p"; done
+  elif [ -d "$RF" ]; then echo "warning: $WORK/rf-before not found; nothing under $RF or next to the game removed" >&2
   fi
   for f in $ROOT_FILES; do
-    if [ -f "$WORK/$f" ]; then cp -p "$WORK/$f" "$GAME/$f"; else rm -f "$GAME/$f"; fi
+    if [ -f "$WORK/$f" ]; then cp -p "$WORK/$f" "$GAME/$f"; elif [ -f "$WORK/rf-before" ]; then rm -f "$GAME/$f"; fi
   done
   [ -n "$dotnet_installed" ] && rm -rf "$DOTNET"
   [ -n "$override_added" ] && dll_override remove
@@ -173,10 +174,10 @@ wait_idle || die "another game is still running; close it first"
 old_link="" dotnet_installed="" override_added=""
 DOTNET="$PFX/drive_c/Program Files/dotnet"
 mkdir -p "$OUT" "$WORK"
-find "$RF" -print 2>/dev/null > "$WORK/rf-before"
-for f in $ROOT_FILES; do [ -f "$GAME/$f" ] && cp -p "$GAME/$f" "$WORK/$f"; done
+if [ -e "$RF" ]; then find -H "$RF" -print > "$WORK/rf-before"; else : > "$WORK/rf-before"; fi || { rm -rf "$WORK"; die "could not list $RF into $WORK/rf-before"; }
+for f in $ROOT_FILES; do [ ! -f "$GAME/$f" ] || cp -p "$GAME/$f" "$WORK/$f" || { rm -rf "$WORK"; die "could not save $GAME/$f"; }; done
 old_link=$(readlink "$GAME/dinput8.dll" || true)
-[ -z "$old_link" ] && [ -f "$GAME/dinput8.dll" ] && mv "$GAME/dinput8.dll" "$WORK/dinput8.dll"
+[ -n "$old_link" ] || [ ! -f "$GAME/dinput8.dll" ] || mv "$GAME/dinput8.dll" "$WORK/dinput8.dll" || { rm -rf "$WORK"; die "could not save $GAME/dinput8.dll"; }
 trap restore EXIT
 rm -f "$GAME/dinput8.dll"
 cp "$BUILD" "$GAME/dinput8.dll"
@@ -241,7 +242,7 @@ cp "$RF"/data/rftest/results/*.json "$OUT/" 2>/dev/null
 # The full log and a crash dump, before restore puts the game's own files back.
 for f in re2_framework_log.txt reframework_crash.dmp; do [ "$GAME/$f" -nt "$WORK/rf-before" ] && cp "$GAME/$f" "$OUT/"; done
 grep -E '\[rftest\]|\[error\]' "$LOG" > "$OUT/log-excerpt.txt" 2>/dev/null
-resets=$(grep -c '\] Reset!$' "$LOG" 2>/dev/null); resets=${resets:-0}
+resets=$(grep -c '\] Reset![[:space:]]*$' "$LOG" 2>/dev/null); resets=${resets:-0}
 echo "device resets: $resets" >> "$OUT/log-excerpt.txt"
 python3 - "$OUT" "$ALIAS" "$result" "$secs" "$resets" $EXPECTED <<'EOF'
 import json, os, sys
@@ -265,6 +266,9 @@ for s in sys.argv[6:]:
 if result != "DONE":
     # The game never started, exited early, or the suites didn't finish in time (e.g. a deadlock).
     failed.append(f"run: {result}")
+if os.path.exists(os.path.join(out, "reframework_crash.dmp")):
+    # Copied above only when written during this run: the game crashed, even if every suite passed.
+    failed.append("run: CRASH (reframework_crash.dmp)"); text.append("  FAIL run: CRASH (reframework_crash.dmp)")
 open(os.path.join(out, "summary.txt"), "w").write("\n".join(text) + "\n")
 json.dump({"game": alias, "result": result, "seconds": int(secs), "suites": rows, "failed": failed, "skipped": skipped, "deviceResets": int(resets)},
           open(os.path.join(out, "summary.json"), "w"), indent=2)

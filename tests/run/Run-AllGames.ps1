@@ -60,10 +60,12 @@ foreach ($g in $targets) {
     if ($CSharpBin) { $runArgs += @('-CSharpBin', $CSharpBin) }
     if ($FreshAssemblies) { $runArgs += '-FreshAssemblies' }
     & $ps @runArgs
+    # Non-zero with a clean summary: the runner failed after writing it (e.g. Uninstall threw).
+    $exitCode = $LASTEXITCODE
     $summary = Join-Path $gameOut 'summary.json'
     if (Test-Path -LiteralPath $summary) {
         $s = Get-Content -LiteralPath $summary -Raw | ConvertFrom-Json
-        $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @($s.suites); failed = @($s.failed); skipped = @($s.skipped); crash = $s.crash; deviceResets = $s.deviceResets }
+        $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @($s.suites); failed = @($s.failed) + @(if ($exitCode -ne 0 -and -not $s.failed) { "runner exited with code $exitCode after writing its summary" }); skipped = @($s.skipped); crash = $s.crash; deviceResets = $s.deviceResets }
     } else {
         $all += [pscustomobject]@{ game = $g.Alias; installed = $true; suites = @(); failed = @('runner produced no summary'); deviceResets = 0 }
     }

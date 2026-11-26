@@ -93,7 +93,8 @@ if ($Mode -eq 'Offline') {
             $src = Join-Path $userdata $id
             if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $BackupDir $id) -Recurse }
         }
-        Set-Content -LiteralPath $marker -Value "Steam userdata backup made by Set-SteamOffline.ps1 on $(Get-Date -Format o) from $userdata"
+        # Then the app ids it covers: -Mode Online removes only their folders that were created while offline.
+        Set-Content -LiteralPath $marker -Value (@("Steam userdata backup made by Set-SteamOffline.ps1 on $(Get-Date -Format o) from $userdata") + $appids)
     }
     foreach ($alias in $ResetSaves) {
         $remote = Join-Path $userdata "$((Resolve-Game $alias).AppId)\remote"
@@ -106,6 +107,8 @@ if ($Mode -eq 'Offline') {
     Write-Host "Steam is offline; backup in $BackupDir"
 } else {
     if (-not (Test-Path -LiteralPath $marker)) { throw "no backup made by this script in $BackupDir (Set-SteamOffline.ps1 -Mode Offline makes it)" }
+    $handled = @(Get-Content -LiteralPath $marker)
+    if (-not $handled[0].EndsWith(" from $userdata")) { throw "the backup in $BackupDir is not from $userdata (another Steam account?); nothing restored" }
     if (-not (Test-OfflineFlag)) { throw 'Steam is not in offline mode, so the backup may be older than the saves; nothing restored' }
     if ($PSCmdlet.ShouldProcess($steam, 'close Steam')) { Stop-Steam }
     foreach ($id in $appids) {
@@ -116,7 +119,7 @@ if ($Mode -eq 'Offline') {
                 if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
                 Copy-Item -LiteralPath $saved -Destination $target -Recurse
             }
-        } elseif ((Test-Path -LiteralPath $target) -and $PSCmdlet.ShouldProcess($target, 'remove (created while offline)')) {
+        } elseif ($handled -contains $id -and (Test-Path -LiteralPath $target) -and $PSCmdlet.ShouldProcess($target, 'remove (created while offline)')) {
             Remove-Item -LiteralPath $target -Recurse -Force
         }
     }

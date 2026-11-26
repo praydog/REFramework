@@ -94,6 +94,8 @@ function Invoke-Run([string] $Tag, [string] $Build) {
         Set-Content -LiteralPath $stop -Value 'stop'
         Restore-RFBuild -GameDir $dir
     }
+    # A log older than the launch is the previous session's: the build did not load, so there is nothing to compare.
+    if (-not ((Test-Path -LiteralPath $log) -and (Get-Item -LiteralPath $log).LastWriteTime -gt $t0)) { throw "${Tag}: REFramework did not write its log during this run (did $Build load?)" }
     # Normalize: drop timestamps and addresses so the two runs compare.
     $lines = @()
     if (Test-Path -LiteralPath $log) {

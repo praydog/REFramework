@@ -160,11 +160,12 @@ function Install-Suites {
     # -Value, not the pipeline: an empty pipeline writes no file, and a game without reframework\ needs an empty list
     # (Uninstall then removes the whole reframework\ folder the run created).
     Set-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8 -Value @(
-        if (Test-Path -LiteralPath $Rf) { $Rf; Get-ChildItem -LiteralPath $Rf -Recurse -Force | ForEach-Object { $_.FullName } })
+        if (Test-Path -LiteralPath $Rf) { $top = (Get-Item -LiteralPath $Rf).FullName; '.'; Get-ChildItem -LiteralPath $Rf -Recurse -Force | ForEach-Object { $_.FullName.Substring($top.Length + 1) } })
     foreach ($f in $RootFiles) {
         $p = Join-Path $GameDir $f
         if (Test-Path -LiteralPath $p) { Copy-Item -LiteralPath $p -Destination $State }
     }
+    if (Test-Path -LiteralPath (Join-Path (Get-Item -LiteralPath $GameDir).Root.FullName 'rftest_escape')) { Set-Content -LiteralPath (Join-Path $State 'rftest_escape-existed.txt') -Value '' }
     # A crash dump from an earlier session would look like this run's: it is saved above and comes back with Uninstall.
     Remove-Item -LiteralPath (Get-RFCrashDumpPath $GameDir) -Force -ErrorAction SilentlyContinue
     if ($Build) {
@@ -215,12 +216,14 @@ function Uninstall-Suites {
     # Everything under reframework\ that wasn't there before: the suites, REFramework.NET, generated assemblies, fonts...
     $before = @{}
     foreach ($p in @(Get-Content -LiteralPath (Join-Path $State 'reframework-before.txt') -Encoding UTF8)) { if ($p) { $before[$p] = $true } }
+    # Earlier versions stored full paths, which the relative lookups below would never find: everything would go.
+    if (@($before.Keys | Where-Object { [IO.Path]::IsPathRooted($_) -or $_.Contains('::') })) { throw "$State was made by an older Run-RFTests.ps1 (full paths in reframework-before.txt): uninstall with that version or by hand; nothing removed" }
     # Keep the reference assemblies this run made or reused (see $AssemblyCache). Only after a complete csharp suite:
     # then they were all written and loaded. Only when the runner installed REFramework.NET: a game's own copy keeps
     # its own.
     $generated = Join-Path $Plugins 'managed\generated'
-    if ($CSharpBin -and $Suites -contains 'csharp' -and (Test-SuiteComplete 'csharp') -and -not $before[$generated] -and
-        -not $before[(Join-Path $Plugins 'REFramework.NET.dll')] -and (Test-Path -LiteralPath (Join-Path $generated 'metadata.json'))) {
+    if ($CSharpBin -and $Suites -contains 'csharp' -and (Test-SuiteComplete 'csharp') -and -not $before['plugins\managed\generated'] -and
+        -not $before['plugins\REFramework.NET.dll'] -and (Test-Path -LiteralPath (Join-Path $generated 'metadata.json'))) {
         try {
             $kept = Join-Path $AssemblyCache (Get-AssemblyCacheKey)
             Remove-Item -LiteralPath $AssemblyCache -Recurse -Force -ErrorAction SilentlyContinue
@@ -232,8 +235,9 @@ function Uninstall-Suites {
     $new = @()
     for ($try = 0; $try -lt 5; ++$try) {
         $new = @(if (Test-Path -LiteralPath $Rf) {
-            Get-ChildItem -LiteralPath $Rf -Recurse -Force | Where-Object { -not $before[$_.FullName] } | ForEach-Object { $_.FullName }
-            if (-not $before[$Rf]) { $Rf }
+            $top = (Get-Item -LiteralPath $Rf).FullName
+            Get-ChildItem -LiteralPath $Rf -Recurse -Force | Where-Object { -not $before[$_.FullName.Substring($top.Length + 1)] } | ForEach-Object { $_.FullName }
+            if (-not $before['.']) { $Rf }
         })
         if (-not $new) { break }
         foreach ($p in $new | Sort-Object Length -Descending) {
@@ -250,7 +254,7 @@ function Uninstall-Suites {
         elseif (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }
     }
     # Builds without the rooted-path fix write here (see tests/lua/rftest_regression.lua).
-    Remove-Item -LiteralPath ((Split-Path -Qualifier $GameDir) + '\rftest_escape') -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath (Join-Path $State 'rftest_escape-existed.txt'))) { Remove-Item -LiteralPath (Join-Path (Get-Item -LiteralPath $GameDir).Root.FullName 'rftest_escape') -Recurse -Force -ErrorAction SilentlyContinue }
     Restore-RFBuild -GameDir $GameDir
     Remove-Item -LiteralPath $State -Recurse -Force
     Write-Host "removed suites from $Rf"

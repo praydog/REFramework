@@ -45,7 +45,7 @@ end
 
 function H.near(actual, expected, eps, msg)
     eps = eps or 1e-4
-    if type(actual) ~= "number" or math.abs(actual - expected) > eps then
+    if type(actual) ~= "number" or not (math.abs(actual - expected) <= eps) then
         fail(string.format("%s: expected %s +- %s, got %s", msg or "near", tostring(expected), tostring(eps), tostring(actual)))
     end
 end
