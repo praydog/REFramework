@@ -148,7 +148,10 @@ The regression suites are meant to fail on such builds, and they do so safely wh
   REFramework goes on with the null; the next engine call it makes with it is hooked too, counted and skipped, so the
   test fails without running engine code on a null object. A null GameObject is read by REFramework itself: without
   the fix that is an access violation, expected to surface as a Lua error. Both are `last_frame_test`s (the hooked
-  methods are hot in game code), the null-GameObject one after every other last test.
+  methods are hot in game code), the null-GameObject one after every other last test but the next.
+- The Lua regression test for `require` inside a coroutine corrupts memory without the fix: the game crashes, or
+  `require` raises "C stack overflow". It is a `last_frame_test` that runs after every other test, with its result
+  pre-recorded as FAIL.
 
 ## Other tools
 

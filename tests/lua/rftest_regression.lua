@@ -12,7 +12,9 @@
 --   reframework/plugins/rftest_plugin.dll the plugin suite's DLL: it registers rftest_peek (a guarded memory read);
 --                                         without it the local page test fails.
 -- Side effect on unfixed builds: the root-relative write tests create \rftest_escape\ at the root of the game's
--- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there.
+-- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there, except
+-- "require inside a coroutine that is collected afterwards": its failure is the corruption, so it runs after every
+-- other test.
 
 local H = require("rftest.harness")
 local S = H.suite("regression")
@@ -128,6 +130,75 @@ S:test("loadlib and require refuse a file reached by an 8.3 short name ending in
     H.eq(loaded, false, "require succeeded")
     H.truthy(tostring(rerr):find("is not a DLL", 1, true), "require refused it as not a DLL, got: " .. tostring(rerr))
 end)
+
+-- require inside a coroutine. The require wrapper built the C searcher wrappers it puts into package.searchers (3 and
+-- 4) from the calling thread's lua_State, and they outlive the call: the next require replaces package.searchers, and
+-- when the old table is collected each wrapper releases its reference through that lua_State. Once the coroutine had
+-- been collected that was freed memory: luaL_unref on a freed lua_State, an access violation in lua_rawgeti as soon as
+-- the block had been reused (RE2 and DMC5, in the first frame of a probe doing the steps below 25 times per frame;
+-- under cdb after 31 and 33 coroutines). Nothing a script can read shows the freed state (require returns the module
+-- inside the coroutine on every build), so the failure is what the writes through it do. Depending on what reused the
+-- block that is the access violation (RE2, DMC5, SF6, MH Rise with the regression and plugin suites installed) or,
+-- with the api suite installed too, the C-call count of the thread running the test growing by 5 per iteration until
+-- require raises "C stack overflow" (iteration 50 in the same four games); with every coroutine kept alive neither
+-- happens. Each iteration creates the timing: require of an already loaded module (no file is searched) in a fresh
+-- coroutine, a full collection that frees the coroutine, strings of the sizes of the freed blocks that reuse them,
+-- require on the main thread (the old searchers table becomes garbage) and a full collection that finalizes its
+-- wrappers. Runs last, after every other last test, recorded as FAIL before it starts. The module is put into
+-- package.loaded for the test and taken out again.
+local REQUIRE_CO_TEST = "require inside a coroutine that is collected afterwards"
+do
+    local MODULE, ITERATIONS, PER_FRAME = "rftest_require_in_coroutine", 300, 25
+    local st = nil
+    -- Long strings (never interned) of the sizes a freed thread leaves: its lua_State (~0xd0 bytes) and its first
+    -- stack (45 TValues, 720 bytes). 0xFF bytes, so a lua_State read from a reused block holds garbage pointers.
+    local function churn(i)
+        local keep = {}
+        for n = 0, 63 do keep[#keep + 1] = string.rep("\255", 150 + n) .. i end
+        for n = 0, 15 do keep[#keep + 1] = string.rep("\255", 680 + n * 8) .. i end
+        return keep
+    end
+    -- In a separate function, so no stack slot keeps the coroutine reachable.
+    local function require_in_coroutine(weak)
+        local co = coroutine.create(function() return require(MODULE) end)
+        weak[co] = true
+        return coroutine.resume(co)
+    end
+    local function iteration()
+        st.i = st.i + 1
+        local weak = setmetatable({}, { __mode = "k" })
+        local ok, r = require_in_coroutine(weak)
+        if not (ok and rawequal(r, st.module)) then st.wrong[#st.wrong + 1] = string.format("%d: %s %s", st.i, tostring(ok), tostring(r)) end
+        collectgarbage("collect")
+        if next(weak) == nil then st.collected = st.collected + 1 end
+        local keep = churn(st.i)
+        if not rawequal(require(MODULE), st.module) then st.wrong[#st.wrong + 1] = string.format("%d: main thread", st.i) end
+        keep = nil
+        collectgarbage("collect")
+    end
+    S:last_frame_test(REQUIRE_CO_TEST, function(frame)
+        -- An unfixed build can crash here: wait until no other last test is still pending.
+        for _, r in ipairs(S.results) do
+            if r.name ~= REQUIRE_CO_TEST and tostring(r.detail):sub(1, 8) == "pending:" then return false end
+        end
+        if st == nil then
+            st = { i = 0, collected = 0, wrong = {}, module = { name = MODULE }, before = package.loaded[MODULE], first = frame }
+            package.loaded[MODULE] = st.module
+        end
+        local ok, err = pcall(function()
+            for _ = 1, PER_FRAME do
+                if st.i >= ITERATIONS then break end
+                iteration()
+            end
+        end)
+        if not ok or st.i >= ITERATIONS then package.loaded[MODULE] = st.before end
+        if not ok then error(string.format("iteration %d of %d: %s", st.i, ITERATIONS, tostring(err)), 0) end
+        if st.i < ITERATIONS then return false end
+        H.eq(#st.wrong, 0, "require returned another value than the loaded module (" .. table.concat(st.wrong, ", ") .. ")")
+        H.eq(st.collected, ITERATIONS, "coroutines collected by the full collection after their require")
+        return string.format("%d coroutines, each collected right after its require, in %d frames", ITERATIONS, frame - st.first + 1)
+    end)
+end
 
 -------------------------------------------------------------------------------------------------------------------
 -- ValueType field writes and bounds.
@@ -1081,9 +1152,10 @@ do
 
     local NULL_GO_TEST = "draw.sphere / draw.capsule draw nothing when the camera's GameObject is null"
     S:last_frame_test(NULL_GO_TEST, function(frame)
-        -- An unfixed build takes an access violation here: wait until no other last test is still pending.
+        -- An unfixed build takes an access violation here: wait until no other last test is still pending (but the
+        -- require-in-a-coroutine test, which waits for this one).
         for _, r in ipairs(S.results) do
-            if r.name ~= NULL_GO_TEST and tostring(r.detail):sub(1, 8) == "pending:" then return false end
+            if r.name ~= NULL_GO_TEST and r.name ~= REQUIRE_CO_TEST and tostring(r.detail):sub(1, 8) == "pending:" then return false end
         end
         H.truthy(installed_frame, "hooks installed by the transform/joints test")
         need_camera()
