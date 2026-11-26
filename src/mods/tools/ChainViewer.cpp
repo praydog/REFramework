@@ -303,7 +303,7 @@ void ChainViewer::on_frame() {
         }
 
         ImGui::PushID(chain);
-        made = ImGui::TreeNode(chain, owner_name.data());
+        made = ImGui::TreeNode(chain, "%s", owner_name.data());
 
         const auto is_hovering_node = ImGui::IsItemHovered();
         auto col = ImVec4(66.0f / 255.0f, 105.0f / 255.0f, 245.0f / 255.0f, 0.25f);

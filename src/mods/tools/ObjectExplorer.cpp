@@ -2946,7 +2946,7 @@ void ObjectExplorer::handle_behavior_tree_node(sdk::behaviortree::BehaviorTree* 
     const auto node_name = node->get_name();
     const auto node_full_name = utility::narrow(node->get_full_name());
 
-    const auto made_node = ImGui::TreeNode(node, node_full_name.data());
+    const auto made_node = ImGui::TreeNode(node, "%s", node_full_name.data());
 
     if (made_node) {
         ImGui::Text("ID: %u", node->get_id());
