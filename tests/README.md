@@ -45,9 +45,10 @@ instantiated-methods test, as the SDK has no instantiation data there. Game-spec
      `summary.json`, the suites' JSON files, a log excerpt). Then it puts the game back as it was: everything new
      under `reframework\` is removed, and the config, logs and `ref_ui.ini` are restored. Exit code 0 means no
      failures.
-   - A crash fails the run even when every suite passed: if REFramework writes `reframework_crash.dmp` during the
-     run, including while the runner closes the game afterwards, the summary lists e.g. `crashed during shutdown:
-     reframework_crash.dmp (...)` as a failure (the suites' counts don't change) and the dump is copied to the results.
+   - A crash fails the run even when every suite passed, also with the Linux runner: if REFramework writes
+     `reframework_crash.dmp` during the run, including while the runner closes the game afterwards, the summary lists
+     e.g. `crashed during shutdown: reframework_crash.dmp (...)` as a failure (the suites' counts don't change) and the
+     dump is copied to the results.
      Closing waits (up to 10 minutes) for a crashing game to finish writing its dump instead of killing it. A dump
      left from an earlier session is set aside at install and restored afterwards, so it never counts.
    - `-Suites api,regression,plugin` picks suites. Add `csharp` for the C# suite; `-CSharpBin <csharp-api\build\bin>`
@@ -68,7 +69,7 @@ instantiated-methods test, as the SDK has no instantiation data there. Game-spec
 
    `-Games re2,dmc5` limits the run. The combined results go to `summary.md` (one row per game, pass/fail/skip per
    suite, and a Crash column) and `summary.json`; exit code 0 means every suite passed in every game and no game
-   crashed.
+   crashed. A game whose runner exits with an error (e.g. while putting the game back) fails too.
 
 The suites only need the game to reach its title screen; no input is required.
 
@@ -96,7 +97,8 @@ bash tests/run/run-rftests.sh -g dd2 -b ~/builds/dinput8.dll
 ```
 
 - It installs the build and suites, adds the `dinput8` DLL override to the game's Proton prefix if missing, launches
-  through Steam, and puts everything back afterwards.
+  through Steam, and puts everything back afterwards. If it can't save the game's own files first, it stops before
+  changing anything. If its list of what was there goes missing during the run, it removes nothing and says so.
 - `-s api,regression,plugin,csharp` with `-c <csharp bin>` runs the C# suite. A Proton prefix has no .NET, so it also
   needs `-n <dir>`: a portable .NET 10 runtime (the contents of `C:\Program Files\dotnet` from a Windows machine with
   the .NET 10 runtime), which is copied into the prefix for the run.
@@ -134,7 +136,7 @@ The regression suites are meant to fail on such builds, and they do so safely wh
     runs). A pass of the page check on an unfixed build proves nothing in such a game; the page check is red where
     the release is immediate (RE2, SF6, MH Rise, Kunitsu-Gami, PRAGMATA).
 - The rooted-path tests write `\rftest_escape\` at the root of the game's drive when the fix is missing; the Windows
-  runner deletes it (the Linux runner doesn't yet).
+  runner deletes it unless it was already there before the run (the Linux runner doesn't yet).
 - The plugin's two callback re-entrancy tests deadlock the game without the fix. They run last, after the Lua suites
   have written their results, and are recorded as FAIL before they start, so a hang still leaves complete results;
   the runner notices the hang and kills the game.
@@ -179,6 +181,8 @@ way:
 - it backs up the games' Steam userdata folders, removes the local cloud saves of the listed games, and puts Steam
   in offline mode, so nothing syncs either way;
 - `-Mode Online` restores the backup before going online (for game updates), so nothing a test run wrote is uploaded.
+  It refuses if Steam is logged in to another account than the one the backup was made from. A backup made by an
+  earlier version of the script is still restored, but folders created while offline are then kept.
 
 Steam's own cloud switches can't do this: they are stored in the account's roaming settings and apply to every PC.
 
