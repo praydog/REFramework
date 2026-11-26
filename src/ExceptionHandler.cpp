@@ -121,6 +121,12 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
 
         auto minidump_write_dump = (decltype(MiniDumpWriteDump)*)GetProcAddress(dbghelp, "MiniDumpWriteDump");
 
+        // MiniDumpWriteDump suspends every other thread, then runs system code that uses the process heap. A thread
+        // suspended while it owns that heap's lock would block it forever: the dump stays empty and the process never
+        // ends. Holding the lock ourselves means no other thread can own it. It is recursive, so we still get in.
+        const auto process_heap = GetProcessHeap();
+        const auto heap_locked = process_heap != nullptr && HeapLock(process_heap) != FALSE;
+
         minidump_write_dump(GetCurrentProcess(), 
             GetCurrentProcessId(),
             f,
@@ -129,6 +135,10 @@ LONG WINAPI reframework::global_exception_handler(struct _EXCEPTION_POINTERS* ei
             nullptr, 
             nullptr
         );
+
+        if (heap_locked) {
+            HeapUnlock(process_heap);
+        }
 
         CloseHandle(f);
     } else {
