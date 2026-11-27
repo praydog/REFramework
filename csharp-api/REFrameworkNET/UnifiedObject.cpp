@@ -2,6 +2,7 @@
 
 #include "TypeDefinition.hpp"
 #include "UnifiedObject.hpp"
+#include "ValueType.hpp"
 
 #include "./Utility.hpp"
 
@@ -90,7 +91,8 @@ namespace REFrameworkNET {
 
         if (field != nullptr)
         {
-            result = field->GetDataBoxed(this->GetAddress(), !this->IsManaged() && this->GetTypeDefinition()->IsValueType());
+            ObjectAddress address(this);
+            result = field->GetDataBoxed(address.Address(), !this->IsManaged() && t->IsValueType());
 
             return true;
         }
@@ -144,7 +146,8 @@ namespace REFrameworkNET {
 
         if (field != nullptr)
         {
-            field->SetDataBoxed(this->GetAddress(), value, !this->IsManaged() && this->GetTypeDefinition()->IsValueType());
+            ObjectAddress address(this);
+            field->SetDataBoxed(address.Address(), value, !this->IsManaged() && t->IsValueType());
             return true;
         }
 
