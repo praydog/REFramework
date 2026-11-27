@@ -264,11 +264,15 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
             // Methods declared on a reference type (System.Object.GetType, System.Enum.ToString) use `this` as a real
             // object, which the fake header isn't, so a ValueType goes into a real boxed object of its type.
             // ValueType::Ptr() points into a managed array, so the data is copied to native memory either way.
-            const bool invoke_skips_header = TDB::Get()->GetVersion() >= 74;
-            const bool declared_by_value_type = this->GetDeclaringType() != nullptr && this->GetDeclaringType()->IsValueType();
-            const bool declared_by_reference_type = this->GetDeclaringType() != nullptr && !this->GetDeclaringType()->IsValueType();
+            // This runs for every call on an object, where none of it applies: the declaring type is cached by the
+            // method, and the version (TDB::Get() makes a new object) is read only for a value type's `this`.
+            const bool value_type_this = !this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t);
+            const auto declaring_type = this->GetDeclaringType();
+            const bool declared_by_value_type = declaring_type != nullptr && declaring_type->IsValueType();
+            const bool declared_by_reference_type = declaring_type != nullptr && !declaring_type->IsValueType();
+            const bool invoke_skips_header = (value_type_this || declared_by_value_type) && TDB::Get()->GetVersion() >= 74;
 
-            if (!this->IsStatic() && declared_by_reference_type && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
+            if (value_type_this && declared_by_reference_type) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
                 auto type_def = vt->GetTypeDefinition();
                 auto native_type = (::reframework::API::TypeDefinition*)type_def->Ptr();
@@ -283,7 +287,7 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
                 // this call. No add_ref()/release() pair, as in the Lua binding, where one crashed RE9 under load.
                 memcpy((uint8_t*)real_box + 0x10, vt->Ptr(), type_def->ValueTypeSize);
                 obj_ptr = real_box;
-            } else if (!this->IsStatic() && REFrameworkNET::ValueType::typeid->IsAssignableFrom(obj_t)) {
+            } else if (value_type_this) {
                 auto vt = static_cast<REFrameworkNET::ValueType^>(iobj);
                 auto type_def = vt->GetTypeDefinition();
                 auto vt_size = type_def->ValueTypeSize;
@@ -305,7 +309,7 @@ System::Object^ Method::InvokeBoxed(System::Type^ targetReturnType, System::Obje
                 memcpy(&fake_boxed_storage[fake_header_size], vt->Ptr(), vt_size);
 
                 obj_ptr = fake_boxed_storage.data();
-            } else if (!this->IsStatic() && !invoke_skips_header && declared_by_value_type &&
+            } else if (declared_by_value_type && !invoke_skips_header && !this->IsStatic() &&
                        REFrameworkNET::ManagedObject::typeid->IsAssignableFrom(obj_t)) {
                 obj_ptr = (uint8_t*)iobj->Ptr() + 0x10;
             } else {
