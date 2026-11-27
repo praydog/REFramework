@@ -967,6 +967,12 @@ struct ValueType {
             return sol::make_object(l, sol::nil);
         }
 
+        return call_method(l, def, va);
+    }
+
+    // The call itself, for every spelling: vt:call("name", ...), vt:name(...), method:call(vt, ...) and
+    // sdk.call_native_func(vt, type, "name", ...).
+    sol::object call_method(sol::this_state l, ::sdk::REMethodDefinition* def, sol::variadic_args va) {
         reframework::InvokeRet ret_val{};
         const ::api::sdk::InvokeScope invoke_scope{};
         auto vec_args = ::api::sdk::build_args(va, def);
@@ -995,7 +1001,7 @@ struct ValueType {
             auto box = type->create_instance_full();
 
             if (box == nullptr) {
-                throw sol::error("ValueType:call: could not box the value for " + std::string{name});
+                throw sol::error("ValueType:call: could not box the value for " + std::string{def->get_name()});
             }
 
             // The new object is local: the engine keeps it until it releases the thread's local objects, after this
@@ -1511,7 +1517,8 @@ bool copy_to_clipboard(sol::this_state s, const char* text) {
     return true;
 }
 
-void* get_real_obj(sol::object obj) {
+// value_type, when given, receives the ValueType obj is, if it is one.
+void* get_real_obj(sol::object obj, ValueType** value_type = nullptr) {
     void* real_obj = nullptr;
 
     if (!obj.is<sol::nil_t>()) {
@@ -1520,7 +1527,12 @@ void* get_real_obj(sol::object obj) {
         } else if (obj.is<::sdk::Resource*>()) {
             real_obj = (void*)obj.as<::sdk::Resource*>();
         } else if (obj.is<ValueType>()) {
-            real_obj = (void*)obj.as<ValueType&>().address();
+            auto& vt = obj.as<ValueType&>();
+            real_obj = (void*)vt.address();
+
+            if (value_type != nullptr) {
+                *value_type = &vt;
+            }
         } else if (obj.is<void*>()) {
             real_obj = obj.as<void*>();
         } else {
@@ -1534,8 +1546,8 @@ void* get_real_obj(sol::object obj) {
 // `this` to pass to fn->invoke() for obj. Before TDB 74, invoke() passes `this` of a value-type instance method
 // through unchanged (see ValueType::call), so a boxed value must be passed as its data, past the object header;
 // since TDB 74 invoke() skips the header itself.
-void* get_invoke_this(sol::object obj, ::sdk::REMethodDefinition* fn) {
-    auto real_obj = get_real_obj(obj);
+void* get_invoke_this(sol::object obj, ::sdk::REMethodDefinition* fn, ValueType** value_type = nullptr) {
+    auto real_obj = get_real_obj(obj, value_type);
 
     // Runs for every method called from Lua, and only a value-type instance method before TDB 74 needs anything but
     // real_obj: check the cheap conditions first and leave the sol type check (a metatable lookup) for last.
@@ -2083,7 +2095,14 @@ sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* 
         return sol::make_object(l, sol::nil);
     }
 
-    auto real_obj = get_invoke_this(obj, fn);
+    ValueType* value_type{};
+    auto real_obj = get_invoke_this(obj, fn, &value_type);
+
+    // A ValueType's `this` depends on the method and the game: ValueType::call_method works it out.
+    if (value_type != nullptr && value_type->type != nullptr) {
+        return value_type->call_method(l, fn, va);
+    }
+
     const InvokeScope invoke_scope{};
     auto ret_val = fn->invoke(real_obj, build_args(va, fn));
 
@@ -2591,7 +2610,13 @@ void bindings::open_sdk(ScriptState* s) {
     auto method_call = [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
         auto l = va.lua_state();
 
-        auto real_obj = ::api::sdk::get_invoke_this(obj, def);
+        ::api::sdk::ValueType* value_type{};
+        auto real_obj = ::api::sdk::get_invoke_this(obj, def, &value_type);
+
+        if (value_type != nullptr && value_type->type != nullptr) {
+            return value_type->call_method(l, def, va);
+        }
+
         const ::api::sdk::InvokeScope invoke_scope{};
         auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va, def));
 

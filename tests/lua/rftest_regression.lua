@@ -245,6 +245,83 @@ S:test("ValueType read_* rejects reads that run past the buffer", function()
     H.eq(vt:read_byte(size), 0, "byte at size")
 end)
 
+-------------------------------------------------------------------------------------------------------------------
+-- A method called on a ValueType gets the value as `this` however the call is spelled: vt:call("M", ...), vt:M(...)
+-- (that is vt.M(vt, ...): ValueType's __index returns the method), method:call(vt, ...) and sdk.call_native_func(vt,
+-- type, "M", ...). Only vt:call worked `this` out; the other three passed the ValueType's data as it is. From TDB 74 on
+-- invoke() skips what it takes for a boxed object's 0x10-byte header, so those three read and wrote 0x10 bytes past
+-- the value (Onimusha 2, MMSF, PRAGMATA: the value at +0x10 in every informative case), and on every TDB a method a
+-- reference type declares (System.Enum ToString/GetHashCode, System.Object.GetType) raised "Invoke threw an exception"
+-- (DMC5, RE2, SF6, Onimusha 2, MMSF, PRAGMATA). Each call gets a new ValueType with the value in its first bytes and
+-- another value at +0x10, inside its buffer (get_size() is 0x10 + the value's size), so a read there is recognisable.
+-- The setter case is a via.mat4 (64 bytes): written 0x10 further, m0's values land in m1, inside the value. Cases whose
+-- type or method the game lacks are named in the PASS detail.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local SPELLINGS = {
+        { "vt:call", function(vt, td, sig, ...) return vt:call(sig, ...) end },
+        { "vt:M", function(vt, td, sig, ...) return vt[sig](vt, ...) end },
+        { "method:call", function(vt, td, sig, ...) return td:get_method(sig):call(vt, ...) end },
+        { "sdk.call_native_func", function(vt, td, sig, ...) return sdk.call_native_func(vt, td, sig, ...) end },
+    }
+    local function mat4_rows(_, vt)
+        local f = {}
+        for k = 0, 7 do f[#f + 1] = string.format("%g", vt:read_float(4 * k)) end
+        return string.format("m0 (%s), m1 (%s)", table.concat(f, ", ", 1, 4), table.concat(f, ", ", 5, 8))
+    end
+    -- { type, method, args, fill(vt, size), result(r, vt) (default tostring(r)), expected text }. The values at +0x10
+    -- are what a read there returns: Guid a3a2a1a0-a5a4-a7a6-a8a9-aaabacadaeaf, ticks of 2001-01-01, CompareTo 1.
+    local CASES = {
+        { "System.Guid", "ToString()", {}, function(vt, size)
+            for i = 0, size - 1 do vt:write_byte(i, i < 16 and i or (0xA0 + i - 16) & 0xFF) end
+        end, nil, "03020100-0504-0706-0809-0a0b0c0d0e0f" },
+        { "System.DateTime", "get_Ticks()", {}, function(vt)
+            vt:write_qword(0, 637134336000000000); vt:write_qword(16, 631139040000000000)
+        end, nil, "637134336000000000" },
+        { "System.Int32", "CompareTo(System.Int32)", { 1234567 }, function(vt)
+            vt:write_dword(0, 1234567); vt:write_dword(16, 7654321)
+        end, nil, "0" },
+        { "System.DayOfWeek", "ToString()", {}, function(vt) vt:write_dword(0, 1) end, nil, "Monday" },
+        { "System.DayOfWeek", "GetHashCode()", {}, function(vt) vt:write_dword(0, 1) end, nil, "1" },
+        { "System.Int32", "GetType()", {}, function(vt) vt:write_dword(0, 1234567) end,
+            function(r) return r:call("get_FullName()") end, "System.Int32" },
+        { "via.mat4", "set_m0(via.vec4)", { Vector4f.new(7, 8, 9, 10) }, function(vt, size)
+            for k = 0, size // 4 - 1 do vt:write_float(4 * k, k + 0.25) end
+        end, mat4_rows, "m0 (7, 8, 9, 10), m1 (4.25, 5.25, 6.25, 7.25)" },
+    }
+
+    S:frame_test("a method called on a ValueType gets the value as `this` in every call spelling", function()
+        local wrong, absent, cells = {}, {}, 0
+        for _, c in ipairs(CASES) do
+            local tn, sig, args, fill, result, expected = c[1], c[2], c[3], c[4], c[5] or tostring, c[6]
+            local td = sdk.find_type_definition(tn)
+            if td == nil or td:get_method(sig) == nil then
+                absent[#absent + 1] = tn .. "." .. sig
+            else
+                for _, sp in ipairs(SPELLINGS) do
+                    local vt = ValueType.new(td)
+                    fill(vt, td:get_size())
+                    local ok, r = pcall(sp[2], vt, td, sig, table.unpack(args))
+                    local got
+                    if ok then
+                        local ok2, g = pcall(result, r, vt)
+                        got = ok2 and tostring(g) or ("result unreadable: " .. tostring(g))
+                    else
+                        got = "raised: " .. tostring(r):sub(1, 120)
+                    end
+                    if got ~= expected then
+                        wrong[#wrong + 1] = string.format("%s %s.%s: %s, expected %s", sp[1], tn, sig, got, expected)
+                    end
+                    cells = cells + 1
+                end
+            end
+        end
+        if cells == 0 then H.skip("none of the cases is in this game: " .. table.concat(absent, ", ")) end
+        H.truthy(#wrong == 0, table.concat(wrong, "; "))
+        return string.format("%d calls%s", cells, #absent > 0 and ("; not in this game: " .. table.concat(absent, ", ")) or "")
+    end)
+end
+
 -- REManagedObject read_*/write_* must reject a value that starts inside the object and ends past it. A new System.Byte
 -- array is the object: is_valid_offset bounds an array by its data offset + length (one dimension), so its last element
 -- is its last valid byte. Unfixed, a read starting there returns that byte plus memory past the object; fixed, 0. The
