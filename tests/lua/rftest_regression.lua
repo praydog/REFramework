@@ -9,8 +9,9 @@
 -- Needs from the runner (tests/run/Run-RFTests.ps1):
 --   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one); without it the package.loadlib
 --                                         tests fail.
---   reframework/plugins/rftest_plugin.dll the plugin suite's DLL: it registers rftest_peek (a guarded memory read);
---                                         without it the local page test fails.
+--   reframework/plugins/rftest_plugin.dll the plugin suite's DLL: it registers rftest_peek (a guarded memory read) and
+--                                         rftest_poke (its write); without it the local page test and the struct
+--                                         result test fail.
 -- Side effect on unfixed builds: the root-relative write tests create \rftest_escape\ at the root of the game's
 -- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there, except
 -- "require inside a coroutine that is collected afterwards": its failure is the corruption, so it runs after every
@@ -244,6 +245,83 @@ S:test("ValueType read_* rejects reads that run past the buffer", function()
     H.eq(vt:read_qword(size - 4), 0, "qword crossing the end")
     H.eq(vt:read_byte(size), 0, "byte at size")
 end)
+
+-------------------------------------------------------------------------------------------------------------------
+-- A method called on a ValueType gets the value as `this` however the call is spelled: vt:call("M", ...), vt:M(...)
+-- (that is vt.M(vt, ...): ValueType's __index returns the method), method:call(vt, ...) and sdk.call_native_func(vt,
+-- type, "M", ...). Only vt:call worked `this` out; the other three passed the ValueType's data as it is. From TDB 74 on
+-- invoke() skips what it takes for a boxed object's 0x10-byte header, so those three read and wrote 0x10 bytes past
+-- the value (Onimusha 2, MMSF, PRAGMATA: the value at +0x10 in every informative case), and on every TDB a method a
+-- reference type declares (System.Enum ToString/GetHashCode, System.Object.GetType) raised "Invoke threw an exception"
+-- (DMC5, RE2, SF6, Onimusha 2, MMSF, PRAGMATA). Each call gets a new ValueType with the value in its first bytes and
+-- another value at +0x10, inside its buffer (get_size() is 0x10 + the value's size), so a read there is recognisable.
+-- The setter case is a via.mat4 (64 bytes): written 0x10 further, m0's values land in m1, inside the value. Cases whose
+-- type or method the game lacks are named in the PASS detail.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local SPELLINGS = {
+        { "vt:call", function(vt, td, sig, ...) return vt:call(sig, ...) end },
+        { "vt:M", function(vt, td, sig, ...) return vt[sig](vt, ...) end },
+        { "method:call", function(vt, td, sig, ...) return td:get_method(sig):call(vt, ...) end },
+        { "sdk.call_native_func", function(vt, td, sig, ...) return sdk.call_native_func(vt, td, sig, ...) end },
+    }
+    local function mat4_rows(_, vt)
+        local f = {}
+        for k = 0, 7 do f[#f + 1] = string.format("%g", vt:read_float(4 * k)) end
+        return string.format("m0 (%s), m1 (%s)", table.concat(f, ", ", 1, 4), table.concat(f, ", ", 5, 8))
+    end
+    -- { type, method, args, fill(vt, size), result(r, vt) (default tostring(r)), expected text }. The values at +0x10
+    -- are what a read there returns: Guid a3a2a1a0-a5a4-a7a6-a8a9-aaabacadaeaf, ticks of 2001-01-01, CompareTo 1.
+    local CASES = {
+        { "System.Guid", "ToString()", {}, function(vt, size)
+            for i = 0, size - 1 do vt:write_byte(i, i < 16 and i or (0xA0 + i - 16) & 0xFF) end
+        end, nil, "03020100-0504-0706-0809-0a0b0c0d0e0f" },
+        { "System.DateTime", "get_Ticks()", {}, function(vt)
+            vt:write_qword(0, 637134336000000000); vt:write_qword(16, 631139040000000000)
+        end, nil, "637134336000000000" },
+        { "System.Int32", "CompareTo(System.Int32)", { 1234567 }, function(vt)
+            vt:write_dword(0, 1234567); vt:write_dword(16, 7654321)
+        end, nil, "0" },
+        { "System.DayOfWeek", "ToString()", {}, function(vt) vt:write_dword(0, 1) end, nil, "Monday" },
+        { "System.DayOfWeek", "GetHashCode()", {}, function(vt) vt:write_dword(0, 1) end, nil, "1" },
+        { "System.Int32", "GetType()", {}, function(vt) vt:write_dword(0, 1234567) end,
+            function(r) return r:call("get_FullName()") end, "System.Int32" },
+        { "via.mat4", "set_m0(via.vec4)", { Vector4f.new(7, 8, 9, 10) }, function(vt, size)
+            for k = 0, size // 4 - 1 do vt:write_float(4 * k, k + 0.25) end
+        end, mat4_rows, "m0 (7, 8, 9, 10), m1 (4.25, 5.25, 6.25, 7.25)" },
+    }
+
+    S:frame_test("a method called on a ValueType gets the value as `this` in every call spelling", function()
+        local wrong, absent, cells = {}, {}, 0
+        for _, c in ipairs(CASES) do
+            local tn, sig, args, fill, result, expected = c[1], c[2], c[3], c[4], c[5] or tostring, c[6]
+            local td = sdk.find_type_definition(tn)
+            if td == nil or td:get_method(sig) == nil then
+                absent[#absent + 1] = tn .. "." .. sig
+            else
+                for _, sp in ipairs(SPELLINGS) do
+                    local vt = ValueType.new(td)
+                    fill(vt, td:get_size())
+                    local ok, r = pcall(sp[2], vt, td, sig, table.unpack(args))
+                    local got
+                    if ok then
+                        local ok2, g = pcall(result, r, vt)
+                        got = ok2 and tostring(g) or ("result unreadable: " .. tostring(g))
+                    else
+                        got = "raised: " .. tostring(r):sub(1, 120)
+                    end
+                    if got ~= expected then
+                        wrong[#wrong + 1] = string.format("%s %s.%s: %s, expected %s", sp[1], tn, sig, got, expected)
+                    end
+                    cells = cells + 1
+                end
+            end
+        end
+        if cells == 0 then H.skip("none of the cases is in this game: " .. table.concat(absent, ", ")) end
+        H.truthy(#wrong == 0, table.concat(wrong, "; "))
+        return string.format("%d calls%s", cells, #absent > 0 and ("; not in this game: " .. table.concat(absent, ", ")) or "")
+    end)
+end
 
 -- REManagedObject read_*/write_* must reject a value that starts inside the object and ends past it. A new System.Byte
 -- array is the object: is_valid_offset bounds an array by its data offset + length (one dimension), so its last element
@@ -863,6 +941,28 @@ do
 end
 
 -------------------------------------------------------------------------------------------------------------------
+-- Helper for the plugin_regression test "a plugin's Lua state calling on its own thread leaves the main state's call
+-- arguments alone" (described in tests/plugin/rftest_plugin.cpp, which records it). When the plugin asks, it makes the
+-- main state's call via.vec3.op_Division((10, 20, 30), 2) while a call in the plugin's own Lua state, on the plugin's
+-- thread, waits, and hands the plugin the result. Not a test itself; without the plugin it does nothing.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local vec3_t = sdk.find_type_definition("via.vec3")
+    local div = vec3_t and vec3_t:get_method("op_Division(via.vec3, System.Single)")
+
+    re.on_frame(function()
+        if div == nil or rftest_two_states_request == nil or not rftest_two_states_request() then return end
+        -- Lets the plugin's thread start; true once its call is waiting.
+        if not rftest_two_states_begin() then return end
+        local ok, r = pcall(function()
+            local v = div:call(nil, Vector3f.new(10, 20, 30), 2.0)
+            return string.format("(%.9g, %.9g, %.9g)", v.x, v.y, v.z)
+        end)
+        if ok then rftest_two_states_main(r) else rftest_two_states_main(nil, tostring(r)) end
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
 -- A call made from a hook callback must not change the arguments of the call it interrupts. Vector2f / Vector3f
 -- arguments are passed as addresses into a buffer REFramework keeps for the call. The nested call reused that buffer,
 -- so the outer method computed with the nested call's vectors: (1, 2, 3) + (4, 5, 6) gave (110, 220, 330).
@@ -892,6 +992,71 @@ do
         H.truthy(nested ~= nil, "hook on op_Addition fired for the test's own call")
         H.eq(fmt(nested), "(90, 180, 270)", "nested (100, 200, 300) - (10, 20, 30)")
         H.eq(fmt(sum), "(5, 7, 9)", "outer (1, 2, 3) + (4, 5, 6)")
+        return true
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
+-- A ValueType call made from a hook callback must leave the ValueType call it interrupts alone. From TDB 74 on, a
+-- ValueType method gets `this` from a copy of the value in a buffer REFramework keeps per thread, and every call used
+-- the same one: a second ValueType call from a hook on the first one's method wrote its value there, and the first
+-- method then ran on that. The outer System.Guid.ToString() returned the inner value's string and the outer value's
+-- bytes became the inner value's (MMSF and PRAGMATA, 8 of 8). Two inner calls: a value of the same size (a Guid) and a
+-- smaller one (an Int32). Before TDB 74 the value itself is `this` and no such buffer is used: there this passes with
+-- and without the fix and covers only build_args' per-level buffers under nested ValueType calls.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local guid_t = sdk.find_type_definition("System.Guid")
+    local i32_t = sdk.find_type_definition("System.Int32")
+    local to_string = guid_t and guid_t:get_method("ToString()")
+    local armed, armed_tid, inner = false, nil, nil
+
+    local function guid(first)
+        local v = ValueType.new(guid_t)
+        for i = 0, 15 do v:write_byte(i, (first + i) & 0xFF) end
+        return v
+    end
+    local function hex16(v)
+        local p = {}
+        for i = 0, 15 do p[#p + 1] = string.format("%02x", v:read_byte(i)) end
+        return table.concat(p)
+    end
+
+    if to_string then
+        sdk.hook(to_string, function(args)
+            -- The game formats Guids too, on any thread: only the test's own call counts.
+            if not armed or thread.get_id() ~= armed_tid then return end
+            armed = false
+            local ok, r = pcall(inner.call)
+            inner.fired, inner.result = true, ok and r or ("raised: " .. tostring(r))
+        end, function(retval) return retval end)
+    end
+
+    S:frame_test("a ValueType call made from a hook leaves the outer call's value alone", function(frame)
+        local missing = not to_string and "System.Guid.ToString()" or not guid_t:get_method("GetHashCode()") and "System.Guid.GetHashCode()"
+            or not (i32_t and i32_t:get_method("ToString()")) and "System.Int32.ToString()" or nil
+        if missing then H.skip(missing .. " is not in this game") end
+        if frame < 5 then return false end
+        local cases = {
+            { "a Guid's GetHashCode()", function() return guid(0xF0):call("GetHashCode()") end },
+            { "an Int32's ToString()", function()
+                local b = ValueType.new(i32_t)
+                b:write_dword(0, 0x11223344)
+                return b:call("ToString()")
+            end, "287454020" },
+        }
+        for _, c in ipairs(cases) do
+            local a = guid(0x00)
+            inner = { call = c[2] }
+            armed, armed_tid = true, thread.get_id()
+            local ok, outer = pcall(function() return a:call("ToString()") end)
+            armed = false
+            H.truthy(ok, "outer call: " .. tostring(outer))
+            H.truthy(inner.fired, "hook on System.Guid.ToString() fired for the test's own call")
+            H.eq(outer, "03020100-0504-0706-0809-0a0b0c0d0e0f", "outer Guid.ToString() with " .. c[1] .. " made from its hook")
+            H.eq(hex16(a), "000102030405060708090a0b0c0d0e0f", "outer value's bytes after the call with " .. c[1] .. " inside")
+            if c[3] then H.eq(inner.result, c[3], c[1] .. " made from the hook") end
+        end
         return true
     end)
 end
@@ -998,6 +1163,61 @@ do
             end
             return true
         end, 680, 500)
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
+-- A struct result that a pre-hook writes into the return buffer (args[1]) before it skips the original must reach the
+-- caller. A hook's argument list ends with 2 spare slots after the method's parameters, and after the pre-hooks the
+-- hook wrote every stack slot back to the caller's frame, the spare ones too. A spare slot can be the caller's own
+-- memory: in PRAGMATA the game's caller of via.vec3.op_Multiply, and REFramework's own invoke of op_Addition and
+-- op_Subtraction, pass a return buffer that lies exactly on the 2 spare slots, so the write-back put what the slots
+-- held before the pre-hook over the result (a SKIP_ORIGINAL hook writing the result lost 13,417 of 63,374 at
+-- PRAGMATA's title screen). The test hooks op_Subtraction and acts only on its own call: the pre-hook writes
+-- (11.5, 22.5, 33.5) into the buffer through the plugin's rftest_poke and skips the original, the post-hook returns the
+-- buffer as the original does. Red without the fix in 13 of the 20 games (RE4, RE9, SF6, MH Wilds, MH Stories 3, DD2,
+-- PRAGMATA, Kunitsu-Gami, Ace Attorney 456, Onimusha 2, DRDR, Onimusha WotS, MMSF); in RE2, RE3, RE7, RE8, DMC5,
+-- MH Rise and Ghosts 'n Goblins Resurrection it passes with and without the fix.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local vec3_t = sdk.find_type_definition("via.vec3")
+    local sub = vec3_t and vec3_t:get_method("op_Subtraction(via.vec3, via.vec3)")
+    local WRITE = { 11.5, 22.5, 33.5 }
+    local armed_tid, seen = nil, nil
+
+    if sub then
+        sdk.hook(sub, function(args)
+            -- The game subtracts vectors too, on any thread: only the test's own call counts.
+            if armed_tid == nil or thread.get_id() ~= armed_tid then return end
+            seen.pre, seen.buffer, seen.poke = true, sdk.to_int64(args[1]), rftest_poke ~= nil
+            if not seen.poke then return end
+            for i, f in ipairs(WRITE) do
+                if not rftest_poke(seen.buffer + 4 * (i - 1), (string.unpack("<I4", string.pack("<f", f))), 4) then
+                    seen.poke_failed = true
+                end
+            end
+            return sdk.PreHookResult.SKIP_ORIGINAL
+        end, function(retval)
+            if armed_tid == nil or thread.get_id() ~= armed_tid or not seen.pre then return retval end
+            seen.post = true
+            return sdk.to_ptr(seen.buffer)
+        end)
+    end
+
+    S:frame_test("a struct result a pre-hook writes before skipping the original reaches the caller", function(frame)
+        if sub == nil then H.skip("via.vec3.op_Subtraction(via.vec3, via.vec3) is not in this game") end
+        if frame < 5 then return false end
+        seen = {}
+        armed_tid = thread.get_id()
+        local ok, r = pcall(sub.call, sub, nil, Vector3f.new(9, 9, 9), Vector3f.new(1, 2, 3))
+        armed_tid = nil
+        if not ok then error(r, 0) end
+        H.truthy(seen.pre, "the hook fired for the test's own call")
+        H.truthy(seen.poke, "rftest_poke is registered (the plugin suite registers it)")
+        H.truthy(not seen.poke_failed, string.format("rftest_poke wrote the return buffer at 0x%x", seen.buffer))
+        H.truthy(seen.post, "post hook ran")
+        H.eq(string.format("(%g, %g, %g)", r.x, r.y, r.z), "(11.5, 22.5, 33.5)", "result, written by the pre-hook (the original's is (8, 7, 6))")
+        return string.format("return buffer 0x%x", seen.buffer)
     end)
 end
 

@@ -64,6 +64,7 @@ public:
         struct ArgSlot {
             uint32_t position{}; // argument position in the native call: 0-3 registers, 4+ stack
             bool is_float{};     // by-value float/double: xmm register instead of the integer one
+            bool spare{};        // one of the slots after the parameters: possibly not an argument at all
         };
 
         // The native arguments a hook sees, in call order: the return buffer for methods that return a struct through

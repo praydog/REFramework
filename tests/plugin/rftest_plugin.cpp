@@ -8,12 +8,14 @@
 // plugin_regression also runs Lua code in a Lua state the plugin creates (create_script_state), through the copy of
 // dependencies/lua that build.bat compiles into the plugin.
 //
-// The two callback re-entrancy tests run last because, without the fix, they deadlock the game. Before running them
+// The two callback re-entrancy tests run late because, without the fix, they deadlock the game. Before running them
 // the plugin waits for the Lua suites' result files (or a frame budget), writes every result so far, and pre-records
-// those two tests as FAIL, so a hang still leaves a complete results file behind.
+// those two tests as FAIL, so a hang still leaves a complete results file behind. The two-state test (a plugin's Lua
+// state calling on its own thread while the main state calls) runs after them and is pre-recorded with them.
 //
-// It also registers rftest_peek(address, size) in REFramework's Lua state for the Lua regression suite: a guarded raw
-// memory read (nil instead of a crash when the memory isn't readable).
+// It also registers functions in REFramework's Lua state for the Lua regression suite: rftest_peek(address, size), a
+// guarded raw memory read (nil instead of a crash when the memory isn't readable), rftest_poke(address, value, size),
+// its guarded write, and the rftest_two_states_* functions the suite's helper for the two-state test calls.
 //
 // Build: tests/plugin/build.bat (MSVC, C++20; links dependencies/lua). Install: copy rftest_plugin.dll to
 // reframework/plugins.
@@ -25,6 +27,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -169,9 +172,19 @@ void Suite::write() const {
         f << "]}";
     }
 
+    // The Lua regression suite (every frame while it waits for this suite) and the runner read the results files, and
+    // the rename can fail while the file is open there (seen once in 51 runs: RE4, "results NOT written", the last
+    // result lost). Retry for up to a second.
     std::filesystem::rename(tmp, path, ec);
-    g_param->functions->log_info("[rftest] %s: DONE pass=%d fail=%d skip=%d (results %s)", name.c_str(), pass, fail, skip,
-        ec ? "NOT written" : "written");
+    const auto first_error = ec ? ec.message() : std::string{};
+    int retries = 0;
+    for (; ec && retries < 50; ++retries) {
+        Sleep(20);
+        std::filesystem::rename(tmp, path, ec);
+    }
+    g_param->functions->log_info("[rftest] %s: DONE pass=%d fail=%d skip=%d (results %s)%s%s", name.c_str(), pass, fail, skip,
+        ec ? "NOT written" : "written", retries > 0 ? fmt(" after %d retries; first rename error: ", retries).c_str() : "",
+        first_error.c_str());
 }
 
 // ----------------------------------------------------------------------------------------------------------------
@@ -789,9 +802,354 @@ void multistate_step() {
 }
 
 // ----------------------------------------------------------------------------------------------------------------
+// plugin_regression: a plugin's Lua state calling on the plugin's own thread while the main state calls
+// ----------------------------------------------------------------------------------------------------------------
+// A hook callback of a Lua state the plugin creates runs on whatever thread calls the hooked method, under that
+// state's own lock only, so its Lua can run on the plugin's thread while the main state's Lua runs on another. The
+// buffers a Lua call keeps its arguments in (build_args' nesting depth and per-level argument lists) were one set per
+// process, not per thread: a probe with both states calling at once got wrong sums or a crash in 11 of 11 runs (DMC5,
+// PRAGMATA; 4 of the 9 crash stacks in build_args growing the shared lists). This test makes one interleaving of the
+// two threads happen in order, each thread building its arguments only while the other waits, so an unfixed build
+// fails on a value instead of racing:
+//   1. the plugin's thread, in L3's hook on a rarely called method T, calls X with (100, 200, 300) / 4 and waits in
+//      it (the plugin's own hook on X waits) until 2. has happened;
+//   2. the main state, on its thread (the regression suite's helper for this test), calls X with (10, 20, 30) / 2 and
+//      waits in it until 3. has happened;
+//   3. the plugin's thread finishes its first call and calls X with (1000, 2000, 3000) / 4.
+// X is via.vec3.op_Division(via.vec3, System.Single): it reads its vector through the address the call passed, after
+// the hook on it returned. Neither suite hooks X or T in the main state (a main-state hook on a method the plugin's
+// thread calls would wait for the main state's lock, which the waiting main-state thread holds). With one set of
+// buffers the third call took the nesting level the main state's call was using and wrote its vector over that call's
+// vector, so the main state got (1000, 2000, 3000) / 2. Each wait gives up after TS_WAIT_MS and the detail says so.
+// Runs after the callback re-entrancy tests, pre-recorded as FAIL with them. L3 is deleted afterwards (which removes
+// its hook on T) and the plugin's hook on X is removed.
+const char* const TWO_STATES = "a plugin's Lua state calling on its own thread leaves the main state's call arguments alone";
+constexpr double TS_MAGIC = 12345.6789;  // T's arguments in the plugin's call; L3's hook ignores every other call
+constexpr DWORD TS_WAIT_MS = 5000;
+constexpr int TS_HOOK_FRAMES = 10;      // frames for ScriptRunner to install L3's hook
+constexpr int TS_HELPER_FRAMES = 600;   // budget for the main state's helper to report once the plugin's thread is done
+constexpr ULONGLONG TS_WORKER_MS = 60000;
+
+// T: rarely called static methods with Double parameters; the first one the game has is used (PRAGMATA has none
+// before Atan2). Without any of them (RE9, MMSF), the first static System.Math method taking one or two Doubles and
+// returning a Double. Not Sqrt: the api suite hooks it.
+const char* const TS_T_CANDIDATES[][2] = {
+    {"System.Math", "Log10(System.Double)"},
+    {"System.Math", "IEEERemainder(System.Double, System.Double)"},
+    {"System.Math", "Tanh(System.Double)"},
+    {"System.Math", "Cosh(System.Double)"},
+    {"System.Math", "Exp(System.Double)"},
+    {"System.Math", "Log(System.Double)"},
+    {"System.Math", "Atan2(System.Double, System.Double)"},
+    {"System.Math", "Pow(System.Double, System.Double)"},
+};
+
+const char* const TS_SETUP = R"lua(
+local t_type, t_sig, magic = ...
+local T = sdk.find_type_definition(t_type):get_method(t_sig)
+local X = sdk.find_type_definition("via.vec3"):get_method("op_Division(via.vec3, System.Single)")
+local function fmt(v) return string.format("(%.9g, %.9g, %.9g)", v.x, v.y, v.z) end
+sdk.hook(T, function(args)
+    if sdk.to_double(args[2]) ~= magic then return end
+    local ok, err = pcall(function()
+        local first = X:call(nil, Vector3f.new(100, 200, 300), 4.0)
+        local second = X:call(nil, Vector3f.new(1000, 2000, 3000), 4.0)
+        rftest_two_states_worker(fmt(first), fmt(second))
+    end)
+    if not ok then rftest_two_states_worker(nil, nil, tostring(err)) end
+end, function(retval) return retval end)
+)lua";
+
+struct TwoStates {
+    int step{0};  // 0 set up, 1 waiting for L3's hook, 2 running, 3 done
+    int frame{0}; // frames in the current step
+    lua_State* L{};
+    API::Method* x{};
+    API::Method* t{};
+    std::string t_name{};
+    unsigned int x_hook{};
+    bool x_hooked{false};
+    HANDLE worker{};
+    ULONGLONG worker_start{0};
+    int worker_exit_frame{0};
+};
+
+TwoStates g_ts{};
+std::atomic<bool> g_ts_done{false};
+
+// Shared by the plugin's hook on X, the plugin's thread and the Lua functions below. Manual-reset events.
+HANDLE g_ts_helper_ready{}, g_ts_worker_inside{}, g_ts_main_inside{}, g_ts_worker_finished{};
+std::atomic<DWORD> g_ts_worker_tid{0}, g_ts_main_tid{0};
+std::atomic<bool> g_ts_request{false}, g_ts_worker_armed{false}, g_ts_main_armed{false};
+std::atomic<bool> g_ts_main_reported{false}, g_ts_worker_reported{false};
+std::mutex g_ts_mux{};
+std::string g_ts_main_result{}, g_ts_first{}, g_ts_third{}, g_ts_notes{};
+
+void ts_note(const std::string& s) {
+    std::scoped_lock _{g_ts_mux};
+    g_ts_notes += (g_ts_notes.empty() ? "" : "; ") + s;
+}
+
+int ts_x_pre(int, void**, REFrameworkTypeDefinitionHandle*, unsigned long long) {
+    const auto tid = GetCurrentThreadId();
+
+    if (tid == g_ts_worker_tid && g_ts_worker_armed.exchange(false)) {
+        SetEvent(g_ts_worker_inside);
+        if (WaitForSingleObject(g_ts_main_inside, TS_WAIT_MS) != WAIT_OBJECT_0) {
+            ts_note("the main state's call never reached X while the plugin thread's first call waited in it");
+        }
+    } else if (tid == g_ts_main_tid && g_ts_main_armed.exchange(false)) {
+        SetEvent(g_ts_main_inside);
+        if (WaitForSingleObject(g_ts_worker_finished, TS_WAIT_MS) != WAIT_OBJECT_0) {
+            ts_note("the plugin thread's third call did not finish while the main state's call waited in X");
+        }
+    }
+
+    return REFRAMEWORK_HOOK_CALL_ORIGINAL;
+}
+
+void ts_x_post(void**, REFrameworkTypeDefinitionHandle, unsigned long long) {}
+
+// Main state: rftest_two_states_request() is true once, when the test wants the helper to run.
+int l_ts_request(lua_State* L) {
+    lua_pushboolean(L, g_ts_request.exchange(false));
+    return 1;
+}
+
+// Main state: rftest_two_states_begin() lets the plugin's thread start and waits until its first call is in X.
+int l_ts_begin(lua_State* L) {
+    g_ts_main_tid = GetCurrentThreadId();
+    SetEvent(g_ts_helper_ready);
+    const bool ok = WaitForSingleObject(g_ts_worker_inside, TS_WAIT_MS) == WAIT_OBJECT_0;
+    if (ok) {
+        g_ts_main_armed = true;
+    } else {
+        ts_note("the plugin thread's first call never reached X");
+    }
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
+// Main state: rftest_two_states_main(result, error) reports the main state's call.
+int l_ts_main(lua_State* L) {
+    const std::string result = luaL_optstring(L, 1, "");
+    if (!lua_isnoneornil(L, 2)) {
+        ts_note(std::string{"main state's call raised: "} + luaL_checkstring(L, 2));
+    }
+    {
+        std::scoped_lock _{g_ts_mux};
+        g_ts_main_result = result;
+    }
+    g_ts_main_reported = true;
+    return 0;
+}
+
+// L3: rftest_two_states_worker(first, third, error) reports the plugin thread's calls and lets the main state's go on.
+int l_ts_worker(lua_State* L) {
+    const std::string first = luaL_optstring(L, 1, "");
+    const std::string third = luaL_optstring(L, 2, "");
+    if (!lua_isnoneornil(L, 3)) {
+        ts_note(std::string{"plugin thread's calls raised: "} + luaL_checkstring(L, 3));
+    }
+    {
+        std::scoped_lock _{g_ts_mux};
+        g_ts_first = first;
+        g_ts_third = third;
+    }
+    g_ts_worker_reported = true;
+    SetEvent(g_ts_worker_finished);
+    return 0;
+}
+
+DWORD WINAPI ts_worker(LPVOID) {
+    g_ts_worker_tid = GetCurrentThreadId();
+
+    if (WaitForSingleObject(g_ts_helper_ready, 2 * TS_WAIT_MS) != WAIT_OBJECT_0) {
+        ts_note("the main state's helper never started (it is in the regression suite)");
+        return 0;
+    }
+
+    double magic = TS_MAGIC;
+    void* slot{};
+    memcpy(&slot, &magic, sizeof(magic));
+    const std::vector<void*> args(g_ts.t->get_num_params(), slot);
+    g_ts_worker_armed = true;
+    g_ts.t->invoke(nullptr, args);
+    g_ts_worker_armed = false;
+
+    if (!g_ts_worker_reported) {
+        ts_note("L3's hook on " + g_ts.t_name + " did not report: it did not run, or did not reach the end");
+        SetEvent(g_ts_worker_finished); // don't leave the main state's call waiting
+    }
+
+    return 0;
+}
+
+void ts_finish(const char* status, const std::string& detail, bool clean_up = true) {
+    auto& t = g_ts;
+    g_ts_request = false;
+
+    if (clean_up) {
+        if (t.x_hooked) {
+            t.x->remove_hook(t.x_hook);
+            t.x_hooked = false;
+        }
+        if (t.L != nullptr) {
+            g_param->functions->delete_script_state(t.L);
+            t.L = nullptr;
+        }
+        if (t.worker != nullptr) {
+            CloseHandle(t.worker);
+            t.worker = nullptr;
+        }
+    }
+
+    g_regression.set(TWO_STATES, status, detail);
+    t.step = 3;
+    g_ts_done = true;
+}
+
+// Called once per frame from on_pre_update (the game thread) until g_ts_done.
+void two_states_step() {
+    auto& t = g_ts;
+    const auto fns = g_param->functions;
+    ++t.frame;
+
+    switch (t.step) {
+    case 0: {
+        const auto tdb = API::get()->tdb();
+        t.x = tdb->find_method("via.vec3", "op_Division(via.vec3, System.Single)");
+        if (t.x == nullptr) {
+            ts_finish("SKIP", "via.vec3.op_Division(via.vec3, System.Single) is not in this game");
+            return;
+        }
+        for (const auto& c : TS_T_CANDIDATES) {
+            t.t = tdb->find_method(c[0], c[1]);
+            if (t.t != nullptr) {
+                t.t_name = std::string{c[0]} + "." + c[1];
+                break;
+            }
+        }
+        const auto math_t = t.t == nullptr ? tdb->find_type("System.Math") : nullptr;
+        for (const auto m : math_t != nullptr ? math_t->get_methods() : std::vector<API::Method*>{}) {
+            const auto ret = m->get_return_type();
+            const auto params = m->get_params();
+            if (!m->is_static() || std::string{m->get_name()} == "Sqrt" || params.empty() || params.size() > 2 ||
+                ret == nullptr || ret->get_full_name() != "System.Double") {
+                continue;
+            }
+            bool doubles = true;
+            for (const auto& p : params) {
+                doubles = doubles && p.t != nullptr && ((API::TypeDefinition*)p.t)->get_full_name() == "System.Double";
+            }
+            if (doubles) {
+                t.t = m;
+                t.t_name = std::string{"System.Math."} + m->get_name() + (params.size() == 1 ? "(System.Double)" : "(System.Double, System.Double)");
+                break;
+            }
+        }
+        if (t.t == nullptr) {
+            ts_finish("SKIP", "System.Math has no static method taking one or two Doubles and returning a Double but Sqrt in this game");
+            return;
+        }
+
+        g_ts_helper_ready = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        g_ts_worker_inside = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        g_ts_main_inside = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        g_ts_worker_finished = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+
+        t.L = fns->create_script_state();
+        if (t.L == nullptr) {
+            ts_finish("FAIL", "create_script_state returned null");
+            return;
+        }
+
+        std::string err{};
+        fns->lock_lua();
+        lua_register(t.L, "rftest_two_states_worker", l_ts_worker);
+        if (luaL_loadstring(t.L, TS_SETUP) != LUA_OK) {
+            err = pop_lua_error(t.L);
+        } else {
+            const auto dot = t.t_name.find('.', std::string{"System."}.size());
+            lua_pushstring(t.L, t.t_name.substr(0, dot).c_str());
+            lua_pushstring(t.L, t.t_name.substr(dot + 1).c_str());
+            lua_pushnumber(t.L, TS_MAGIC);
+            if (lua_pcall(t.L, 3, 0, 0) != LUA_OK) {
+                err = pop_lua_error(t.L);
+            }
+        }
+        fns->unlock_lua();
+
+        if (!err.empty()) {
+            ts_finish("FAIL", "setup in L3: " + err);
+            return;
+        }
+
+        t.x_hook = t.x->add_hook(ts_x_pre, ts_x_post, false);
+        t.x_hooked = true;
+        t.step = 1;
+        t.frame = 0;
+        break;
+    }
+
+    case 1:
+        if (t.frame < TS_HOOK_FRAMES) {
+            return;
+        }
+        t.worker = CreateThread(nullptr, 0, ts_worker, nullptr, 0, nullptr);
+        if (t.worker == nullptr) {
+            ts_finish("FAIL", fmt("CreateThread failed (%lu)", GetLastError()));
+            return;
+        }
+        t.worker_start = GetTickCount64();
+        g_ts_request = true;
+        t.step = 2;
+        t.frame = 0;
+        break;
+
+    case 2: {
+        if (WaitForSingleObject(t.worker, 0) != WAIT_OBJECT_0) {
+            if (GetTickCount64() - t.worker_start > TS_WORKER_MS) {
+                // Bounded waits make this unreachable; if it happens, leave L3 and the hook alone while it runs.
+                ts_finish("FAIL", fmt("the plugin's thread still runs after %llu ms", (unsigned long long)TS_WORKER_MS), false);
+            }
+            return;
+        }
+        if (t.worker_exit_frame == 0) {
+            t.worker_exit_frame = t.frame;
+        }
+        if (!g_ts_main_reported && t.frame - t.worker_exit_frame < TS_HELPER_FRAMES) {
+            return;
+        }
+
+        std::string main_result, first, third, notes;
+        {
+            std::scoped_lock _{g_ts_mux};
+            main_result = g_ts_main_result;
+            first = g_ts_first;
+            third = g_ts_third;
+            notes = g_ts_notes;
+        }
+        if (!g_ts_main_reported) {
+            notes += std::string{notes.empty() ? "" : "; "} + "the main state's helper did not report";
+        }
+
+        const bool ok = notes.empty() && main_result == "(5, 10, 15)" && first == "(25, 50, 75)" && third == "(250, 500, 750)";
+        ts_finish(ok ? "PASS" : "FAIL",
+            fmt("main state (thread %lu): (10, 20, 30) / 2 = %s, expected (5, 10, 15); plugin thread (%lu, L3's hook on %s): "
+                "(100, 200, 300) / 4 = %s, then while the main state's call ran (1000, 2000, 3000) / 4 = %s%s%s",
+                g_ts_main_tid.load(), main_result.empty() ? "(none)" : main_result.c_str(), g_ts_worker_tid.load(), t.t_name.c_str(),
+                first.empty() ? "(none)" : first.c_str(), third.empty() ? "(none)" : third.c_str(), notes.empty() ? "" : "; ",
+                notes.c_str()));
+        break;
+    }
+    }
+}
+
+// ----------------------------------------------------------------------------------------------------------------
 // Callbacks and the test schedule
 // ----------------------------------------------------------------------------------------------------------------
-enum class Stage { WaitGame, Runtime, WaitLua, LuaCreated, Present, Finish, Done };
+enum class Stage { WaitGame, Runtime, WaitLua, LuaCreated, Present, Finish, TwoStates, Done };
 std::atomic<Stage> g_stage{Stage::WaitGame};
 std::atomic<int> g_stage_frame{0};
 std::atomic<bool> g_runtime_requested{false};
@@ -843,6 +1201,44 @@ int rftest_peek(lua_State* L) {
     return 1;
 }
 
+// rftest_poke(address, value [, size = 8]) for the Lua regression suite: writes the low size (1, 2, 4 or 8) bytes of
+// value at address and returns true, or returns false and writes nothing when any of them isn't committed, writable
+// memory. The Lua test writes a hooked method's result into the return buffer the hook was given.
+bool is_writable(uintptr_t addr, size_t size) {
+    constexpr DWORD writable = PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY;
+    const auto end = addr + size;
+    if (addr == 0 || end < addr) {
+        return false;
+    }
+    for (auto p = addr; p < end;) {
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (VirtualQuery((LPCVOID)p, &mbi, sizeof(mbi)) == 0 || mbi.State != MEM_COMMIT ||
+            (mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS)) != 0 || (mbi.Protect & writable) == 0) {
+            return false;
+        }
+        p = (uintptr_t)mbi.BaseAddress + mbi.RegionSize;
+    }
+    return true;
+}
+
+bool write_guarded(uintptr_t addr, const void* in, size_t size) {
+    __try {
+        memcpy((void*)addr, in, size);
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
+int rftest_poke(lua_State* L) {
+    const auto addr = (uintptr_t)luaL_checkinteger(L, 1);
+    const auto value = (uint64_t)luaL_checkinteger(L, 2);
+    const auto size = luaL_optinteger(L, 3, 8);
+    luaL_argcheck(L, size == 1 || size == 2 || size == 4 || size == 8, 3, "size must be 1, 2, 4 or 8");
+    lua_pushboolean(L, is_writable(addr, (size_t)size) && write_guarded(addr, &value, (size_t)size));
+    return 1;
+}
+
 void on_lua_state_created(lua_State* L) {
     ++g_lua_created;
     // This runs the plugin's own copy of Lua (build.bat compiles dependencies/lua/src) on REFramework's state, and an
@@ -851,6 +1247,10 @@ void on_lua_state_created(lua_State* L) {
     // (`git diff <build commit> -- dependencies/lua` empty; LUA_VERSION_RELEASE in dependencies/lua/src/lua.h). Nothing
     // checks this at run time.
     lua_register(L, "rftest_peek", rftest_peek);
+    lua_register(L, "rftest_poke", rftest_poke);
+    lua_register(L, "rftest_two_states_request", l_ts_request);
+    lua_register(L, "rftest_two_states_begin", l_ts_begin);
+    lua_register(L, "rftest_two_states_main", l_ts_main);
 }
 void on_imgui_frame(REFImGuiFrameCbData*) { ++g_imgui_frames; }
 
@@ -866,6 +1266,11 @@ void on_pre_update() {
     // g_ms_done is set only once the test has recorded its result: on_present writes the file as soon as it sees it.
     if (!g_ms_done && g_stage.load() == Stage::WaitLua) {
         multistate_step();
+    }
+
+    // g_ts_done is set only once the test has recorded its result: on_present writes the file as soon as it sees it.
+    if (!g_ts_done && g_stage.load() == Stage::TwoStates) {
+        two_states_step();
     }
 }
 
@@ -937,6 +1342,7 @@ void on_present() {
 
             g_regression.set(REENTRANT_LUA_CREATED, "FAIL", "pending: did not finish (deadlock?)");
             g_regression.set(REENTRANT_PRESENT, "FAIL", "pending: did not finish (deadlock?)");
+            g_regression.set(TWO_STATES, "FAIL", "pending: did not finish (crashed or hung the game?)");
             g_regression.write();
 
             // Registering on_lua_state_created after the state exists calls the callback immediately; it then
@@ -962,7 +1368,7 @@ void on_present() {
     case Stage::Present: {
         // Inside the on_present dispatch: without the fix this blocks the render thread forever.
         const auto ok = g_param->functions->on_imgui_frame(on_imgui_frame_late);
-        g_stage = ok ? Stage::Finish : Stage::Done;
+        g_stage = ok ? Stage::Finish : Stage::TwoStates;
         g_stage_frame = 0;
         if (!ok) {
             g_regression.record(REENTRANT_PRESENT, false, "on_imgui_frame returned false");
@@ -975,6 +1381,14 @@ void on_present() {
         if (g_reentrant_imgui_fired || g_stage_frame > 300) {
             g_regression.record(REENTRANT_PRESENT, g_reentrant_imgui_fired,
                 g_reentrant_imgui_fired ? "" : "registered, but the callback never ran");
+            g_regression.write();
+            g_stage = Stage::TwoStates;
+            g_stage_frame = 0;
+        }
+        break;
+
+    case Stage::TwoStates:
+        if (g_ts_done) {
             g_regression.write();
             g_stage = Stage::Done;
         }
