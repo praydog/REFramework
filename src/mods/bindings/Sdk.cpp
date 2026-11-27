@@ -889,7 +889,8 @@ struct InvokeScope {
     InvokeScope() { ++s_depth; }
     ~InvokeScope() { --s_depth; }
 
-    static inline size_t s_depth{0};
+    // Per thread: a plugin's own Lua state can make calls on another thread while the main state does.
+    static inline thread_local size_t s_depth{0};
 };
 
 std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn = nullptr);
@@ -2008,7 +2009,7 @@ std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition*
         std::vector<Vector4f> vec_storage{};
     };
 
-    static std::deque<Buffers> levels{};
+    thread_local std::deque<Buffers> levels{};
 
     while (levels.size() <= InvokeScope::s_depth) {
         levels.emplace_back();

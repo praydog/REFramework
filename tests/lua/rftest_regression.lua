@@ -940,6 +940,28 @@ do
 end
 
 -------------------------------------------------------------------------------------------------------------------
+-- Helper for the plugin_regression test "a plugin's Lua state calling on its own thread leaves the main state's call
+-- arguments alone" (described in tests/plugin/rftest_plugin.cpp, which records it). When the plugin asks, it makes the
+-- main state's call via.vec3.op_Division((10, 20, 30), 2) while a call in the plugin's own Lua state, on the plugin's
+-- thread, waits, and hands the plugin the result. Not a test itself; without the plugin it does nothing.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local vec3_t = sdk.find_type_definition("via.vec3")
+    local div = vec3_t and vec3_t:get_method("op_Division(via.vec3, System.Single)")
+
+    re.on_frame(function()
+        if div == nil or rftest_two_states_request == nil or not rftest_two_states_request() then return end
+        -- Lets the plugin's thread start; true once its call is waiting.
+        if not rftest_two_states_begin() then return end
+        local ok, r = pcall(function()
+            local v = div:call(nil, Vector3f.new(10, 20, 30), 2.0)
+            return string.format("(%.9g, %.9g, %.9g)", v.x, v.y, v.z)
+        end)
+        if ok then rftest_two_states_main(r) else rftest_two_states_main(nil, tostring(r)) end
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
 -- A call made from a hook callback must not change the arguments of the call it interrupts. Vector2f / Vector3f
 -- arguments are passed as addresses into a buffer REFramework keeps for the call. The nested call reused that buffer,
 -- so the outer method computed with the nested call's vectors: (1, 2, 3) + (4, 5, 6) gave (110, 220, 330).
