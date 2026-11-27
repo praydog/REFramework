@@ -147,12 +147,12 @@ FetchContent_Declare(bddisasm
 )
 FetchContent_MakeAvailable(bddisasm)
 
-message(STATUS "Fetching kananlib (114de17185a6540eb5fdec8c6716201d5c2638a6)...")
+message(STATUS "Fetching kananlib (2fa8346776be7117e9530ba88d3a6e474e18c0f6)...")
 FetchContent_Declare(kananlib
 	GIT_REPOSITORY
 		"https://github.com/cursey/kananlib"
 	GIT_TAG
-		114de17185a6540eb5fdec8c6716201d5c2638a6
+		2fa8346776be7117e9530ba88d3a6e474e18c0f6
 )
 FetchContent_MakeAvailable(kananlib)
 

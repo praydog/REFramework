@@ -125,6 +125,40 @@ std::string read(sol::this_state l, const std::string& filepath) {
 }
 }
 
+namespace {
+// Whether the file a path names is a .dll on disk. The name is resolved first: an 8.3 short name such as "P~1.DLL"
+// can belong to a file written as "p.dllx" (allowed by the write check), and loading it by the short name would run
+// it as a DLL. Trailing dots and spaces are dropped as Windows does. A path that doesn't exist is judged by its text.
+bool names_a_dll(const ::fs::path& path) {
+    std::wstring name = path.filename().wstring();
+    std::wstring long_path(MAX_PATH, L'\0');
+
+    for (;;) {
+        const auto n = GetLongPathNameW(path.c_str(), long_path.data(), (DWORD)long_path.size());
+
+        if (n == 0) {
+            break; // missing or unreadable: keep the name as written
+        }
+
+        if (n < long_path.size()) {
+            long_path.resize(n);
+            name = ::fs::path{long_path}.filename().wstring();
+            break;
+        }
+
+        long_path.resize(n);
+    }
+
+    while (!name.empty() && (name.back() == L'.' || name.back() == L' ')) {
+        name.pop_back();
+    }
+
+    auto ext = ::fs::path{name}.extension().wstring();
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::towlower);
+    return ext == L".dll";
+}
+}
+
 std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::string& filepath, bool allow_dll) {
     if (filepath.find("..") != std::string::npos) {
         lua_pushstring(l, "This API does not allow access to parent directories");
@@ -132,7 +166,18 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
         return {};
     }
 
-    if (std::filesystem::path(filepath).is_absolute()) {
+    // The C runtime stops at the first NUL, so "x.dll\0.txt" would pass the extension check below as .txt and then
+    // open x.dll.
+    if (filepath.find('\0') != std::string::npos) {
+        lua_pushstring(l, "This API does not allow NUL characters in paths");
+        lua_error(l);
+        return {};
+    }
+
+    // has_root_path, not is_absolute: on Windows "\\foo" (root directory only) and "C:foo" (drive only) are not
+    // absolute, but appending either to the data directory replaces it, escaping to the drive root or to the
+    // drive's current directory.
+    if (std::filesystem::path(filepath).has_root_path()) {
         lua_pushstring(l, "This API does not allow the use of absolute paths");
         lua_error(l);
         return {};
@@ -146,7 +191,7 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
         return {};
     }
 
-    if (corrected_subpath.is_absolute()) {
+    if (corrected_subpath.has_root_path()) {
         lua_pushstring(l, "This API does not allow the use of absolute paths");
         lua_error(l);
         return {};
@@ -154,7 +199,15 @@ std::optional<::fs::path> get_correct_subpath(sol::this_state l, const std::stri
 
     const auto path = api::fs::detail::get_datadir(filepath) / corrected_subpath;
     const auto extension_lower = [&]() {
-        auto ext = path.extension().string();
+        // Windows drops trailing dots and spaces from file names ("x.dll." and "x.dll " both create x.dll), so take
+        // the extension of the name that will actually be used.
+        auto name = path.filename().wstring();
+
+        while (!name.empty() && (name.back() == L'.' || name.back() == L' ')) {
+            name.pop_back();
+        }
+
+        auto ext = ::fs::path{name}.extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         return ext;
     }();
@@ -316,13 +369,14 @@ void bindings::open_fs(ScriptState* s) {
             lua_error(l);
         }
 
-        if (std::filesystem::path(filepath).is_absolute()) {
+        if (std::filesystem::path(filepath).has_root_path()) {
             lua_pushstring(l, "require does not allow the use of absolute paths");
             lua_error(l);
         }
 
         // Do not allow modification of the package path or cpath. We restore it to a pristine value before calling the original require.
-        auto lua = sol::state_view{l};
+        // The main thread: the searcher wrappers below outlive this call, and l can be a coroutine that is collected first.
+        auto lua = sol::state_view{sol::main_thread(l, l)};
         lua["package"]["path"] = lua.registry()["package_path"];
         lua["package"]["cpath"] = lua.registry()["package_cpath"];
         lua["package"]["searchers"] = lua.create_table();
@@ -332,12 +386,45 @@ void bindings::open_fs(ScriptState* s) {
             lua["package"]["searchers"][k] = v;
         }
 
+        // The C searchers (3: the module name, 4: its root before the first '.') load whatever file package.cpath
+        // finds. Refuse files that aren't DLLs on disk, e.g. "reframework.data.P~1" finding the 8.3 short name
+        // P~1.DLL of a script-written "p.dllx".
+        for (int index : {3, 4}) {
+            sol::object original = lua["package"]["searchers"][index];
+
+            if (original.get_type() != sol::type::function) {
+                continue;
+            }
+
+            lua["package"]["searchers"][index] = [original = original.as<sol::function>(), index](sol::this_state ls, const std::string& name) -> sol::variadic_results {
+                auto lv = sol::state_view{ls};
+                const auto lookup = index == 4 ? name.substr(0, name.find('.')) : name;
+                sol::function searchpath = lv["package"]["searchpath"];
+                sol::object found = searchpath(lookup, lv["package"]["cpath"]);
+                sol::variadic_results out{};
+
+                if (found.is<std::string>() && !names_a_dll(::fs::path{found.as<std::string>()})) {
+                    out.push_back(sol::make_object(ls, "\n\tno module '" + name + "': " + found.as<std::string>() + " is not a DLL"));
+                    return out;
+                }
+
+                // Copy the results into references: the searcher's stack may not be the caller's (see loadlib).
+                const auto result = original(name);
+
+                for (int i = 0; i < result.return_count(); ++i) {
+                    out.push_back(sol::object{result.lua_state(), result.stack_index() + i});
+                }
+
+                return out;
+            };
+        }
+
         return old_require(filepath.c_str());
     };
 
     sol::function old_loadlib = lua["package"]["loadlib"];
 
-    lua["package"]["loadlib"] = [=](sol::this_state l, const std::string& filepath, const std::string& funcname) -> sol::object {
+    lua["package"]["loadlib"] = [=](sol::this_state l, const std::string& filepath, const std::string& funcname) -> sol::variadic_results {
         const auto path = get_correct_subpath(l, filepath, true);
 
         if (!path) {
@@ -351,11 +438,23 @@ void bindings::open_fs(ScriptState* s) {
             return ext;
         }();
 
-        if (extension_lower != ".dll") {
+        // Judge the name the file has on disk too: a short name like P~1.DLL can belong to a script-written p.dllx.
+        if (extension_lower != ".dll" || !names_a_dll(*path)) {
             lua_pushstring(l, "package.loadlib: only DLLs are allowed");
             lua_error(l);
         }
 
-        return old_loadlib(filepath.c_str(), funcname.c_str());
+        // Load the validated path inside the data directory, not the raw argument (LoadLibrary would search the game
+        // directory, system directories and PATH for it). Return every result: on failure loadlib returns nil plus
+        // the error message and the failing step. old_loadlib runs on the main thread's stack, so copy the results
+        // into references before returning them: the caller may be a coroutine with a different stack.
+        const auto result = old_loadlib(path->string(), funcname);
+        sol::variadic_results out{};
+
+        for (int i = 0; i < result.return_count(); ++i) {
+            out.push_back(sol::object{result.lua_state(), result.stack_index() + i});
+        }
+
+        return out;
     };
 }

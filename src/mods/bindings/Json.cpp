@@ -127,7 +127,8 @@ sol::object load_file(sol::this_state l, const std::string& filepath) try {
         throw std::runtime_error{"json.load_file does not allow access to parent directories"};
     }
 
-    if (std::filesystem::path(filepath).is_absolute()) {
+    // has_root_path: "\\foo" and "C:foo" are not absolute but still replace the data directory when appended.
+    if (std::filesystem::path(filepath).has_root_path()) {
         throw std::runtime_error{"json.load_file does not allow absolute paths"};
     }
 
@@ -149,7 +150,7 @@ bool dump_file(const std::string& filepath, sol::object obj, sol::object indent_
         throw std::runtime_error{"json.dump_file does not allow access to parent directories"};
     }
 
-    if (std::filesystem::path(filepath).is_absolute()) {
+    if (std::filesystem::path(filepath).has_root_path()) {
         throw std::runtime_error{"json.dump_file does not allow absolute paths"};
     }
 

@@ -1,0 +1,25 @@
+{
+  "comment": "REFramework-supported games: alias (used by the tools), Steam app id, Steam name, main executable. Install folders are looked up in Steam's own manifests.",
+  "games": [
+    { "alias": "re2", "appid": 883710, "name": "Resident Evil 2", "exe": "re2.exe" },
+    { "alias": "re3", "appid": 952060, "name": "Resident Evil 3", "exe": "re3.exe" },
+    { "alias": "re4", "appid": 2050650, "name": "Resident Evil 4", "exe": "re4.exe" },
+    { "alias": "re7", "appid": 418370, "name": "Resident Evil 7 Biohazard", "exe": "re7.exe" },
+    { "alias": "re8", "appid": 1196590, "name": "Resident Evil Village", "exe": "re8.exe" },
+    { "alias": "re9", "appid": 3764200, "name": "Resident Evil Requiem", "exe": "re9.exe" },
+    { "alias": "dmc5", "appid": 601150, "name": "Devil May Cry 5", "exe": "DevilMayCry5.exe" },
+    { "alias": "sf6", "appid": 1364780, "name": "Street Fighter 6", "exe": "StreetFighter6.exe" },
+    { "alias": "mhrise", "appid": 1446780, "name": "Monster Hunter Rise", "exe": "MonsterHunterRise.exe" },
+    { "alias": "mhwilds", "appid": 2246340, "name": "Monster Hunter Wilds", "exe": "MonsterHunterWilds.exe" },
+    { "alias": "mhst3", "appid": 2852190, "name": "Monster Hunter Stories 3: Twisted Reflection", "exe": "MONSTER_HUNTER_STORIES_3_TWISTED_REFLECTION.exe" },
+    { "alias": "dd2", "appid": 2054970, "name": "Dragon's Dogma 2", "exe": "DD2.exe" },
+    { "alias": "pragmata", "appid": 3357650, "name": "PRAGMATA", "exe": "PRAGMATA.exe" },
+    { "alias": "kunitsugami", "appid": 2510710, "name": "Kunitsu-Gami: Path of the Goddess", "exe": "KunitsuGami.exe" },
+    { "alias": "gngr", "appid": 1375400, "name": "Ghosts 'n Goblins Resurrection", "exe": "makaimura_GG_RE.exe" },
+    { "alias": "aajt", "appid": 2187220, "name": "Apollo Justice: Ace Attorney Trilogy", "exe": "GS456.exe" },
+    { "alias": "onimusha2", "appid": 3046600, "name": "Onimusha 2: Samurai's Destiny", "exe": "Onimusha2.exe" },
+    { "alias": "drdr", "appid": 2527390, "name": "Dead Rising Deluxe Remaster", "exe": "DRDR.exe" },
+    { "alias": "onimushawots", "appid": 2638890, "name": "Onimusha: Way of the Sword", "exe": "OnimushaWotS.exe" },
+    { "alias": "mmsf", "appid": 3500390, "name": "Mega Man Star Force Legacy Collection", "exe": "MEGAMAN_STARFORCE_Legacy_Collection.exe" }
+  ]
+}

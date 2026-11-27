@@ -1,5 +1,11 @@
 #include <cstdint>
 #include <concepts>
+#include <algorithm>
+#include <bit>
+#include <deque>
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
 #include <hde64.h>
 
@@ -12,11 +18,12 @@
 #include "sdk/ResourceManager.hpp"
 #include "sdk/MotionFsm2Layer.hpp"
 #include "sdk/TDBVer.hpp"
+#include "sdk/GameIdentity.hpp"
 #include "utility/Memory.hpp"
 
 #include "../ScriptRunner.hpp"
+
 #include <lstate.h> // weird include order because of sol
-#include <lgc.h>
 
 #include "Sdk.hpp"
 
@@ -37,6 +44,507 @@ struct BehaviorTree : public ::REManagedObject {
 
 namespace detail {
 constexpr uintptr_t FAKE_OBJECT_ADDR = 12345;
+
+// Registry keys: only their addresses matter. Each Lua state's registry holds its own tables under them (set up in
+// open_sdk), so the push path and the reference bookkeeping reach them with lua_rawgetp instead of looking up globals
+// by name or going through sol objects (each of which takes and drops a registry reference).
+char s_objects_key{};             // _sol_lua_push_objects: weak cache of wrappers, keyed by object address
+char s_ref_counts_key{};          // _sol_lua_push_ref_counts: engine references Lua holds, keyed by object address
+char s_lifetime_key{};            // WrapperLifetime userdata: the addresses Lua holds a reference for (see below)
+
+// The bookkeeping tables hold Lua integers keyed by object address; a missing entry reads as nullopt.
+std::optional<lua_Integer> get_count(lua_State* l, const void* key, lua_Integer addr) {
+    std::optional<lua_Integer> result{};
+
+    lua_rawgetp(l, LUA_REGISTRYINDEX, key);
+
+    if (lua_rawgeti(l, -1, addr) == LUA_TNUMBER) {
+        result = lua_tointeger(l, -1);
+    }
+
+    lua_pop(l, 2);
+    return result;
+}
+
+bool has_entry(lua_State* l, const void* key, lua_Integer addr) {
+    lua_rawgetp(l, LUA_REGISTRYINDEX, key);
+    const bool present = lua_rawgeti(l, -1, addr) != LUA_TNIL;
+    lua_pop(l, 2);
+    return present;
+}
+
+void set_count(lua_State* l, const void* key, lua_Integer addr, std::optional<lua_Integer> value) {
+    lua_rawgetp(l, LUA_REGISTRYINDEX, key);
+
+    if (value) {
+        lua_pushinteger(l, *value);
+    } else {
+        lua_pushnil(l);
+    }
+
+    lua_rawseti(l, -2, addr);
+    lua_pop(l, 1);
+}
+
+// Lifetime of managed object wrappers. Wrappers have no __gc: the collector frees a dead wrapper
+// like any other userdata (no finalizer call, no resurrection, no second cycle) and clears its weak cache entry. Engine
+// references are kept per address instead of per wrapper: WrapperLifetime knows every address Lua holds a reference
+// for, and scan_wrapper_references (once per frame, after the frame's GC step) visits them round-robin. A visit that
+// finds no cached wrapper marks the address; a later visit at least RELEASE_AFTER_FRAMES frames on that still finds
+// none releases its reference. A push that misses the cache while the address is still tracked reuses the reference
+// instead of adding one.
+//
+// Invariants:
+// - An address is tracked exactly while ref_counts[addr] > 0: track_reference and untrack_reference run where the
+//   ref_counts entry is created or removed (add_ref, release, the scan, close). Pushes reuse a tracked reference, so
+//   ref_counts[addr] stays 1.
+// - While a wrapper that relies on an address's reference is alive, the cache holds a wrapper for that address: every
+//   push caches the wrapper it makes, add_ref() caches the wrapper it's called on if release() had dropped the entry,
+//   and release() untracks the address when it drops the entry. One exception: Lua clears weak values before it
+//   resurrects objects for finalization (lgc.c, atomic), so a wrapper reachable only from objects waiting for their
+//   finalizers loses its entry while those finalizers can still use it. The scan releases nothing while any finalizer
+//   is pending (finalizers_pending): the generational collector runs them at the end of the collection, the
+//   incremental one only after the whole sweep, possibly many frames later, and an emergency collection leaves them
+//   for the next one. A finalizer that stores the wrapper away keeps a wrapper without a reference, as it did when the
+//   wrapper's own __gc released the reference.
+// - So a visit that finds no cached wrapper while no finalizer is pending could release at once. The second visit is
+//   for objects a script pushes again and again whose wrappers keep dying (minor collections): a push between the
+//   visits caches a wrapper again, takes the reference over, and the next visit clears the mark, instead of paying an
+//   engine release and add_ref each time.
+// - Passes. A pass starts with the scan after the last one ended and covers the N slots tracked then: a slot tracked
+//   during the pass counts as visited (it goes in at the cursor, see track_reference), and untracking moves no slot
+//   not visited yet behind the cursor (see free_slot). Each scan of the pass visits
+//   max(MIN_VISITS, ceil(N / PASS_FRAMES)) slots, plus INFLOW_VISITS * I where I is the smaller of the numbers of
+//   addresses tracked anew in the last two frames, so a pass ends within PASS_FRAMES scans whatever is tracked or
+//   released meanwhile.
+// - Latency. Whatever collection freed a wrapper (minor or major, generational or incremental), the first visit of
+//   its slot at or after the next scan s marks it: within the rest of the current pass, or within the next pass if the
+//   slot was visited just before. Its first later visit at least RELEASE_AFTER_FRAMES frames after the mark that finds
+//   no finalizer pending releases it, normally in the pass after. A release() at a pass boundary moves the last slot
+//   into the hole, and the slot the last scan of a pass marked can land where the next pass visits it one frame later,
+//   too early; its next visit is then up to two passes away. So the reference is released within 4 * PASS_FRAMES scans
+//   counting s, and each visit that finds a finalizer pending postpones it by up to 2 * PASS_FRAMES scans. While all
+//   slots fit in one scan's visits, the release comes RELEASE_AFTER_FRAMES scans after s. A script whose wrappers die
+//   at I per frame keeps at most 4 * PASS_FRAMES * I addresses tracked beyond the ones it holds.
+// - Inflow. Without the INFLOW_VISITS term, more than about MIN_VISITS / 2 short-lived addresses tracked a frame would
+//   make passes, the backlog and the latency jump: a slot is marked in the pass after the one it was tracked in and
+//   released in the one after that, so a pass of L scans leaves about 3 * I * L slots for the next one, and passes
+//   grow from 2 scans to PASS_FRAMES once 3 * I exceeds the visits of a scan. With the term, a scan visits more than
+//   that: with nothing held, passes take at most 2 scans, so about 8 * I addresses stay tracked and each is released
+//   within about 6 scans. Held addresses H lengthen passes to about H / (INFLOW_VISITS * I) scans. A burst in a
+//   single frame adds no visits: its addresses are released within the bound above, at the pass's share per scan.
+// - Cost. A scan does max(MIN_VISITS, ceil(N / PASS_FRAMES)) + INFLOW_VISITS * I cache lookups plus its releases,
+//   with no time budget: MIN_VISITS while fewer than MIN_VISITS * PASS_FRAMES addresses are tracked and none come in,
+//   growing with N, held or not. One lookup walks the hash chain of the address's integer key: Lua 5.4.3 hashes
+//   integers by their low bits (ltable.c, hashint), which a 16-byte aligned address leaves zero, so chains are about
+//   16 times longer than with spread keys; master's pushes pay the same.
+//   MIN_VISITS 1024 against 256 costs a few microseconds more a scan and cuts the release latency of up to 64k tracked
+//   addresses fourfold; PASS_FRAMES 32 would halve the latency and the backlog but double the scans after a burst of
+//   500k and the cost of holding many wrappers.
+// - The cache and the reference counts are the script-visible globals _sol_lua_push_objects and
+//   _sol_lua_push_ref_counts (the registry keys point at the same tables). A script that clears a live wrapper's cache
+//   entry makes the scan release its reference two visits later; one that sets a count n makes the scan or close
+//   release n references. Master's __gc read the same tables. Nothing in this repository writes them; private registry
+//   tables with read-only views under the old names would close this (a decision for the maintainer).
+constexpr uint32_t RELEASE_AFTER_FRAMES = 2;
+constexpr size_t MIN_VISITS = 1024;
+constexpr size_t PASS_FRAMES = 64;
+constexpr size_t INFLOW_VISITS = 4;
+constexpr size_t TRIM_MIN = 4096; // containers smaller than this keep their capacity
+
+// True while the collector has objects whose finalizers it queued but hasn't run. Reads global_State::tobefnz of the
+// Lua 5.4.3 built into REFramework (dependencies/lua): atomic() moves unreachable finalizable objects there
+// (separatetobefnz) and GCTM takes them off as it calls their finalizers. No public API tells: lua_gc reports memory,
+// whether the collector runs and whether a step finished a cycle, none of which says finalizers are still pending.
+// Read only.
+bool finalizers_pending(lua_State* l) {
+    return G(l)->tobefnz != nullptr;
+}
+
+// Maps an object address (never 0) to its slot. Open addressing with linear probing and backward-shift deletion (no
+// tombstones), so tracking an address allocates nothing unless the table grows.
+class AddressTable {
+public:
+    uint32_t* find(lua_Integer key) {
+        if (m_size == 0) {
+            return nullptr;
+        }
+
+        for (size_t i = home(key);; i = (i + 1) & m_mask) {
+            if (m_keys[i] == key) {
+                return &m_values[i];
+            }
+
+            if (m_keys[i] == 0) {
+                return nullptr;
+            }
+        }
+    }
+
+    // Returns the value slot for key and whether it was inserted (with value).
+    std::pair<uint32_t*, bool> try_emplace(lua_Integer key, uint32_t value) {
+        if ((m_size + 1) * 4 > m_keys.size() * 3) {
+            rehash(m_keys.empty() ? 16 : m_keys.size() * 2);
+        }
+
+        for (size_t i = home(key);; i = (i + 1) & m_mask) {
+            if (m_keys[i] == key) {
+                return {&m_values[i], false};
+            }
+
+            if (m_keys[i] == 0) {
+                m_keys[i] = key;
+                m_values[i] = value;
+                ++m_size;
+                return {&m_values[i], true};
+            }
+        }
+    }
+
+    void erase(lua_Integer key) {
+        if (m_size == 0) {
+            return;
+        }
+
+        auto hole = home(key);
+
+        while (m_keys[hole] != key) {
+            if (m_keys[hole] == 0) {
+                return;
+            }
+
+            hole = (hole + 1) & m_mask;
+        }
+
+        // Moves later entries of the probe run into the hole unless their home lies after it.
+        for (auto j = (hole + 1) & m_mask; m_keys[j] != 0; j = (j + 1) & m_mask) {
+            if (((j - home(m_keys[j])) & m_mask) >= ((j - hole) & m_mask)) {
+                m_keys[hole] = m_keys[j];
+                m_values[hole] = m_values[j];
+                hole = j;
+            }
+        }
+
+        m_keys[hole] = 0;
+        --m_size;
+    }
+
+    size_t size() const { return m_size; }
+    size_t capacity() const { return m_keys.size(); }
+
+    // Empties the table, sized for `expected` entries.
+    void reset(size_t expected) {
+        m_keys = {};
+        m_values = {};
+        m_size = 0;
+
+        if (expected > 0) {
+            auto capacity = (size_t)16;
+
+            while (capacity * 3 < expected * 4 + 4) {
+                capacity *= 2;
+            }
+
+            rehash(capacity);
+        }
+    }
+
+private:
+    size_t home(lua_Integer key) const { return (size_t)(((uint64_t)key * 0x9E3779B97F4A7C15ull) >> m_shift); }
+
+    void rehash(size_t capacity) {
+        std::vector<lua_Integer> keys(capacity, 0);
+        std::vector<uint32_t> values(capacity);
+        std::swap(keys, m_keys);
+        std::swap(values, m_values);
+        m_mask = capacity - 1;
+        m_shift = 64 - std::countr_zero(capacity);
+
+        for (size_t k = 0; k < keys.size(); ++k) {
+            if (keys[k] != 0) {
+                auto i = home(keys[k]);
+
+                while (m_keys[i] != 0) {
+                    i = (i + 1) & m_mask;
+                }
+
+                m_keys[i] = keys[k];
+                m_values[i] = values[k];
+            }
+        }
+    }
+
+    std::vector<lua_Integer> m_keys{};
+    std::vector<uint32_t> m_values{};
+    size_t m_mask{0};
+    int m_shift{64};
+    size_t m_size{0};
+};
+
+struct WrapperLifetime {
+    struct Slot {
+        lua_Integer addr{0};
+        uint32_t dead_since{0}; // frame a visit first found the address without a wrapper; 0: it has one
+    };
+
+    std::vector<Slot> slots{};                                    // dense: untracking moves the last slot into the hole
+    AddressTable slot_of{};                                       // address -> index in `slots`
+    std::vector<std::pair<lua_Integer, lua_Integer>> releasing{}; // scan scratch: address, reference count
+    size_t cursor{0};                                             // [0, cursor) visited this pass
+    size_t pass_visits{MIN_VISITS};                               // visits per scan of the pass under way
+    size_t tracked_since_scan{0};                                 // new slots since the last scan
+    size_t tracked_last_scan{0};                                  // new slots between the two scans before
+    uint32_t frame{1};
+
+    void start_pass() {
+        cursor = 0;
+        pass_visits = std::max(MIN_VISITS, (slots.size() + PASS_FRAMES - 1) / PASS_FRAMES);
+    }
+
+    Slot* find(lua_Integer addr) {
+        const auto index = slot_of.find(addr);
+        return index != nullptr ? &slots[*index] : nullptr;
+    }
+};
+
+// The registry userdata holds a pointer: code that runs after the close handler (other finalizers in lua_close) finds
+// nullptr instead of a destroyed object, and tracks nothing.
+struct WrapperLifetimeBox {
+    WrapperLifetime* lifetime;
+};
+
+WrapperLifetime* wrapper_lifetime(lua_State* l) {
+    lua_rawgetp(l, LUA_REGISTRYINDEX, &s_lifetime_key);
+    const auto box = (WrapperLifetimeBox*)lua_touserdata(l, -1);
+    lua_pop(l, 1);
+
+    return box != nullptr ? box->lifetime : nullptr;
+}
+
+// Untracks the slot at index. The last slot moves into the hole; if that would move a slot the round-robin hasn't
+// visited yet behind the cursor, it goes to cursor - 1 instead (whose visited slot fills the hole) and the cursor steps
+// back, so a pass still visits every slot that stays tracked through it exactly once.
+void free_slot(WrapperLifetime& lt, size_t index) {
+    lt.slot_of.erase(lt.slots[index].addr);
+    const auto last = lt.slots.size() - 1;
+
+    const auto move = [&](size_t from, size_t to) {
+        lt.slots[to] = lt.slots[from];
+        *lt.slot_of.find(lt.slots[to].addr) = (uint32_t)to;
+    };
+
+    if (index != last) {
+        if (index < lt.cursor && last >= lt.cursor) {
+            const auto behind = lt.cursor - 1;
+
+            if (behind != index) {
+                move(behind, index);
+            }
+
+            move(last, behind);
+            lt.cursor = behind;
+        } else {
+            move(last, index);
+        }
+    }
+
+    lt.slots.pop_back();
+    lt.cursor = std::min(lt.cursor, lt.slots.size());
+}
+
+// ref_counts[addr] was created (Lua took an engine reference for addr). A new slot counts as visited by the pass
+// under way: it goes in at the cursor, the slot there (not visited yet) moves to the end, and the cursor steps past
+// it. Appended at the end, new slots would keep a pass from ending while addresses are tracked faster than the
+// visits go, and the slots it already visited would never be checked again.
+void track_reference(lua_State* l, lua_Integer addr) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return;
+    }
+
+    auto& lt = *lifetime;
+    const auto [index, inserted] = lt.slot_of.try_emplace(addr, (uint32_t)lt.cursor);
+
+    if (inserted) {
+        if (lt.cursor < lt.slots.size()) {
+            const auto unvisited = lt.slots[lt.cursor];
+            lt.slots.push_back(unvisited);
+            *lt.slot_of.find(unvisited.addr) = (uint32_t)(lt.slots.size() - 1);
+            lt.slots[lt.cursor] = {addr};
+        } else {
+            lt.slots.push_back({addr});
+        }
+
+        ++lt.cursor;
+        ++lt.tracked_since_scan;
+    }
+
+    lt.slots[*index].dead_since = 0;
+}
+
+// ref_counts[addr] was removed.
+void untrack_reference(lua_State* l, lua_Integer addr) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return;
+    }
+
+    if (const auto index = lifetime->slot_of.find(addr); index != nullptr) {
+        free_slot(*lifetime, *index);
+    }
+}
+
+// A push missed the cache. Returns true if Lua still holds addr's reference: the new wrapper takes it over.
+bool reuse_reference(lua_State* l, lua_Integer addr) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return false;
+    }
+
+    const auto slot = lifetime->find(addr);
+
+    if (slot == nullptr) {
+        return false;
+    }
+
+    slot->dead_since = 0;
+    return true;
+}
+
+// Gives back the capacity of a vector that holds less than an eighth of it after a burst. `in_use` is the fill to plan
+// for; twice that is kept, so a steady load doesn't shrink and regrow every frame. The copy is at most an eighth of the
+// capacity the burst allocated.
+template <typename T>
+void trim(std::vector<T>& v, size_t in_use) {
+    if (v.capacity() > TRIM_MIN && v.capacity() > 8 * in_use) {
+        std::vector<T> trimmed{};
+        trimmed.reserve(2 * in_use);
+        trimmed.assign(v.begin(), v.end());
+        v.swap(trimmed);
+    }
+}
+
+// Once per frame, after the frame's GC step: the next round-robin visits (see the invariants above). The visits run no
+// Lua code; the engine releases come last, after the bookkeeping is final, as they can re-enter Lua.
+void scan_wrapper_references(lua_State* l) {
+    const auto lifetime = wrapper_lifetime(l);
+
+    if (lifetime == nullptr) {
+        return;
+    }
+
+    auto& lt = *lifetime;
+    ++lt.frame;
+
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, &s_objects_key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    const auto cache = lua_gettop(l);
+    const bool may_release = !finalizers_pending(l);
+    auto releasing = std::move(lt.releasing);
+
+    // Addresses tracked anew in each of the last two frames: the smaller of the two is an inflow that has lasted (a
+    // burst in a single frame adds nothing). Each scan visits INFLOW_VISITS times that many slots more than the pass's
+    // share: otherwise, with more than about MIN_VISITS / 2 short-lived addresses tracked a frame, passes would grow
+    // from 2 scans to PASS_FRAMES and the backlog with them (see the invariants above).
+    const auto inflow = std::min(lt.tracked_since_scan, lt.tracked_last_scan);
+    lt.tracked_last_scan = lt.tracked_since_scan;
+    lt.tracked_since_scan = 0;
+
+    if (lt.cursor >= lt.slots.size()) {
+        lt.start_pass();
+    }
+
+    // A pass that ends here leaves the rest of this scan's visits unused: the next pass starts with the next scan.
+    for (auto visits = lt.pass_visits + INFLOW_VISITS * inflow; visits > 0 && lt.cursor < lt.slots.size(); --visits) {
+        auto& slot = lt.slots[lt.cursor];
+        const bool cached = lua_rawgeti(l, cache, slot.addr) != LUA_TNIL;
+        lua_pop(l, 1);
+
+        if (cached) {
+            slot.dead_since = 0;
+        } else if (slot.dead_since == 0) {
+            slot.dead_since = lt.frame;
+        } else if (may_release && lt.frame - slot.dead_since >= RELEASE_AFTER_FRAMES) {
+            releasing.emplace_back(slot.addr, get_count(l, &s_ref_counts_key, slot.addr).value_or(0));
+            set_count(l, &s_ref_counts_key, slot.addr, std::nullopt);
+            free_slot(lt, lt.cursor); // the last slot, not visited yet, takes its place under the cursor
+            continue;
+        }
+
+        ++lt.cursor;
+    }
+
+    lua_pop(l, 1);
+
+    // After a burst: rebuild the address table at its live size once it holds less than an eighth of its capacity, so
+    // the copy is at most an eighth of what the burst allocated. Giving a burst-sized buffer back to the system costs
+    // about 0.6 ms per 12 MB (measured), so this and the slots trim below don't run in the same scan.
+    const bool rebuild = lt.slot_of.capacity() > TRIM_MIN && lt.slot_of.capacity() > 8 * lt.slots.size();
+
+    if (rebuild) {
+        lt.slot_of.reset(lt.slots.size());
+
+        for (size_t i = 0; i < lt.slots.size(); ++i) {
+            lt.slot_of.try_emplace(lt.slots[i].addr, (uint32_t)i);
+        }
+    }
+
+    for (const auto& [addr, count] : releasing) {
+        for (lua_Integer i = 0; i < count; ++i) {
+            ((::REManagedObject*)(uintptr_t)addr)->release();
+        }
+    }
+
+    trim(releasing, releasing.size());
+    releasing.clear();
+    lt.releasing = std::move(releasing);
+
+    if (!rebuild) {
+        trim(lt.slots, lt.slots.size());
+    }
+}
+
+// __gc of the WrapperLifetime userdata: runs when the Lua state closes. Releases every reference Lua still holds,
+// once, and stops tracking.
+int wrapper_lifetime_gc(lua_State* l) {
+    // A script can reach the metamethod (debug.getregistry) and call it with anything: act only on the registry's box.
+    lua_rawgetp(l, LUA_REGISTRYINDEX, &s_lifetime_key);
+    const bool is_box = lua_type(l, 1) == LUA_TUSERDATA && lua_rawequal(l, 1, -1);
+    lua_pop(l, 1);
+
+    const auto box = is_box ? (WrapperLifetimeBox*)lua_touserdata(l, 1) : nullptr;
+
+    if (box == nullptr || box->lifetime == nullptr) {
+        return 0;
+    }
+
+    const std::unique_ptr<WrapperLifetime> lifetime{box->lifetime};
+    box->lifetime = nullptr;
+
+    std::vector<std::pair<lua_Integer, lua_Integer>> releasing{};
+    releasing.reserve(lifetime->slot_of.size());
+
+    for (const auto& slot : lifetime->slots) {
+        if (slot.addr != 0) {
+            releasing.emplace_back(slot.addr, get_count(l, &s_ref_counts_key, slot.addr).value_or(0));
+            set_count(l, &s_ref_counts_key, slot.addr, std::nullopt);
+        }
+    }
+
+    for (const auto& [addr, count] : releasing) {
+        for (lua_Integer i = 0; i < count; ++i) {
+            ((::REManagedObject*)(uintptr_t)addr)->release();
+        }
+    }
+
+    return 0;
+}
 }
 
 namespace api::cached_usertype {
@@ -48,32 +556,24 @@ namespace detail {
 namespace api::re_managed_object {
 namespace detail {
 void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
-    auto sv = sol::state_view{l};
-    
     // we shouldn't really do this very much
     // so it shouldn't be too terrible on performance
     if (!REManagedObject::is_managed_object(obj)) {
         throw sol::error{(std::stringstream{} << "sol_lua_push: " << (uintptr_t)obj << " is not a managed object").str()};
     }
 
-    // Throwing automatic add_ref on the backburner; it doesn't seem to work
-    // very well with lua's garbage collector.
-    // addendum: maybe figured it out
+    const auto addr = (lua_Integer)(uintptr_t)obj;
 
-    // only add a reference if it's a "local" object, indicated by a negative reference count
-    //if ((int32_t)obj->referenceCount < 0 || (current_ref_count && *current_ref_count > 0)) {
-    // addendum: only do it when reference count is > 0, local objects seem buggy...
+    // only add a reference when the reference count is > 0. Local objects (count <= 0) get wrappers without one and
+    // aren't counted: with no __gc on wrappers, nothing would ever take such a count back down.
+    // The engine count, not get_visible_ref_count(): an object whose last release REFramework has queued is still a
+    // counted global object, so a push takes a reference on it like on any other.
     if (force || (int32_t)obj->get_ref_count() > 0) {
         if (!force) {
             obj->add_ref();
         }
 
-        // the reference counting is not necessary, but it will let us
-        // catch bugs if an REManagedObject pointer is being created
-        // without coming through our sol_lua_push function
-        sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
-        sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
-        std::optional<int> current_ref_count = ref_counts[(uintptr_t)obj];
+        const auto current_ref_count = ::detail::get_count(l, &::detail::s_ref_counts_key, addr);
 
         if (current_ref_count && *current_ref_count > 0) {
             // don't unnecessarily increase the ref count
@@ -82,7 +582,7 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
                 return;
             }
 
-            ref_counts[(uintptr_t)obj] = *current_ref_count + 1;
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, *current_ref_count + 1);
         } else {
             // only add the ref once when the user requests it
             // so they don't screw something up
@@ -90,40 +590,33 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
                 obj->add_ref();
             }
 
-            ref_counts[(uintptr_t)obj] = 1;
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, 1);
+            ::detail::track_reference(l, addr);
         }
-
-        // when the user adds a ref to an ephemeral object
-        if (force) {
-            std::optional<int> current_ephemeral_count = ephemeral_counts[(uintptr_t)obj];
-
-            if (current_ephemeral_count && *current_ephemeral_count > 0) {
-                ephemeral_counts[(uintptr_t)obj] = *current_ephemeral_count - 1;
-            } else {
-                ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-            }
-        }
-    } else {
-        // ephemeral counts is just a table
-        // to help with tracking the local objects
-        // so we don't spam the log with warnings when they get gc'd
-        sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
-        std::optional<int> current_ref_count = ephemeral_counts[(uintptr_t)obj];
-
-        if (current_ref_count) {
-            ephemeral_counts[(uintptr_t)obj] = *current_ref_count + 1;
-        } else {
-            ephemeral_counts[(uintptr_t)obj] = 1;
-        }
-
-        //ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
     }
 }
-}
+} // namespace detail
 
 // used by metatable for REManagedObject
 ::REManagedObject* add_ref(sol::this_state s, ::REManagedObject* obj) {
-    detail::add_ref(s.lua_state(), obj, true);
+    const auto l = s.lua_state();
+    const auto addr = (lua_Integer)(uintptr_t)obj;
+
+    detail::add_ref(l, obj, true);
+
+    // release() drops the cache entry. If the script kept that wrapper and calls add_ref() on it, it has to become the
+    // cached wrapper again: the scan keeps the reference only while the address has a cached wrapper.
+    // Misuse this can't tell apart: after release() the engine may free the object and put a new one at the address.
+    // add_ref() on the old wrapper then takes a reference on the new object and makes the old wrapper its cached one;
+    // later pushes of the address return it, with the old object's usertype, until it is gone. The wrapper doesn't
+    // record the static type it was pushed as, so comparing usertypes would also flag legitimate wrappers.
+    if (lua_type(l, 1) == LUA_TUSERDATA && !::detail::has_entry(l, &::detail::s_objects_key, addr)) {
+        lua_rawgetp(l, LUA_REGISTRYINDEX, &::detail::s_objects_key);
+        lua_pushvalue(l, 1);
+        lua_rawseti(l, -2, addr);
+        lua_pop(l, 1);
+        ::detail::reuse_reference(l, addr);
+    }
 
     return obj;
 }
@@ -138,48 +631,31 @@ void add_ref(lua_State* l, ::REManagedObject* obj, bool force = false) {
     return obj;
 }
 
-void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
-    auto l = s.lua_state();
-    auto sv = sol::state_view(l);
+void release(lua_State* l, ::REManagedObject* obj, bool force = false) {
+    const auto addr = (lua_Integer)(uintptr_t)obj;
 
-    sol::lua_table objects = sv["_sol_lua_push_objects"];
-    sol::lua_table ref_counts = sv["_sol_lua_push_ref_counts"];
-    sol::lua_table ephemeral_counts = sv["_sol_lua_push_ephemeral_counts"];
-
-    if (std::optional<int> ref_count = ref_counts[(uintptr_t)obj]; ref_count && *ref_count > 0) {
+    if (const auto ref_count = ::detail::get_count(l, &::detail::s_ref_counts_key, addr); ref_count && *ref_count > 0) {
         // because of our internal refcount keeping, we shouldn't need to double check
         // whether it's an actual object or not. hopefully?
-        //if (REManagedObject::is_managed_object(obj)) {
-            obj->release();
-        //}
+        obj->release();
 
-        int new_ref_count = *ref_count - 1;
+        const auto new_ref_count = *ref_count - 1;
 
         if (new_ref_count == 0) {
-            if (sol::object object = ephemeral_counts[(uintptr_t)obj]; !object.valid()) {
-                objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-            }
-
-            ref_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
+            ::detail::set_count(l, &::detail::s_objects_key, addr, std::nullopt);
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, std::nullopt);
+            ::detail::untrack_reference(l, addr);
         } else {
-            ref_counts[(uintptr_t)obj] = new_ref_count;
+            ::detail::set_count(l, &::detail::s_ref_counts_key, addr, new_ref_count);
         }
-
-        //ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-    } else if (std::optional<int> ephemeral_count = ephemeral_counts[(uintptr_t)obj]; ephemeral_count && *ephemeral_count > 0) {
+    } else if (::detail::has_entry(l, &::detail::s_objects_key, addr)) {
+        // A cached wrapper without a reference: the wrapper of a local object. Nothing to give back (unless forced),
+        // but the wrapper is dropped from the cache, so the next push of the address makes a new one.
         if (force && REManagedObject::is_managed_object(obj)) {
             obj->release();
         }
 
-        // ephemeral counts don't actually release the object, they just decrement the count.
-        int new_ephemeral_count = *ephemeral_count - 1;
-
-        if (new_ephemeral_count == 0) {
-            objects[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-            ephemeral_counts[(uintptr_t)obj] = sol::make_object(l, sol::nil);
-        } else {
-            ephemeral_counts[(uintptr_t)obj] = new_ephemeral_count;
-        }
+        ::detail::set_count(l, &::detail::s_objects_key, addr, std::nullopt);
     } else {
         if (force) {
             if (REManagedObject::is_managed_object(obj)) {
@@ -190,6 +666,75 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
         }
     }
 }
+
+void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
+    release(s.lua_state(), obj, force);
+}
+} // namespace api::re_managed_object
+
+namespace detail {
+// Pushes the cached wrapper for addr from the cache table under key. Returns false (and pushes nothing) if there is none.
+bool push_cached_wrapper(lua_State* l, const void* key, lua_Integer addr) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return false;
+    }
+
+    if (lua_rawgeti(l, -1, addr) == LUA_TNIL) {
+        lua_pop(l, 2);
+        return false;
+    }
+
+    lua_remove(l, -2);
+    return true;
+}
+
+// Stores the wrapper at index in the cache table under key.
+void cache_wrapper(lua_State* l, const void* key, int index, lua_Integer addr) {
+    index = lua_absindex(l, index);
+
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) != LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pushvalue(l, index);
+    lua_rawseti(l, -2, addr);
+    lua_pop(l, 1);
+}
+
+// Caches the new wrapper a push left at the top of the stack (count values), or, if the cache already holds one for
+// addr, replaces it with that one and returns 1. Allocating the new wrapper can run a collection (only while Lua's own
+// collector runs) whose finalizers push the same object: that push found no cached wrapper either, took the reference
+// over and cached its own wrapper. Two wrappers would then share one reference while only one is cached, and the scan
+// would release it once the cached one is gone.
+int cache_new_wrapper(lua_State* l, const void* key, int count, lua_Integer addr) {
+    if (push_cached_wrapper(l, key, addr)) {
+        lua_replace(l, -1 - count);
+        lua_pop(l, count - 1);
+        return 1;
+    }
+
+    cache_wrapper(l, key, -count, addr);
+    return count;
+}
+
+// Creates a weak-valued cache table under key if the registry doesn't have one yet.
+void ensure_weak_cache(lua_State* l, const void* key) {
+    if (lua_rawgetp(l, LUA_REGISTRYINDEX, key) == LUA_TTABLE) {
+        lua_pop(l, 1);
+        return;
+    }
+
+    lua_pop(l, 1);
+    lua_newtable(l);
+    lua_newtable(l);
+    lua_pushliteral(l, "v");
+    lua_setfield(l, -2, "__mode");
+    lua_setmetatable(l, -2);
+    lua_rawsetp(l, LUA_REGISTRYINDEX, key);
+}
+
 }
 
 // specialization for REManagedObject to automatically add a reference
@@ -197,21 +742,17 @@ void release(sol::this_state s, ::REManagedObject* obj, bool force = false) {
 template<detail::ManagedObjectBased T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
-        auto sv = sol::state_view{l};
-        sol::lua_table objects = sv["_sol_lua_push_objects"];
+        const auto addr = (lua_Integer)(uintptr_t)obj;
 
-        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // renew the reference so it doesn't get collected
-            // had to dig deep in the lua source to figure out this nonsense
-            lua_obj.push();
-            auto g = G(l);
-            auto tv = s2v(l->top - 1);
-            auto& gc = tv->value_.gc;
-            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
-
+        // Push the cached wrapper as it is. It used to be "touched" here by clearing its GC color bits directly, which
+        // also stopped Lua's write barrier from seeing it: stored into an old table (held[#held + 1] = arr:add_ref()),
+        // the wrapper was swept while still referenced and the engine object released under the script. Wrappers have
+        // no __gc now; a wrapper the collector freed leaves its address tracked for a few frames (see WrapperLifetime),
+        // and a new wrapper takes that reference over instead of adding another.
+        if (detail::push_cached_wrapper(l, &detail::s_objects_key, addr)) {
             return 1;
         } else {
-            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR && !detail::reuse_reference(l, addr)) {
                 api::re_managed_object::detail::add_ref(l, (::REManagedObject*)obj, false);
             }
 
@@ -260,12 +801,8 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
                     backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
                 }
 
-                auto ref = sol::stack::get<sol::object>(l, -backpedal);
-
                 // keep a weak reference to the object for caching
-                objects[(uintptr_t)obj] = ref;
-
-                return backpedal;
+                return detail::cache_new_wrapper(l, &detail::s_objects_key, backpedal, addr);
             } else {
                 backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
             }
@@ -277,49 +814,40 @@ int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     return sol::stack::push(l, sol::nil);
 }
 
+// Other translation units (ScriptRunner.cpp, RE8VR.cpp) push these types too but only see the declaration in
+// ScriptRunner.hpp, so they link against the instantiations emitted here. Instantiate them explicitly so the symbols
+// don't depend on which of these types this file happens to push itself.
+template int sol_lua_push<::REManagedObject>(sol::types<::REManagedObject*>, lua_State*, ::REManagedObject*);
+template int sol_lua_push<::REComponent>(sol::types<::REComponent*>, lua_State*, ::REComponent*);
+template int sol_lua_push<::RETransform>(sol::types<::RETransform*>, lua_State*, ::RETransform*);
+template int sol_lua_push<::sdk::SystemArray>(sol::types<::sdk::SystemArray*>, lua_State*, ::sdk::SystemArray*);
+template int sol_lua_push<::sdk::Delegate>(sol::types<::sdk::Delegate*>, lua_State*, ::sdk::Delegate*);
+template int sol_lua_push<::api::sdk::BehaviorTreeCoreHandle>(sol::types<::api::sdk::BehaviorTreeCoreHandle*>, lua_State*, ::api::sdk::BehaviorTreeCoreHandle*);
+template int sol_lua_push<::api::sdk::BehaviorTree>(sol::types<::api::sdk::BehaviorTree*>, lua_State*, ::api::sdk::BehaviorTree*);
+
 // specialization for any custom usertype we exposed to sol to automatically add a reference
 // when lua pushes a pointer to the object onto the stack
 template<detail::CachedUserType T>
 int sol_lua_push(sol::types<T*>, lua_State* l, T* obj) {
     if (obj != nullptr) {
-        // this is a weak table, so we don't need to set the index to nil when the object is no longer referenced
-        auto sv = sol::state_view{l};
-        sol::lua_table objects_top  = sv["_sol_lua_push_usertypes"];
-        constexpr auto function_sig = utility::hash(__FUNCSIG__);
+        // One weak cache table per usertype, kept in the registry under this instantiation's key and created on first use.
+        static char s_cache_key{};
+        const auto addr = (lua_Integer)(uintptr_t)obj;
 
-        if (sol::object obj = objects_top[function_sig]; obj.is<sol::nil_t>()) {
-            spdlog::info("About to create a weak table for usertype {}", __FUNCSIG__);
-            sol::object res = sv.load("return setmetatable({}, { __mode = \"v\" })")();
-            objects_top[function_sig] = res;
-            spdlog::info("Created a weak table for usertype {}", __FUNCSIG__);
-        }
-
-        sol::lua_table objects = objects_top[function_sig];
-
-        if (sol::object lua_obj = objects[(uintptr_t)obj]; !lua_obj.is<sol::nil_t>()) {
-            // renew the reference so it doesn't get collected
-            // had to dig deep in the lua source to figure out this nonsense
-            lua_obj.push();
-            auto g = G(l);
-            auto tv = s2v(l->top - 1);
-            auto& gc = tv->value_.gc;
-            resetbits(gc->marked, bitmask(BLACKBIT) | WHITEBITS); // "touches" the object, marking it gray. lowers the insane GC frequency on our weak table
-
+        // Push the cached wrapper as it is; see the managed object push above for why it isn't "touched". These
+        // wrappers hold no engine reference, so nothing tracks them: they live as long as Lua reaches them.
+        if (detail::push_cached_wrapper(l, &s_cache_key, addr)) {
             return 1;
-        } else {
-            int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
-
-            if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
-                auto ref = sol::stack::get<sol::object>(l, -backpedal);
-
-                // keep a weak reference to the object for caching
-                objects[(uintptr_t)obj] = ref;
-
-                return backpedal;
-            }
-
-            return backpedal;
         }
+
+        const int32_t backpedal = sol::stack::push<sol::detail::as_pointer_tag<std::remove_pointer_t<T>>>(l, obj);
+
+        if ((uintptr_t)obj != detail::FAKE_OBJECT_ADDR) {
+            detail::ensure_weak_cache(l, &s_cache_key);
+            detail::cache_wrapper(l, &s_cache_key, -backpedal, addr);
+        }
+
+        return backpedal;
     }
 
     return sol::stack::push(l, sol::nil);
@@ -355,7 +883,17 @@ void new_index(sol::this_state s, ::sdk::Delegate* delegate, sol::object lua_obj
 }
 
 namespace api::sdk {
-std::vector<void*>& build_args(sol::variadic_args va);
+// A Lua-to-engine call in progress, from before its arguments are built until it has returned. Calls nest: a hook
+// callback runs inside one and can make another. build_args gives each level its own buffers.
+struct InvokeScope {
+    InvokeScope() { ++s_depth; }
+    ~InvokeScope() { --s_depth; }
+
+    // Per thread: a plugin's own Lua state can make calls on another thread while the main state does.
+    static inline thread_local size_t s_depth{0};
+};
+
+std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn = nullptr);
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method);
 sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const char* name);
 sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition* ty, ::sdk::REField* field);
@@ -394,10 +932,6 @@ struct ValueType {
         return offset >= 0 && offset + sizeof(T) <= (int32_t)data.size();
     }
 
-    bool is_valid_offset(int32_t offset) const {
-        return offset >= 0 && offset <= (int32_t)data.size();
-    }
-
     template <typename T>
     void write_memory(int32_t offset, T value) {
         if (!is_valid_offset(offset, value)) {
@@ -409,8 +943,11 @@ struct ValueType {
 
     template <typename T>
     T read_memory(int32_t offset) {
-        if (!is_valid_offset(offset)) {
-            return {};
+        T value{};
+
+        // Same bounds as write_memory: the whole T must fit, not just its first byte.
+        if (!is_valid_offset(offset, value)) {
+            return value;
         }
 
         return *(T*)((uintptr_t)data.data() + offset);
@@ -431,27 +968,64 @@ struct ValueType {
             return sol::make_object(l, sol::nil);
         }
 
+        return call_method(l, def, va);
+    }
+
+    // The call itself, for every spelling: vt:call("name", ...), vt:name(...), method:call(vt, ...) and
+    // sdk.call_native_func(vt, type, "name", ...).
+    sol::object call_method(sol::this_state l, ::sdk::REMethodDefinition* def, sol::variadic_args va) {
         reframework::InvokeRet ret_val{};
-        auto vec_args = ::api::sdk::build_args(va);
+        const ::api::sdk::InvokeScope invoke_scope{};
+        auto vec_args = ::api::sdk::build_args(va, def);
 
         const auto mo_runtime_size = REManagedObject::runtime_size();
 
-        if (!def->is_static()) {
-            // For instance methods on value types, we need to construct a fake boxed object.
-            // The native invoke() expects a ManagedObject* with a 0x10 byte header:
-            //   0x00: REObjectInfo* (type info / vtable pointer)
-            //   0x08: uint32_t refcount + padding
-            //   0x10: actual value type data starts here
-            const auto type_vt_size = type->get_valuetype_size();
+        // `this` depends on who declares the method:
+        // - The value type itself, since TDB 74: invoke() treats `this` of a value-type instance method as a boxed
+        //   object and skips its 0x10 byte header, so we pass a fake boxed object:
+        //     0x00: REObjectInfo* (type info / vtable pointer)
+        //     0x08: uint32_t refcount + padding
+        //     0x10: actual value type data starts here
+        // - The value type itself, before TDB 74: invoke() passes `this` through unchanged and the method read the fake
+        //   header as the value (seen with Guid.ToString and via.vec3 get_Item/set_Item in TDB 67-73: dmc5, re8, ggr,
+        //   re2, re3, re7, re4, sf6, mhrise, kunitsu, gs456, drdr), so there the value's own data is `this`.
+        // - A reference type (System.Object.GetType, System.Enum.ToString): the method uses `this` as a real object,
+        //   and the fake header isn't one (both threw "Invoke threw an exception" in RE2 and DD2), so the value goes
+        //   into a real boxed object of its type for the call.
+        const auto declaring_type = def->get_declaring_type();
+        const bool declared_by_reference_type = declaring_type != nullptr && !declaring_type->is_value_type();
+        const auto type_vt_size = type->get_valuetype_size();
 
-            // Reduce allocation pressure with thread_local.
-            thread_local std::vector<uint8_t> fake_boxed_storage(mo_runtime_size + type_vt_size, 0);
+        if (def->is_static()) {
+            ret_val = def->invoke((void*)address(), std::span(vec_args));
+        } else if (declared_by_reference_type) {
+            auto box = type->create_instance_full();
+
+            if (box == nullptr) {
+                throw sol::error("ValueType:call: could not box the value for " + std::string{def->get_name()});
+            }
+
+            // The new object is local: the engine keeps it until it releases the thread's local objects, after this
+            // call. No add_ref()/release() pair here: with one, 2000 of these calls per frame raised SEH exceptions
+            // in RE9 within a frame and then crashed the game.
+
+            memcpy((uint8_t*)box + mo_runtime_size, data.data(), type_vt_size);
+            ret_val = def->invoke(box, std::span(vec_args));
+            memcpy(data.data(), (uint8_t*)box + mo_runtime_size, type_vt_size);
+        } else if (::sdk::GameIdentity::get().tdb_ver() >= 74) {
+            // Reduce allocation pressure with thread_local. One per nesting level, as in build_args: a hook callback
+            // inside the call can make another ValueType call, which must not reuse this call's `this`.
+            thread_local std::deque<std::vector<uint8_t>> fake_boxed_levels{};
+
+            while (fake_boxed_levels.size() <= ::api::sdk::InvokeScope::s_depth) {
+                fake_boxed_levels.emplace_back();
+            }
+
+            auto& fake_boxed_storage = fake_boxed_levels[::api::sdk::InvokeScope::s_depth];
 
             if (fake_boxed_storage.size() < mo_runtime_size + type_vt_size) {
                 fake_boxed_storage.resize(mo_runtime_size + type_vt_size);
             }
-
-            fake_boxed_storage.clear();
 
             // REObject header: REObjectInfo* at offset 0x00
             *(void**)&fake_boxed_storage[0x00] = (void*)type;
@@ -467,7 +1041,6 @@ struct ValueType {
             // copy back any changes to the value type from the fake boxed storage
             memcpy(data.data(), &fake_boxed_storage[mo_runtime_size], type_vt_size);
         } else {
-            // Static methods expect the value type to not be boxed.
             ret_val = def->invoke((void*)address(), std::span(vec_args));
         }
 
@@ -538,10 +1111,6 @@ struct MemoryView {
         return offset >= 0 && offset + sizeof(T) <= (int32_t)size;
     }
 
-    bool is_valid_offset(int32_t offset) const {
-        return offset >= 0 && offset <= (int32_t)size;
-    }
-
     template <typename T>
     void write_memory(int32_t offset, T value) {
         if (!is_valid_offset(offset, value)) {
@@ -553,8 +1122,10 @@ struct MemoryView {
 
     template <typename T>
     T read_memory(int32_t offset) {
-        if (!is_valid_offset(offset)) {
-            return {};
+        T value{};
+
+        if (!is_valid_offset(offset, value)) {
+            return value;
         }
 
         return *(T*)((uintptr_t)data + offset);
@@ -808,6 +1379,7 @@ sol::object create_resource(sol::this_state s, std::string type_name, std::strin
 }
 
 sol::object create_global_object(sol::this_state &s, ::REManagedObject *obj) {
+    // The engine count: an object with a queued last release is global, not local.
     bool is_currently_local = static_cast<std::int32_t>(obj->get_ref_count()) <= 0;
 
     // Mark object as global so that lua knows
@@ -953,7 +1525,8 @@ bool copy_to_clipboard(sol::this_state s, const char* text) {
     return true;
 }
 
-void* get_real_obj(sol::object obj) {
+// value_type, when given, receives the ValueType obj is, if it is one.
+void* get_real_obj(sol::object obj, ValueType** value_type = nullptr) {
     void* real_obj = nullptr;
 
     if (!obj.is<sol::nil_t>()) {
@@ -962,7 +1535,12 @@ void* get_real_obj(sol::object obj) {
         } else if (obj.is<::sdk::Resource*>()) {
             real_obj = (void*)obj.as<::sdk::Resource*>();
         } else if (obj.is<ValueType>()) {
-            real_obj = (void*)obj.as<ValueType&>().address();
+            auto& vt = obj.as<ValueType&>();
+            real_obj = (void*)vt.address();
+
+            if (value_type != nullptr) {
+                *value_type = &vt;
+            }
         } else if (obj.is<void*>()) {
             real_obj = obj.as<void*>();
         } else {
@@ -971,6 +1549,27 @@ void* get_real_obj(sol::object obj) {
     }
 
     return real_obj;
+}
+
+// `this` to pass to fn->invoke() for obj. Before TDB 74, invoke() passes `this` of a value-type instance method
+// through unchanged (see ValueType::call), so a boxed value must be passed as its data, past the object header;
+// since TDB 74 invoke() skips the header itself.
+void* get_invoke_this(sol::object obj, ::sdk::REMethodDefinition* fn, ValueType** value_type = nullptr) {
+    auto real_obj = get_real_obj(obj, value_type);
+
+    // Runs for every method called from Lua, and only a value-type instance method before TDB 74 needs anything but
+    // real_obj: check the cheap conditions first and leave the sol type check (a metatable lookup) for last.
+    if (real_obj == nullptr || ::sdk::GameIdentity::get().tdb_ver() >= 74 || fn->is_static()) {
+        return real_obj;
+    }
+
+    const auto declaring_type = fn->get_declaring_type();
+
+    if (declaring_type == nullptr || !declaring_type->is_value_type() || !obj.is<REManagedObject*>()) {
+        return real_obj;
+    }
+
+    return (uint8_t*)real_obj + REManagedObject::runtime_size();
 }
 
 sol::object parse_data(lua_State* l, void* data, ::sdk::RETypeDefinition* data_type, bool from_method) {
@@ -1162,7 +1761,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
                 throw sol::error("Attempted to set ValueType to field of unknown type");
             }
 
-            memcpy(data, vt->data.data(), vt->data.size());
+            // vt->data holds the boxed size (get_size: payload plus the object header), but an inline field holds
+            // only the payload. Copying the whole buffer wrote get_size() - get_valuetype_size() bytes past the field.
+            memcpy(data, vt->data.data(), std::min<size_t>(vt->data.size(), data_type->get_valuetype_size()));
             return;
         }
 
@@ -1186,6 +1787,9 @@ void set_data(void* data, ::sdk::RETypeDefinition* data_type, sol::object& value
             *(int16_t*)data = value.as<int16_t>();
             return;
         case "System.UInt16"_fnv:
+            *(uint16_t*)data = value.as<uint16_t>();
+            return;
+        case "System.Char"_fnv:
             *(uint16_t*)data = value.as<uint16_t>();
             return;
         case "System.UInt32"_fnv:
@@ -1303,6 +1907,17 @@ sol::object get_native_field_from_field(sol::object obj, ::sdk::RETypeDefinition
     }
 
     const auto field_type = field->get_type();
+
+    // A literal String field has no managed String: its data is the constant's UTF-8 text in the type database's
+    // string table. Init data outside the string table is left to the path below.
+    static const auto system_string = ::sdk::find_type_definition("System.String");
+
+    if (field_type != nullptr && field_type == system_string && field->is_literal() && field->is_static()) {
+        if (const auto text = field->get_init_data_string(); text != nullptr) {
+            return sol::make_object(l, std::string_view{text});
+        }
+    }
+
     auto data = field->get_data_raw(real_obj, ty->is_value_type() && !managed_obj_passed);
 
     if (data == nullptr) {
@@ -1323,14 +1938,105 @@ sol::object get_native_field(sol::object obj, ::sdk::RETypeDefinition* ty, const
     return get_native_field_from_field(obj, ty, field);
 }
 
-std::vector<void*>& build_args(sol::variadic_args va) {
+namespace {
+enum class NumericParam { OTHER, FLOATING, INTEGRAL };
+
+NumericParam classify_numeric_param(::sdk::RETypeDefinition* t) {
+    if (t != nullptr && t->is_enum()) {
+        t = t->get_underlying_type();
+    }
+
+    if (t == nullptr) {
+        return NumericParam::OTHER;
+    }
+
+    switch (utility::hash(t->get_full_name())) {
+    case "System.Single"_fnv:
+    case "System.Double"_fnv:
+        return NumericParam::FLOATING;
+    case "System.Boolean"_fnv:
+    case "System.Char"_fnv:
+    case "System.SByte"_fnv:
+    case "System.Byte"_fnv:
+    case "System.Int16"_fnv:
+    case "System.UInt16"_fnv:
+    case "System.Int32"_fnv:
+    case "System.UInt32"_fnv:
+    case "System.Int64"_fnv:
+    case "System.UInt64"_fnv:
+        return NumericParam::INTEGRAL;
+    default:
+        return NumericParam::OTHER;
+    }
+}
+
+// How each parameter of a method takes a Lua number, computed once per method: build_args runs for every call from
+// Lua, often per frame, and get_param_types/get_param_modifiers allocate. Methods live as long as the type database,
+// so the pointer is a stable key. thread_local because scripts can run on several threads.
+const std::vector<NumericParam>& numeric_param_kinds(::sdk::REMethodDefinition* fn) {
+    thread_local std::unordered_map<::sdk::REMethodDefinition*, std::vector<NumericParam>> cache{};
+
+    if (auto it = cache.find(fn); it != cache.end()) {
+        return it->second;
+    }
+
+    const auto param_types = fn->get_param_types();
+    const auto param_modifiers = fn->get_param_modifiers();
+    std::vector<NumericParam> kinds(param_types.size(), NumericParam::OTHER);
+
+    for (size_t i = 0; i < param_types.size(); ++i) {
+        // An out/ref/pointer parameter takes an address: a Lua number passed there is a pointer, not a value of the
+        // pointed-to type.
+        if (i < param_modifiers.size() && param_modifiers[i] != ::sdk::REMethodDefinition::ParamModifier::None) {
+            continue;
+        }
+
+        kinds[i] = classify_numeric_param(param_types[i]);
+    }
+
+    return cache.emplace(fn, std::move(kinds)).first->second;
+}
+}
+
+std::vector<void*>& build_args(sol::variadic_args va, ::sdk::REMethodDefinition* fn) {
     auto l = va.lua_state();
 
-    static std::vector<void*> args{};
-    static std::vector<Vector4f> vec_storage{};
+    // The engine reads the argument list, and the Vector2f/Vector3f arguments through their addresses in vec_storage,
+    // while the call runs. So a call made from a hook callback must not reuse the buffers of the call it interrupts:
+    // each nesting level has its own (a deque, so that adding a level leaves the others where they are).
+    struct Buffers {
+        std::vector<void*> args{};
+        std::vector<Vector4f> vec_storage{};
+    };
+
+    thread_local std::deque<Buffers> levels{};
+
+    while (levels.size() <= InvokeScope::s_depth) {
+        levels.emplace_back();
+    }
+
+    auto& args = levels[InvokeScope::s_depth].args;
+    auto& vec_storage = levels[InvokeScope::s_depth].vec_storage;
 
     args.clear();
     vec_storage.clear();
+    // Addresses of its elements are handed out below: it must not grow and move in the middle of that.
+    vec_storage.reserve(va.size());
+
+    // Per-parameter number encoding, looked up only if a number argument needs it.
+    const std::vector<NumericParam>* kinds = nullptr;
+
+    const auto numeric_param = [&](size_t index) {
+        if (fn == nullptr) {
+            return NumericParam::OTHER;
+        }
+
+        if (kinds == nullptr) {
+            kinds = &numeric_param_kinds(fn);
+        }
+
+        return index < kinds->size() ? (*kinds)[index] : NumericParam::OTHER;
+    };
 
     for (auto&& arg : va) {
         auto i = arg.stack_index();
@@ -1348,13 +2054,19 @@ std::vector<void*>& build_args(sol::variadic_args va) {
         } else if (lua_type(l, i) == LUA_TSTRING) {
             auto s = lua_tostring(l, i);
             args.push_back(::sdk::VM::create_managed_string(utility::widen(s)));
-        } else if (lua_isinteger(l, i)) {
-            auto n = (intptr_t)lua_tointeger(l, i);
-            args.push_back((void*)n);
-        } else if (lua_isnumber(l, i)) {
-            auto f = lua_tonumber(l, i);
-            auto n = *(intptr_t*)&f;
-            args.push_back((void*)n);
+        } else if (lua_type(l, i) == LUA_TNUMBER) {
+            // Encode by the parameter's type when it is known, not by the Lua subtype: 5 passed to a
+            // System.Single parameter must arrive as 5.0, and 4/2 (a float) passed to System.Int32 as 2.
+            const auto kind = numeric_param(args.size());
+
+            if (lua_isinteger(l, i) && kind != NumericParam::FLOATING) {
+                args.push_back((void*)(intptr_t)lua_tointeger(l, i));
+            } else if (kind == NumericParam::INTEGRAL) {
+                args.push_back((void*)(intptr_t)(int64_t)lua_tonumber(l, i));
+            } else {
+                const double f = lua_tonumber(l, i);
+                args.push_back(*(void**)&f);
+            }
         } else if (arg.is<Vector2f>()) {
             auto& v = arg.as<Vector2f&>();
             args.push_back((void*)&vec_storage.emplace_back(v.x, v.y, 0.0f, 0.0f));
@@ -1391,8 +2103,16 @@ sol::object call_native_func_direct(sol::object obj, ::sdk::REMethodDefinition* 
         return sol::make_object(l, sol::nil);
     }
 
-    auto real_obj = get_real_obj(obj);
-    auto ret_val = fn->invoke(real_obj, build_args(va));
+    ValueType* value_type{};
+    auto real_obj = get_invoke_this(obj, fn, &value_type);
+
+    // A ValueType's `this` depends on the method and the game: ValueType::call_method works it out.
+    if (value_type != nullptr && value_type->type != nullptr) {
+        return value_type->call_method(l, fn, va);
+    }
+
+    const InvokeScope invoke_scope{};
+    auto ret_val = fn->invoke(real_obj, build_args(va, fn));
 
     if (ret_val.exception_thrown) {
         throw sol::error("Invoke threw an exception");
@@ -1551,7 +2271,9 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
         }
     }
 
-    if (auto fn = type_def->get_method("set_Item"); fn != nullptr) {
+    // Arrays go to Set below, which checks the index and the kind of value. Their set_Item does not, and in DMC5
+    // (TDB 67) it is System.Array.set_Item(Int32, Object), which takes an object and faults on anything else.
+    if (auto fn = type_def->get_method("set_Item"); fn != nullptr && !type_def->is_array()) {
         const auto params = fn->get_param_types();
 
         if (!params.empty()) {
@@ -1608,10 +2330,17 @@ void new_index(sol::this_state s, sol::object lua_obj, sol::variadic_args args) 
         }
     }
 
+    // Arrays without Set(Int32, T), the multi-dimensional ones, keep the set_Item they inherit for a string. It is
+    // System.Array.set_Item(Int32, Object): a number or a ValueType is not an object and faults inside the engine.
+    if (auto fn = type_def->get_method("set_Item"); fn != nullptr && type_def->is_array() && assign.get_type() == sol::type::string) {
+        ::api::sdk::call_native_func_direct(lua_obj, fn, args);
+        return;
+    }
+
     throw sol::error("Attempted to new_index invalid REManagedObject field: " + name);
 }
 
-bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
+bool is_valid_offset(::REManagedObject* obj, int32_t offset, uint32_t value_size) {
     if (obj == nullptr || !REManagedObject::is_managed_object(obj)) {
         return false;
     }
@@ -1622,9 +2351,11 @@ bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
         return false;
     }
 
+    // The type's size, except for the kinds whose real size depends on their contents and is known: arrays (elements
+    // after the header) and strings (0x14 + 2 * (length + 1)). Other kinds, delegates included, keep the type's size.
     auto size = typedefinition->get_size();
 
-    if (typedefinition->is_array()) {
+    if (typedefinition->is_array() || typedefinition->get_vm_obj_type() == via::clr::VMObjType::String) {
         size = obj->get_size();
     }
 
@@ -1633,12 +2364,13 @@ bool is_valid_offset(::REManagedObject* obj, int32_t offset) {
         return false;
     }
 
-    return true;
+    // The whole value must fit, not just its first byte.
+    return value_size <= size - (uint32_t)offset;
 }
 
 template <typename T>
 void write_memory(::REManagedObject* obj, int32_t offset, T value) {
-    if (!is_valid_offset(obj, offset)) {
+    if (!is_valid_offset(obj, offset, sizeof(T))) {
         return;
     }
 
@@ -1647,7 +2379,7 @@ void write_memory(::REManagedObject* obj, int32_t offset, T value) {
 
 template <typename T>
 T read_memory(::REManagedObject* obj, int32_t offset) {
-    if (!is_valid_offset(obj, offset)) {
+    if (!is_valid_offset(obj, offset, sizeof(T))) {
         return 0;
     }
 
@@ -1655,16 +2387,41 @@ T read_memory(::REManagedObject* obj, int32_t offset) {
 }
 }
 
+void bindings::scan_wrapper_references(lua_State* l) {
+    detail::scan_wrapper_references(l);
+}
+
 void bindings::open_sdk(ScriptState* s) {
     auto& lua = s->lua();
 
     //lua["_sol_lua_push_objects"] = std::unordered_map<::REManagedObject*, sol::object>();
+    // _sol_lua_push_ephemeral_counts is no longer written (it counted wrappers of local objects for their __gc, which
+    // wrappers no longer have); it stays for scripts and tools that read it.
     lua.do_string(R"(
         _sol_lua_push_objects = setmetatable({}, { __mode = "v" })
-        _sol_lua_push_usertypes = {}
         _sol_lua_push_ref_counts = {}
         _sol_lua_push_ephemeral_counts = {}
     )");
+
+    // The push hot path reaches these through the registry instead of by global name (see detail::s_objects_key).
+    {
+        const auto l = lua.lua_state();
+
+        lua_getglobal(l, "_sol_lua_push_objects");
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_objects_key);
+        lua_getglobal(l, "_sol_lua_push_ref_counts");
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_ref_counts_key);
+
+        // Tracked engine references (detail::WrapperLifetime); the userdata's __gc releases them when the state closes.
+        const auto box = (detail::WrapperLifetimeBox*)lua_newuserdatauv(l, sizeof(detail::WrapperLifetimeBox), 0);
+        box->lifetime = nullptr;
+        lua_createtable(l, 0, 1);
+        lua_pushcfunction(l, &detail::wrapper_lifetime_gc);
+        lua_setfield(l, -2, "__gc");
+        lua_setmetatable(l, -2);
+        box->lifetime = new detail::WrapperLifetime{};
+        lua_rawsetp(l, LUA_REGISTRYINDEX, &detail::s_lifetime_key);
+    }
 
     auto sdk = lua.create_table();
     sdk["get_tdb_version"] = []() -> int { return sdk::RETypeDB::get()->get_version(); };
@@ -1861,8 +2618,15 @@ void bindings::open_sdk(ScriptState* s) {
     auto method_call = [](sdk::REMethodDefinition* def, sol::object obj, sol::variadic_args va) {
         auto l = va.lua_state();
 
-        auto real_obj = ::api::sdk::get_real_obj(obj);
-        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va));
+        ::api::sdk::ValueType* value_type{};
+        auto real_obj = ::api::sdk::get_invoke_this(obj, def, &value_type);
+
+        if (value_type != nullptr && value_type->type != nullptr) {
+            return value_type->call_method(l, def, va);
+        }
+
+        const ::api::sdk::InvokeScope invoke_scope{};
+        auto ret_val = def->invoke(real_obj, ::api::sdk::build_args(va, def));
 
         if (ret_val.exception_thrown) {
             throw sol::error("Invoke threw an exception");
@@ -1957,7 +2721,9 @@ void bindings::open_sdk(ScriptState* s) {
 
             return obj->deserialize_native(data.data(), data.size(), objects);
         },
-        "get_reference_count", [] (::REManagedObject* obj) { return obj->get_ref_count(); },
+        // Without a last release REFramework still owes the engine: 0 right after the last release() (see
+        // REManagedObject::get_visible_ref_count for a game where the engine delays it once more).
+        "get_reference_count", [] (::REManagedObject* obj) { return obj->get_visible_ref_count(); },
         "get_address", [](REManagedObject* obj) { return (uintptr_t)obj; },
         "get_type_definition", [](::REManagedObject* obj) { return obj->get_type_definition(); },
         "get_field", [s](REManagedObject* obj, const char* name) {
@@ -1996,36 +2762,11 @@ void bindings::open_sdk(ScriptState* s) {
         "read_double", &api::re_managed_object::read_memory<double>
     );
 
-    // templated lambda
-    auto create_managed_object_ptr_gc = [&]<detail::ManagedObjectBased T>(T* obj) {
-        lua["__REManagedObjectPtrInternalCreate"] = [s]() -> sol::object {
-            return sol::make_object(s->lua(), (T*)detail::FAKE_OBJECT_ADDR);
-        };
-
-        lua.do_string(R"(
-            local fake_obj = __REManagedObjectPtrInternalCreate()
-            local mt = getmetatable(fake_obj)
-
-            fake_obj = nil
-            collectgarbage("collect")
-
-            mt.__gc = function(obj)
-                obj:release()
-            end
-        )");
-
-        lua["__REManagedObjectPtrInternalCreate"] = sol::make_object(lua, sol::nil);
-    };
-
-    create_managed_object_ptr_gc((::REManagedObject*)nullptr);
-
     lua.new_usertype<REComponent>("REComponent",
         sol::base_classes, sol::bases<::REManagedObject>(),
         sol::meta_function::index, &api::re_managed_object::index,
         sol::meta_function::new_index, &api::re_managed_object::new_index
     );
-
-    create_managed_object_ptr_gc((::REComponent*)nullptr);
 
     lua.new_usertype<RETransform>("RETransform",
         sol::meta_function::index, &api::re_managed_object::index,
@@ -2067,8 +2808,6 @@ void bindings::open_sdk(ScriptState* s) {
         },
         sol::base_classes, sol::bases<::REComponent, ::REManagedObject>()
     );
-
-    create_managed_object_ptr_gc((::RETransform*)nullptr);
 
     lua.new_usertype<sdk::SystemArray>("SystemArray",
         "get_size", &sdk::SystemArray::get_size,
@@ -2115,16 +2854,12 @@ void bindings::open_sdk(ScriptState* s) {
         sol::base_classes, sol::bases<::REManagedObject>()
     );
 
-    create_managed_object_ptr_gc((sdk::SystemArray*)nullptr);
-
     lua.new_usertype<sdk::Delegate>("Delegate",
         "add", &api::delegate::add_lua_delegate,
         "invoke", &sdk::Delegate::invoke,
         sol::meta_function::new_index, &api::delegate::new_index,
         sol::base_classes, sol::bases<::REManagedObject>()
     );
-
-    create_managed_object_ptr_gc((sdk::Delegate*)nullptr);
     
     lua.new_usertype<api::sdk::ValueType>("ValueType",
         sol::meta_function::construct, sol::constructors<api::sdk::ValueType(sdk::RETypeDefinition*)>(),
@@ -2447,8 +3182,6 @@ void bindings::open_sdk(ScriptState* s) {
         }
     );
 
-    create_managed_object_ptr_gc((api::sdk::BehaviorTreeCoreHandle*)nullptr);
-
     lua.new_usertype<api::sdk::BehaviorTree>("BehaviorTree",
         sol::meta_function::index, &api::re_managed_object::index,
         sol::meta_function::new_index, &api::re_managed_object::new_index,
@@ -2463,6 +3196,4 @@ void bindings::open_sdk(ScriptState* s) {
             return ((sdk::behaviortree::BehaviorTree*)tree)->get_trees<api::sdk::BehaviorTreeCoreHandle>();
         }
     );
-
-    create_managed_object_ptr_gc((api::sdk::BehaviorTree*)nullptr);
 }

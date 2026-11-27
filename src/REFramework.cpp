@@ -512,12 +512,6 @@ REFramework::REFramework(HMODULE reframework_module)
         }
     }
 
-    LooseTextureLoader::get().early_initialize();
-
-    if (gi.tdb_ver() >= 81) {
-        FaultyFileDetector::early_init();
-    }
-
     if (gi.is_re8()) {
         auto startup_lookup_thread = std::make_unique<std::thread>([this]() {
             // Fixes a crash on some machines when starting the game
@@ -549,6 +543,16 @@ REFramework::REFramework(HMODULE reframework_module)
 
     if (gi.is_reengine_at()) {
         utility::ThreadSuspender suspender{};
+        IntegrityCheckBypass::PristineSyscalls pristine_syscalls{};
+
+        // Inside the frozen region, so that these hooks and the pak hooks below are in place before the game
+        // mounts its paks. Before it, their scans took long enough for the game to mount first on some setups.
+        LooseTextureLoader::get().early_initialize();
+
+        if (gi.tdb_ver() >= 81) {
+            FaultyFileDetector::early_init();
+        }
+
         IntegrityCheckBypass::ignore_application_entries();
 
         if (gi.is_re8() || gi.is_re4() || gi.is_sf6()) {
@@ -574,6 +578,7 @@ REFramework::REFramework(HMODULE reframework_module)
 
         // Seen in SF6
         IntegrityCheckBypass::remove_stack_destroyer();
+        pristine_syscalls.restore();
         suspender.resume();
     }
 
@@ -1410,7 +1415,9 @@ bool REFramework::on_message(HWND wnd, UINT message, WPARAM w_param, LPARAM l_pa
                 WM_CLOSE,
                 WM_DPICHANGED,
                 WM_SIZING,
-                WM_MOUSEACTIVATE
+                WM_MOUSEACTIVATE,
+                // Not input for the UI. The game refuses SC_MONITORPOWER; DefWindowProc would turn the display off.
+                WM_SYSCOMMAND
             };
 
             if (!forcefully_allowed_messages.contains(message)) {
@@ -1715,6 +1722,17 @@ void REFramework::invalidate_device_objects() {
         ImGui_ImplDX11_InvalidateDeviceObjects();
     } else if (m_renderer_type == RendererType::D3D12) {
         ImGui_ImplDX12_InvalidateDeviceObjects();
+    }
+
+    // The backend just destroyed every texture (TexID cleared, status Destroyed), but this runs on the present thread
+    // after ImGui::Render() built the frame's draw data, which still references them. ImGui would only ask for them
+    // again at the next NewFrame, and the backend's texture catch-up skips Destroyed, so the frame was drawn with a null
+    // texture descriptor (D3D12 debug layer: INVALID_DESCRIPTOR_HANDLE in SetGraphicsRootDescriptorTable). Request them
+    // now, as ImGui's NewFrame does for textures a backend destroyed mid-run.
+    for (auto tex : ImGui::GetPlatformIO().Textures) {
+        if (tex->Status == ImTextureStatus_Destroyed && !tex->WantDestroyNextFrame) {
+            tex->SetStatus(ImTextureStatus_WantCreate);
+        }
     }
 
     m_wants_device_object_cleanup = false;
@@ -2070,7 +2088,7 @@ void REFramework::draw_about() {
 
         for (const auto& license : licenses) {
             if (ImGui::CollapsingHeader(license.name.c_str())) {
-                ImGui::TextWrapped(license.text.c_str());
+                ImGui::TextWrapped("%s", license.text.c_str());
             }
         }
 

@@ -2302,6 +2302,8 @@ struct REField {
     uint32_t get_flags() const;
     uint32_t get_init_data_index() const;
     void* get_init_data() const;
+    // The init data's text when it is in the string table (a literal String's constant), else nullptr.
+    const char* get_init_data_string() const;
     uint32_t get_offset_from_fieldptr() const;
     uint32_t get_offset_from_base() const;
     bool is_static() const;
