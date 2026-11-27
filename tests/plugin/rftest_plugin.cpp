@@ -172,9 +172,19 @@ void Suite::write() const {
         f << "]}";
     }
 
+    // The Lua regression suite (every frame while it waits for this suite) and the runner read the results files, and
+    // the rename can fail while the file is open there (seen once in 51 runs: RE4, "results NOT written", the last
+    // result lost). Retry for up to a second.
     std::filesystem::rename(tmp, path, ec);
-    g_param->functions->log_info("[rftest] %s: DONE pass=%d fail=%d skip=%d (results %s)", name.c_str(), pass, fail, skip,
-        ec ? "NOT written" : "written");
+    const auto first_error = ec ? ec.message() : std::string{};
+    int retries = 0;
+    for (; ec && retries < 50; ++retries) {
+        Sleep(20);
+        std::filesystem::rename(tmp, path, ec);
+    }
+    g_param->functions->log_info("[rftest] %s: DONE pass=%d fail=%d skip=%d (results %s)%s%s", name.c_str(), pass, fail, skip,
+        ec ? "NOT written" : "written", retries > 0 ? fmt(" after %d retries; first rename error: ", retries).c_str() : "",
+        first_error.c_str());
 }
 
 // ----------------------------------------------------------------------------------------------------------------
