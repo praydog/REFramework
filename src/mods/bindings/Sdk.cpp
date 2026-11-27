@@ -1012,8 +1012,15 @@ struct ValueType {
             ret_val = def->invoke(box, std::span(vec_args));
             memcpy(data.data(), (uint8_t*)box + mo_runtime_size, type_vt_size);
         } else if (::sdk::GameIdentity::get().tdb_ver() >= 74) {
-            // Reduce allocation pressure with thread_local.
-            thread_local std::vector<uint8_t> fake_boxed_storage(mo_runtime_size + type_vt_size, 0);
+            // Reduce allocation pressure with thread_local. One per nesting level, as in build_args: a hook callback
+            // inside the call can make another ValueType call, which must not reuse this call's `this`.
+            thread_local std::deque<std::vector<uint8_t>> fake_boxed_levels{};
+
+            while (fake_boxed_levels.size() <= ::api::sdk::InvokeScope::s_depth) {
+                fake_boxed_levels.emplace_back();
+            }
+
+            auto& fake_boxed_storage = fake_boxed_levels[::api::sdk::InvokeScope::s_depth];
 
             if (fake_boxed_storage.size() < mo_runtime_size + type_vt_size) {
                 fake_boxed_storage.resize(mo_runtime_size + type_vt_size);

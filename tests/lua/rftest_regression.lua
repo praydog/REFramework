@@ -974,6 +974,71 @@ do
 end
 
 -------------------------------------------------------------------------------------------------------------------
+-- A ValueType call made from a hook callback must leave the ValueType call it interrupts alone. From TDB 74 on, a
+-- ValueType method gets `this` from a copy of the value in a buffer REFramework keeps per thread, and every call used
+-- the same one: a second ValueType call from a hook on the first one's method wrote its value there, and the first
+-- method then ran on that. The outer System.Guid.ToString() returned the inner value's string and the outer value's
+-- bytes became the inner value's (MMSF and PRAGMATA, 8 of 8). Two inner calls: a value of the same size (a Guid) and a
+-- smaller one (an Int32). Before TDB 74 the value itself is `this` and no such buffer is used: there this passes with
+-- and without the fix and covers only build_args' per-level buffers under nested ValueType calls.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local guid_t = sdk.find_type_definition("System.Guid")
+    local i32_t = sdk.find_type_definition("System.Int32")
+    local to_string = guid_t and guid_t:get_method("ToString()")
+    local armed, armed_tid, inner = false, nil, nil
+
+    local function guid(first)
+        local v = ValueType.new(guid_t)
+        for i = 0, 15 do v:write_byte(i, (first + i) & 0xFF) end
+        return v
+    end
+    local function hex16(v)
+        local p = {}
+        for i = 0, 15 do p[#p + 1] = string.format("%02x", v:read_byte(i)) end
+        return table.concat(p)
+    end
+
+    if to_string then
+        sdk.hook(to_string, function(args)
+            -- The game formats Guids too, on any thread: only the test's own call counts.
+            if not armed or thread.get_id() ~= armed_tid then return end
+            armed = false
+            local ok, r = pcall(inner.call)
+            inner.fired, inner.result = true, ok and r or ("raised: " .. tostring(r))
+        end, function(retval) return retval end)
+    end
+
+    S:frame_test("a ValueType call made from a hook leaves the outer call's value alone", function(frame)
+        local missing = not to_string and "System.Guid.ToString()" or not guid_t:get_method("GetHashCode()") and "System.Guid.GetHashCode()"
+            or not (i32_t and i32_t:get_method("ToString()")) and "System.Int32.ToString()" or nil
+        if missing then H.skip(missing .. " is not in this game") end
+        if frame < 5 then return false end
+        local cases = {
+            { "a Guid's GetHashCode()", function() return guid(0xF0):call("GetHashCode()") end },
+            { "an Int32's ToString()", function()
+                local b = ValueType.new(i32_t)
+                b:write_dword(0, 0x11223344)
+                return b:call("ToString()")
+            end, "287454020" },
+        }
+        for _, c in ipairs(cases) do
+            local a = guid(0x00)
+            inner = { call = c[2] }
+            armed, armed_tid = true, thread.get_id()
+            local ok, outer = pcall(function() return a:call("ToString()") end)
+            armed = false
+            H.truthy(ok, "outer call: " .. tostring(outer))
+            H.truthy(inner.fired, "hook on System.Guid.ToString() fired for the test's own call")
+            H.eq(outer, "03020100-0504-0706-0809-0a0b0c0d0e0f", "outer Guid.ToString() with " .. c[1] .. " made from its hook")
+            H.eq(hex16(a), "000102030405060708090a0b0c0d0e0f", "outer value's bytes after the call with " .. c[1] .. " inside")
+            if c[3] then H.eq(inner.result, c[3], c[1] .. " made from the hook") end
+        end
+        return true
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
 -- imgui bindings. Each check runs inside a window in a frame test.
 -------------------------------------------------------------------------------------------------------------------
 local function width_of(draw)
