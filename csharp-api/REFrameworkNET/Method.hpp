@@ -94,13 +94,25 @@ public:
 
     /// <returns>The declaring <see cref="TypeDefinition"/> of the method.</returns>
     TypeDefinition^ GetDeclaringType() {
-        auto result = m_method->get_declaring_type();
+        if (m_declaringType == nullptr) {
+            m_lock->EnterWriteLock();
 
-        if (result == nullptr) {
-            return nullptr;
+            try {
+                if (m_declaringType == nullptr) {
+                    auto result = m_method->get_declaring_type();
+
+                    if (result == nullptr) {
+                        return nullptr;
+                    }
+
+                    m_declaringType = TypeDefinition::GetInstance(result);
+                }
+            } finally {
+                m_lock->ExitWriteLock();
+            }
         }
 
-        return TypeDefinition::GetInstance(result);
+        return m_declaringType;
     }
 
     property TypeDefinition^ DeclaringType {
@@ -324,5 +336,6 @@ private:
 
     System::Threading::ReaderWriterLockSlim^ m_lock{gcnew System::Threading::ReaderWriterLockSlim()};
     TypeDefinition^ m_returnType{nullptr};
+    TypeDefinition^ m_declaringType{nullptr};
 };
 }
