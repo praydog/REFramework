@@ -1,5 +1,4 @@
-# REFramework [![Build status](https://github.com/praydog/reframework/actions/workflows/dev-release.yml/badge.svg)](https://github.com/praydog/REFramework-nightly/releases)
-A mod framework, scripting platform, and modding tool for RE Engine games. Inspired by and uses code from [Kanan](https://github.com/cursey/kanan-new)
+
 
 ## Installation
 The last stable build can be downloaded from the [Releases](https://github.com/praydog/REFramework/releases) page.
