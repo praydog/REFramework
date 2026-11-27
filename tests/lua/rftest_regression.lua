@@ -9,8 +9,9 @@
 -- Needs from the runner (tests/run/Run-RFTests.ps1):
 --   reframework/data/rftest_loadlib.dll   any loadable DLL (the runner copies one); without it the package.loadlib
 --                                         tests fail.
---   reframework/plugins/rftest_plugin.dll the plugin suite's DLL: it registers rftest_peek (a guarded memory read);
---                                         without it the local page test fails.
+--   reframework/plugins/rftest_plugin.dll the plugin suite's DLL: it registers rftest_peek (a guarded memory read) and
+--                                         rftest_poke (its write); without it the local page test and the struct
+--                                         result test fail.
 -- Side effect on unfixed builds: the root-relative write tests create \rftest_escape\ at the root of the game's
 -- drive; the Windows runner removes it. Tests that would corrupt memory on an unfixed build are not run there, except
 -- "require inside a coroutine that is collected afterwards": its failure is the corruption, so it runs after every
@@ -1162,6 +1163,61 @@ do
             end
             return true
         end, 680, 500)
+    end)
+end
+
+-------------------------------------------------------------------------------------------------------------------
+-- A struct result that a pre-hook writes into the return buffer (args[1]) before it skips the original must reach the
+-- caller. A hook's argument list ends with 2 spare slots after the method's parameters, and after the pre-hooks the
+-- hook wrote every stack slot back to the caller's frame, the spare ones too. A spare slot can be the caller's own
+-- memory: in PRAGMATA the game's caller of via.vec3.op_Multiply, and REFramework's own invoke of op_Addition and
+-- op_Subtraction, pass a return buffer that lies exactly on the 2 spare slots, so the write-back put what the slots
+-- held before the pre-hook over the result (a SKIP_ORIGINAL hook writing the result lost 13,417 of 63,374 at
+-- PRAGMATA's title screen). The test hooks op_Subtraction and acts only on its own call: the pre-hook writes
+-- (11.5, 22.5, 33.5) into the buffer through the plugin's rftest_poke and skips the original, the post-hook returns the
+-- buffer as the original does. Red without the fix in 13 of the 20 games (RE4, RE9, SF6, MH Wilds, MH Stories 3, DD2,
+-- PRAGMATA, Kunitsu-Gami, Ace Attorney 456, Onimusha 2, DRDR, Onimusha WotS, MMSF); in RE2, RE3, RE7, RE8, DMC5,
+-- MH Rise and Ghosts 'n Goblins Resurrection it passes with and without the fix.
+-------------------------------------------------------------------------------------------------------------------
+do
+    local vec3_t = sdk.find_type_definition("via.vec3")
+    local sub = vec3_t and vec3_t:get_method("op_Subtraction(via.vec3, via.vec3)")
+    local WRITE = { 11.5, 22.5, 33.5 }
+    local armed_tid, seen = nil, nil
+
+    if sub then
+        sdk.hook(sub, function(args)
+            -- The game subtracts vectors too, on any thread: only the test's own call counts.
+            if armed_tid == nil or thread.get_id() ~= armed_tid then return end
+            seen.pre, seen.buffer, seen.poke = true, sdk.to_int64(args[1]), rftest_poke ~= nil
+            if not seen.poke then return end
+            for i, f in ipairs(WRITE) do
+                if not rftest_poke(seen.buffer + 4 * (i - 1), (string.unpack("<I4", string.pack("<f", f))), 4) then
+                    seen.poke_failed = true
+                end
+            end
+            return sdk.PreHookResult.SKIP_ORIGINAL
+        end, function(retval)
+            if armed_tid == nil or thread.get_id() ~= armed_tid or not seen.pre then return retval end
+            seen.post = true
+            return sdk.to_ptr(seen.buffer)
+        end)
+    end
+
+    S:frame_test("a struct result a pre-hook writes before skipping the original reaches the caller", function(frame)
+        if sub == nil then H.skip("via.vec3.op_Subtraction(via.vec3, via.vec3) is not in this game") end
+        if frame < 5 then return false end
+        seen = {}
+        armed_tid = thread.get_id()
+        local ok, r = pcall(sub.call, sub, nil, Vector3f.new(9, 9, 9), Vector3f.new(1, 2, 3))
+        armed_tid = nil
+        if not ok then error(r, 0) end
+        H.truthy(seen.pre, "the hook fired for the test's own call")
+        H.truthy(seen.poke, "rftest_poke is registered (the plugin suite registers it)")
+        H.truthy(not seen.poke_failed, string.format("rftest_poke wrote the return buffer at 0x%x", seen.buffer))
+        H.truthy(seen.post, "post hook ran")
+        H.eq(string.format("(%g, %g, %g)", r.x, r.y, r.z), "(11.5, 22.5, 33.5)", "result, written by the pre-hook (the original's is (8, 7, 6))")
+        return string.format("return buffer 0x%x", seen.buffer)
     end)
 end
 

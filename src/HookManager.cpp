@@ -268,7 +268,7 @@ std::vector<HookManager::HookedFn::ArgSlot> HookManager::HookedFn::get_arg_slots
         const bool by_value = i >= param_modifiers.size() || param_modifiers[i] == sdk::REMethodDefinition::ParamModifier::None;
         const bool is_float = i < num_params && i < param_types.size() && by_value && is_float_type(param_types[i]);
 
-        slots.push_back({position++, is_float});
+        slots.push_back({position++, is_float, i >= num_params});
     }
 
     return slots;
@@ -435,12 +435,44 @@ void HookManager::create_jitted_facilitator(std::unique_ptr<HookManager::HookedF
     a.sub(rsp, STACK_STORAGE_AMOUNT);
     a.and_(rsp, -16);
 
+    // A spare slot on the stack is not known to be an argument: it can be the caller's own data (a struct return
+    // buffer, a local), which the pre-hook can change through a pointer. Keep what each held, in this frame (above
+    // the callee's home space), to tell afterwards whether the pre-hook set the slot.
+    int32_t spare_offset = 0;
+
+    for (const auto& slot : slots) {
+        if (slot.spare && slot.position >= 4) {
+            spare_offset -= (int32_t)sizeof(void*);
+            a.mov(r11, ptr(rbx, sizeof(void*) * 2 + slot.position * 8)); // rbx: one push below the entry rsp
+            a.mov(ptr(rbx, spare_offset), r11);
+        }
+    }
+
     // Call on_pre_hook.
     a.mov(rcx, ptr(hook_label));
     a.call(ptr(on_pre_hook_label));
 
     // Save the return value so we can see if we need to call the original later.
     a.mov(r11, rax);
+
+    // A spare slot the pre-hook did not set is read again from the stack, so that the restore below puts back what
+    // is there now, not what was there before the pre-hook ran.
+    spare_offset = 0;
+
+    for (const auto& slot : slots) {
+        if (slot.spare && slot.position >= 4) {
+            const auto set_by_hook = a.newLabel();
+
+            spare_offset -= (int32_t)sizeof(void*);
+            a.mov(rax, ptr(r12)); // args ptr
+            a.mov(rcx, ptr(rax, slot.position * 8));
+            a.cmp(rcx, ptr(rbx, spare_offset));
+            a.jne(set_by_hook);
+            a.mov(rcx, ptr(rbx, sizeof(void*) * 2 + slot.position * 8));
+            a.mov(ptr(rax, slot.position * 8), rcx);
+            a.bind(set_by_hook);
+        }
+    }
     
     // restore rsp
     a.mov(rsp, rbx);
