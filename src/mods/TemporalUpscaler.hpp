@@ -89,8 +89,13 @@ public:
         Performance,
         Balanced,
         Quality,
-        UltraPerformance
+        UltraPerformance,
+        Native // not a level of the backend: render at full resolution and only anti-alias (DLAA)
     };
+
+    bool is_native() const {
+        return m_upscale_quality->value() == (int32_t)PDPerfQualityLevel::Native;
+    }
 
 
 private:
@@ -216,18 +221,21 @@ private:
         ModSlider::create(generate_name("SharpnessAmount"), 0.0f, 5.0f, 0.0f)
     };
 
+    // No longer shown: native resolution is an entry in Quality Level now. Kept so that a config
+    // saved with the old checkbox ticked can be carried over (see on_config_load).
     const ModToggle::Ptr m_use_native_resolution{
         ModToggle::create(generate_name("UseNativeResolution"), false)
     };
 
-    const ModCombo::Ptr m_upscale_quality{ 
+    const ModCombo::Ptr m_upscale_quality{
         ModCombo::create(generate_name("UpscaleQuality"),
         {
             "Performance",
             "Balanced",
             "Quality",
-            "Ultra Performance"
-        }, (int32_t)PDPerfQualityLevel::Balanced) 
+            "Ultra Performance",
+            "DLAA (native resolution)"
+        }, (int32_t)PDPerfQualityLevel::Balanced)
     };
 
      ValueList m_options{
