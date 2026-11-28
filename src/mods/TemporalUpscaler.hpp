@@ -89,8 +89,13 @@ public:
         Performance,
         Balanced,
         Quality,
-        UltraPerformance
+        UltraPerformance,
+        Native // not a level of the backend: render at full resolution and only anti-alias (DLAA)
     };
+
+    bool is_native() const {
+        return m_upscale_quality->value() == (int32_t)PDPerfQualityLevel::Native;
+    }
 
 
 private:
@@ -107,6 +112,7 @@ private:
     uint32_t get_render_width() const;
     uint32_t get_render_height() const;
     void update_motion_scale();
+    void select_upscale_method(uint32_t index); // index into m_available_upscale_method_names
 
     void on_render_resource_release(sdk::renderer::RenderResource* resource);
     void finish_release_resources();
@@ -216,18 +222,28 @@ private:
         ModSlider::create(generate_name("SharpnessAmount"), 0.0f, 5.0f, 0.0f)
     };
 
+    // No longer shown: native resolution is an entry in Quality Level now. Kept so that a config
+    // saved with the old checkbox ticked can be carried over (see on_config_load).
     const ModToggle::Ptr m_use_native_resolution{
         ModToggle::create(generate_name("UseNativeResolution"), false)
     };
 
-    const ModCombo::Ptr m_upscale_quality{ 
+    const ModCombo::Ptr m_upscale_quality{
         ModCombo::create(generate_name("UpscaleQuality"),
         {
-            "Performance",
-            "Balanced",
-            "Quality",
-            "Ultra Performance"
-        }, (int32_t)PDPerfQualityLevel::Balanced) 
+            // The share of the screen resolution the game renders at, per axis (the backend's table).
+            "Performance (50%)",
+            "Balanced (58%)",
+            "Quality (67%)",
+            "Ultra Performance (33%)",
+            "DLAA (100%, native resolution)"
+        }, (int32_t)PDPerfQualityLevel::Balanced)
+    };
+
+    // The upscale method in use (a PDUpscaleType), so the next start comes up with the same one.
+    // Not drawn: "Upscale Type" in the menu sets it.
+    const ModInt32::Ptr m_saved_upscale_type{
+        ModInt32::create(generate_name("UpscaleType"), (uint32_t)PDUpscaleType::DLSS)
     };
 
      ValueList m_options{
@@ -235,6 +251,7 @@ private:
         *m_sharpness,
         *m_sharpness_amount,
         *m_use_native_resolution,
-        *m_upscale_quality
+        *m_upscale_quality,
+        *m_saved_upscale_type
      };
 };

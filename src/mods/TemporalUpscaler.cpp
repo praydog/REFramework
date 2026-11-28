@@ -95,6 +95,20 @@ void TemporalUpscaler::on_config_load(const utility::Config& cfg) {
         option.config_load(cfg);
     }
 
+    // "Use Native Res (DLAA)" used to be a checkbox of its own. Carry a ticked one over to Quality Level.
+    if (m_use_native_resolution->value()) {
+        m_use_native_resolution->value() = false;
+        m_upscale_quality->value() = (int32_t)PDPerfQualityLevel::Native;
+    }
+
+    // Start with the method that was in use last time, if it is still there. Only before the first frame:
+    // later the menu is the way to change it.
+    for (uint32_t i = 0; i < m_available_upscale_method_names.size() && !m_first_frame_finished; ++i) {
+        if ((int32_t)m_available_upscale_methods[m_available_upscale_method_names[i]] == m_saved_upscale_type->value()) {
+            select_upscale_method(i);
+        }
+    }
+
     if (!ready()) {
         return;
     }
@@ -130,19 +144,24 @@ void TemporalUpscaler::on_draw_ui() {
     //ImGui::Checkbox("Enabled", &m_enabled);
     m_enabled->draw("Enabled");
 
+    if (m_first_frame_finished && !m_initialized) {
+        ImGui::TextWrapped("%s", "The upscaler could not be created (see re2_framework_log.txt). "
+                                 "It tries again when the resolution or display mode changes, or when the game is restarted.");
+    }
+
     if (!ready()) {
         return;
     }
-    
-    //if (ImGui::Checkbox("Use Native Res (DLAA)", &m_use_native_resolution)) {
-    if (m_use_native_resolution->draw("Use Native Res (DLAA)")) {
-        update_motion_scale();
-    }
+
+    ImGui::Text("%s: rendering %ux%u, output %ux%u%s",
+        m_available_upscale_method_names[m_available_upscale_type].c_str(),
+        get_render_width(), get_render_height(), m_backbuffer_size[0], m_backbuffer_size[1],
+        is_native() ? " (DLAA)" : "");
 
     //if (ImGui::Checkbox("Sharpness", &m_sharpness)) {
     if (m_sharpness->draw("Sharpness")) {
+        // The next present creates the features again, with the new setting.
         release_upscale_features();
-        init_upscale_features();
     }
 
     //ImGui::DragFloat("Sharpness Amount", &m_sharpness_amount, 0.01f, 0.0f, 5.0f);
@@ -158,16 +177,13 @@ void TemporalUpscaler::on_draw_ui() {
     }
     
     if (ImGui::Combo("Upscale Type", (int*)&m_available_upscale_type, imgui_combo_names.data(), imgui_combo_names.size())) {
-        if (m_available_upscale_type < 0 || m_available_upscale_type > m_available_upscale_method_names.size()) {
-            m_available_upscale_type = 0;
-            m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[0]];
-        } else {
-            m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[m_available_upscale_type]];
-        }
+        select_upscale_method(m_available_upscale_type < m_available_upscale_method_names.size() ? m_available_upscale_type : 0);
+        // Remembered for the next start (see on_config_load).
+        m_saved_upscale_type->value() = (int32_t)m_upscale_type;
 
+        // The next present creates the features again, for the new method.
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         release_upscale_features();
-        init_upscale_features();
     }
 
     /*if (ImGui::Combo("Quality Level", (int*)&m_upscale_quality, "Performance\0Balanced\0Quality\0UltraPerformance\0")) {
@@ -176,13 +192,40 @@ void TemporalUpscaler::on_draw_ui() {
         init_upscale_features();
     }*/
 
-    if (m_upscale_quality->draw("Quality Level")) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        release_upscale_features();
-        init_upscale_features();
+    // Listed from the highest render resolution to the lowest. The stored value keeps the backend's own
+    // numbering, so settings saved by other builds still mean the same thing.
+    static constexpr std::array<int32_t, 5> quality_order{
+        PDPerfQualityLevel::Native,
+        PDPerfQualityLevel::Quality,
+        PDPerfQualityLevel::Balanced,
+        PDPerfQualityLevel::Performance,
+        PDPerfQualityLevel::UltraPerformance,
+    };
+
+    auto& quality = m_upscale_quality->value();
+    const auto& quality_names = m_upscale_quality->options();
+    auto quality_changed = false;
+
+    if (ImGui::BeginCombo("Quality Level", quality_names[quality])) {
+        for (const auto level : quality_order) {
+            if (ImGui::Selectable(quality_names[level], level == quality) && level != quality) {
+                quality = level;
+                quality_changed = true;
+            }
+        }
+
+        ImGui::EndCombo();
+    } else if (ImGui::IsItemHovered()) {
+        // Always through "%s": SetTooltip takes a printf format, and a stray percent sign in it aborts the game.
+        ImGui::SetTooltip("%s", "The percentage is the share of the screen resolution the game renders at, in each direction.\n"
+                                "Below 100% the picture is upscaled. DLAA renders at full resolution and only smooths edges.");
     }
 
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    if (quality_changed) {
+        // The next present creates the features again, for the new level.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        release_upscale_features();
+    }
 
     if (ImGui::TreeNode("Debug Options")) {
         ImGui::Checkbox("Upscale", &m_upscale);
@@ -339,7 +382,8 @@ void TemporalUpscaler::on_early_present() {
     }
 
     if (m_wants_reinitialize) {
-        init_upscale_features();
+        // If this fails the upscaler stays off (ready() is false) until the next device reset asks again.
+        m_initialized = init_upscale_features();
         m_wants_reinitialize = false;
         return;
     }
@@ -625,6 +669,11 @@ bool TemporalUpscaler::on_first_frame() {
     return true;
 }
 
+void TemporalUpscaler::select_upscale_method(uint32_t index) {
+    m_available_upscale_type = index;
+    m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[index]];
+}
+
 bool TemporalUpscaler::init_upscale_features() {
     spdlog::info("[TemporalUpscaler] Initializing upscale features...");
 
@@ -689,7 +738,9 @@ bool TemporalUpscaler::init_upscale_features() {
     InitParams params{};
     params.id = get_evaluate_id(0);
     params.upscaleMethod = m_upscale_type;
-    params.qualityLevel = m_upscale_quality->value();
+    // The backend only knows the four scaled levels. Native resolution runs on a Balanced feature,
+    // as it always did with the old checkbox, and is simply handed full-size frames.
+    params.qualityLevel = is_native() ? (int32_t)PDPerfQualityLevel::Balanced : m_upscale_quality->value();
     params.displaySizeX = out_w;
     params.displaySizeY = out_h;
     params.format = out_format;
@@ -705,6 +756,11 @@ bool TemporalUpscaler::init_upscale_features() {
     if (VR::get()->is_hmd_active()) {
         params.id = get_evaluate_id(1);
         m_upscaled_textures[1] = InitUpscaler(&params);
+    }
+
+    if (m_upscaled_textures[0] == nullptr) {
+        spdlog::error("[TemporalUpscaler] The upscaler could not be created");
+        return false;
     }
 
     update_motion_scale();
@@ -951,13 +1007,15 @@ void TemporalUpscaler::on_scene_layer_update(sdk::renderer::layer::Scene* layer,
     const auto evaluate_index = evaluate_id - 1;
 
     const auto phase = GetJitterPhaseCount(evaluate_id);
-    const auto w = (float)GetRenderWidth(evaluate_id);
-    const auto h = (float)GetRenderHeight(evaluate_id);
+    // The size the game really renders at. With DLAA that is not the size the backend reports for the
+    // quality level, and the camera would be moved further than the upscaler is told.
+    const auto w = (float)get_render_width();
+    const auto h = (float)get_render_height();
 
     float x = 0.0f;
     float y = 0.0f;
 
-    if (m_jitter) {
+    if (m_jitter && w > 0.0f && h > 0.0f) {
         m_jitter_indices[evaluate_index]++;
         GetJitterOffset(&x, &y, m_jitter_indices[evaluate_index], phase);
 
@@ -1452,7 +1510,7 @@ void TemporalUpscaler::update_extra_scene_layer() {
 }
 
 uint32_t TemporalUpscaler::get_render_width() const {
-    if (m_use_native_resolution->value()) {
+    if (is_native()) {
         // we subtract 1 from the native res because
         // the game will create a separate color buffer we can use
         // otherwise it will be null.
@@ -1463,7 +1521,7 @@ uint32_t TemporalUpscaler::get_render_width() const {
 }
 
 uint32_t TemporalUpscaler::get_render_height() const {
-    if (m_use_native_resolution->value()) {
+    if (is_native()) {
         return m_backbuffer_size[1] - 1;
     }
     
