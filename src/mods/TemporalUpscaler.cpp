@@ -101,6 +101,14 @@ void TemporalUpscaler::on_config_load(const utility::Config& cfg) {
         m_upscale_quality->value() = (int32_t)PDPerfQualityLevel::Native;
     }
 
+    // Start with the method that was in use last time, if it is still there. Only before the first frame:
+    // later the menu is the way to change it.
+    for (uint32_t i = 0; i < m_available_upscale_method_names.size() && !m_first_frame_finished; ++i) {
+        if ((int32_t)m_available_upscale_methods[m_available_upscale_method_names[i]] == m_saved_upscale_type->value()) {
+            select_upscale_method(i);
+        }
+    }
+
     if (!ready()) {
         return;
     }
@@ -145,6 +153,11 @@ void TemporalUpscaler::on_draw_ui() {
         return;
     }
 
+    ImGui::Text("%s: rendering %ux%u, output %ux%u%s",
+        m_available_upscale_method_names[m_available_upscale_type].c_str(),
+        get_render_width(), get_render_height(), m_backbuffer_size[0], m_backbuffer_size[1],
+        is_native() ? " (DLAA)" : "");
+
     //if (ImGui::Checkbox("Sharpness", &m_sharpness)) {
     if (m_sharpness->draw("Sharpness")) {
         // The next present creates the features again, with the new setting.
@@ -164,12 +177,9 @@ void TemporalUpscaler::on_draw_ui() {
     }
     
     if (ImGui::Combo("Upscale Type", (int*)&m_available_upscale_type, imgui_combo_names.data(), imgui_combo_names.size())) {
-        if (m_available_upscale_type < 0 || m_available_upscale_type > m_available_upscale_method_names.size()) {
-            m_available_upscale_type = 0;
-            m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[0]];
-        } else {
-            m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[m_available_upscale_type]];
-        }
+        select_upscale_method(m_available_upscale_type < m_available_upscale_method_names.size() ? m_available_upscale_type : 0);
+        // Remembered for the next start (see on_config_load).
+        m_saved_upscale_type->value() = (int32_t)m_upscale_type;
 
         // The next present creates the features again, for the new method.
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -182,13 +192,40 @@ void TemporalUpscaler::on_draw_ui() {
         init_upscale_features();
     }*/
 
-    if (m_upscale_quality->draw("Quality Level")) {
+    // Listed from the highest render resolution to the lowest. The stored value keeps the backend's own
+    // numbering, so settings saved by other builds still mean the same thing.
+    static constexpr std::array<int32_t, 5> quality_order{
+        PDPerfQualityLevel::Native,
+        PDPerfQualityLevel::Quality,
+        PDPerfQualityLevel::Balanced,
+        PDPerfQualityLevel::Performance,
+        PDPerfQualityLevel::UltraPerformance,
+    };
+
+    auto& quality = m_upscale_quality->value();
+    const auto& quality_names = m_upscale_quality->options();
+    auto quality_changed = false;
+
+    if (ImGui::BeginCombo("Quality Level", quality_names[quality])) {
+        for (const auto level : quality_order) {
+            if (ImGui::Selectable(quality_names[level], level == quality) && level != quality) {
+                quality = level;
+                quality_changed = true;
+            }
+        }
+
+        ImGui::EndCombo();
+    } else if (ImGui::IsItemHovered()) {
+        // Always through "%s": SetTooltip takes a printf format, and a stray percent sign in it aborts the game.
+        ImGui::SetTooltip("%s", "The percentage is the share of the screen resolution the game renders at, in each direction.\n"
+                                "Below 100% the picture is upscaled. DLAA renders at full resolution and only smooths edges.");
+    }
+
+    if (quality_changed) {
         // The next present creates the features again, for the new level.
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         release_upscale_features();
     }
-
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
 
     if (ImGui::TreeNode("Debug Options")) {
         ImGui::Checkbox("Upscale", &m_upscale);
@@ -630,6 +667,11 @@ bool TemporalUpscaler::on_first_frame() {
     m_initialized = true;
 
     return true;
+}
+
+void TemporalUpscaler::select_upscale_method(uint32_t index) {
+    m_available_upscale_type = index;
+    m_upscale_type = (PDUpscaleType)m_available_upscale_methods[m_available_upscale_method_names[index]];
 }
 
 bool TemporalUpscaler::init_upscale_features() {

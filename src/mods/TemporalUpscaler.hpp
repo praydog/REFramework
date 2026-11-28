@@ -112,6 +112,7 @@ private:
     uint32_t get_render_width() const;
     uint32_t get_render_height() const;
     void update_motion_scale();
+    void select_upscale_method(uint32_t index); // index into m_available_upscale_method_names
 
     void on_render_resource_release(sdk::renderer::RenderResource* resource);
     void finish_release_resources();
@@ -230,12 +231,19 @@ private:
     const ModCombo::Ptr m_upscale_quality{
         ModCombo::create(generate_name("UpscaleQuality"),
         {
-            "Performance",
-            "Balanced",
-            "Quality",
-            "Ultra Performance",
-            "DLAA (native resolution)"
+            // The share of the screen resolution the game renders at, per axis (the backend's table).
+            "Performance (50%)",
+            "Balanced (58%)",
+            "Quality (67%)",
+            "Ultra Performance (33%)",
+            "DLAA (100%, native resolution)"
         }, (int32_t)PDPerfQualityLevel::Balanced)
+    };
+
+    // The upscale method in use (a PDUpscaleType), so the next start comes up with the same one.
+    // Not drawn: "Upscale Type" in the menu sets it.
+    const ModInt32::Ptr m_saved_upscale_type{
+        ModInt32::create(generate_name("UpscaleType"), (uint32_t)PDUpscaleType::DLSS)
     };
 
      ValueList m_options{
@@ -243,6 +251,7 @@ private:
         *m_sharpness,
         *m_sharpness_amount,
         *m_use_native_resolution,
-        *m_upscale_quality
+        *m_upscale_quality,
+        *m_saved_upscale_type
      };
 };
